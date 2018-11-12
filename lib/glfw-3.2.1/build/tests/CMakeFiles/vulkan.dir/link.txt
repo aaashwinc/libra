@@ -1,0 +1,1 @@
+/usr/bin/cc   -rdynamic CMakeFiles/vulkan.dir/vulkan.c.o  -o vulkan -Wl,-rpath,/home/ashwin/vulkan/1.1.82.1/x86_64/lib ../src/libglfw3.a /home/ashwin/vulkan/1.1.82.1/x86_64/lib/libvulkan.so -lrt -lm -ldl -lX11 -lpthread -lXrandr -lXinerama -lXxf86vm -lXcursor 
