@@ -10,7 +10,6 @@
 #include "view.h"
 
 
-
 void handle_keys(){
   // if(sf::Keyboard::isKeyPressed(sf::Keyboard::Left)){
   //   std::cout << "left" << std::endl;
@@ -21,12 +20,26 @@ int main(){
 
   View view(350,350);
   view.camera.set(vec3(-4,10,7), vec3(1,0,0), vec3(0,0,1));
-  Experiment experiment("/home/ashwin/repo/neurons/data/?.nrrd",3,0,0);
+  Experiment experiment("/home/ashwin/repo/neurons/data/?.nrrd",3,0,3,2);
   view.setExperiment(&experiment);
   // view.render();
+  view.movetime(0);
   printf("begin vis\n");
-  view.setvolume(0);
   view.raytrace();
+
+  sf::Clock clock;
+  sf::Font font;
+  sf::Text text;
+  if (!font.loadFromFile("../rsc/CallingCode-Regular.ttf")){
+    printf("Error loading font. Exit.\n");
+    exit(0);
+  }
+  text.setFont(font);
+  text.setString("Loading...");
+  text.setCharacterSize(16);
+  text.setFillColor(sf::Color::White);
+  text.setStyle(sf::Text::Bold);
+
 
   if(true && false){
     sf::Event event;
@@ -34,7 +47,6 @@ int main(){
     int i=0;
     for(i=0;i<15;i++){
       while (window.pollEvent(event));
-      sf::Clock clock;
       sf::Time elapsed1 = clock.getElapsedTime();
       view.raytrace();
       sf::Time elapsed2 = clock.getElapsedTime();
@@ -112,19 +124,26 @@ int main(){
       } 
       if(sf::Keyboard::isKeyPressed(sf::Keyboard::O)){
         render=true;
-        view.timestep++;
+        view.movetime(1);
       }
       if(sf::Keyboard::isKeyPressed(sf::Keyboard::P)){
+        // printf("<<P>>\n");
         render=true;
-        view.timestep--;
+        view.movetime(-1);
       }
       if(render){
+        sf::Time elapsed1 = clock.getElapsedTime();
         view.raytrace();
+        sf::Time elapsed2 = clock.getElapsedTime();
+        double time = (elapsed2.asSeconds() - elapsed1.asSeconds());
+        int ms = time*1000;
+        text.setString(std::to_string(ms)+"ms");
       }
     }
 
     window.clear();
     window.draw(view.getSprite());
+    window.draw(text);
     window.display();
   }
 

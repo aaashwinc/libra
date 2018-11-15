@@ -5,15 +5,24 @@
 #include <string>
 #include <map>
 
-
+struct NrrdFrame{
+  int n;
+  long accessed;
+  std::string path;
+  Nrrd* nrrd;
+};
 class Experiment{
 public:
-  Nrrd** nrrds;
-  Experiment(std::string path, int digits, int low, int high);
-  Nrrd* load_nrrd(std::string *path, int digits, int n);
+  Experiment(std::string path, int digits, int low, int high, int mem_cap);
+  NrrdFrame* frames;
+  Nrrd* get(int n);
+  int low;
+  int high;
 private:
-  
-  Nrrd* load_nrrd(const char *filename);
+  std::string *paths;
+  int nframes;
+  int npaths;
+  long time;
 };
 
 #endif

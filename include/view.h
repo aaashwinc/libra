@@ -41,6 +41,7 @@ private:
   sf::Sprite  sprite;
   sf::Texture texture;
   Experiment *experiment;
+  int timestep;
 
   struct{
     Nrrd *n;
@@ -57,12 +58,12 @@ public:
   Colormap colormap;
 
   float position;
-  int timestep;
   float sample(int t, int c, float x, float y, float z, float defaultv=0.f, bool normalize=true);
   float qsample(int c, float x, float y, float z);
-  void setvolume(int n);
+  void setvolume(Nrrd *nrrd);
   void render();
   void moveforward(float v);
+  void movetime(int n);
   void move(vec3 v);
   void turn(float r);
   void raytrace();

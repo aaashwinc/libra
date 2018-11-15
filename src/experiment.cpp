@@ -6,17 +6,9 @@
 #include <cstdio>
 #include <cmath>
 
-Experiment::Experiment(std::string path){
-  nrrds = new Nrrd*[1];
-  for(int i=0;i<1;++i){
-    nrrds[i] = 0;
-  }
-}
-void Experiment::unload_nnrd(int n){
-  nrrdNuke(nrrds[n]);
-  nrrds[n] = 0;
-}
-Nrrd* Experiment::load_nrrd(const char *filename){
+// nrrdNuke(nrrds[n]);
+
+static Nrrd* load_nrrd(const char *filename){
   printf("load %s\n", filename);
   Nrrd *nrrd = nrrdNew();
   if (nrrdLoad(nrrd, filename, NULL)) {
@@ -25,18 +17,64 @@ Nrrd* Experiment::load_nrrd(const char *filename){
     free(err);
     exit(0);
   }
-  // printf("axis0 %d\n", nrrd->axis[0].size);
   return nrrd;
 }
-Nrrd* Experiment::load_nrrd(std::string path, int digits, int i){
+
+
+Experiment::Experiment(std::string path, int digits, int low, int high, int mem_cap){
+  paths = new std::string[high-low+1];
   char counter[digits+1];
   memset(counter,'\0',digits);
-  snprintf(counter, sizeof(counter), "%0*d", digits, i);
-  std::string filename = path;
-  int p;
-  while((p=filename.find('?')) != std::string::npos){
-    filename = filename.replace(p,1,counter);
+  for(int i=low;i<=high;++i){
+    snprintf(counter, sizeof(counter), "%0*d", digits, i);
+    std::string filename = path;
+    int p;
+    while((p=filename.find('?')) != std::string::npos){
+      filename = filename.replace(p,1,counter);
+    }
+    paths[i] = filename;
   }
-  unload_nrrd(0);
-  nrrds[0] = load_nrrd(filename.c_str());
+
+  frames = new NrrdFrame[mem_cap];
+  for(int i=0;i<mem_cap;++i){
+    frames[i].n        = -1;
+    frames[i].accessed = 0;
+    frames[i].path     = "";
+    frames[i].nrrd     = 0;
+  }
+  this->low     = low;
+  this->high     = high;
+  this->nframes = mem_cap;
+  this->npaths  = (high-low+1);
+  this->time    = 0;
+}
+
+Nrrd* Experiment::get(int n){
+  // printf("get frame %d\n",n);
+  ++time;
+  int min_i   = 0;
+  int min_acc = frames[0].accessed;
+  // look for frame n in memory.
+  for(int i=0;i<nframes;++i){
+    if(frames[i].accessed < min_acc){
+      min_i = i;
+      min_acc = frames[i].accessed;
+    }
+    if(frames[i].n == n){
+      frames[i].accessed = time;
+      return frames[i].nrrd;
+    }
+  }
+  // frame n not in memory. load from disk.
+  int i=min_i;
+  if(frames[i].nrrd){
+    nrrdNuke(frames[i].nrrd);
+  }
+  // printf("loading %s\n",paths[n-low]);
+  frames[i].n = n;
+  frames[i].accessed = time;
+  frames[i].path = paths[n-low];
+  frames[i].nrrd = load_nrrd(paths[n-low].c_str());
+  // printf("loaded frame %d: %u, %s, %p\n", n, time, paths[n-low].c_str(), frames[i].nrrd);
+  return frames[i].nrrd;
 }

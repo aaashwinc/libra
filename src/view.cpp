@@ -88,13 +88,7 @@ void View::get_color(float x, sf::Uint8 *color){
 
 }
 long View::check(){
-  long v = 0;
-  Nrrd *n = experiment->nrrds[0];
-  short *data = (short*)n->data;
-  for(int i=0;i<171429210;++i){
-    v += data[i];
-  }
-  return v;
+  return 0;
 }
 inline float View::qsample(int c, float x, float y, float z){
 
@@ -112,8 +106,7 @@ inline float View::qsample(int c, float x, float y, float z){
   int i = i3*vcache.w3 + i2*vcache.w2 + i1*vcache.w1 + i0;
   return vcache.data[i]/3000.f;
 }
-void View::setvolume(int t){
-  Nrrd *n = experiment->nrrds[t];
+void View::setvolume(Nrrd *n){
   NrrdAxisInfo *a = n->axis;
 
   vcache.n = n;
@@ -128,54 +121,62 @@ void View::setvolume(int t){
   vcache.a2 = a[2].size;
   vcache.a3 = a[3].size;
 }
-float View::sample(int t, int c, float x, float y, float z, float defaultv, bool normalize){
-  // static long big = 0;
-  // static long sum = 0;
-  Nrrd *n = experiment->nrrds[t];
-  NrrdAxisInfo *a = n->axis;
-  short *data = (short*)n->data;
-
-  int w0,w1,w2,w3;
-  int i0,i1,i2,i3;
-
-  w0 = 1;
-  w1 = a[0].size * w0;
-  w2 = a[1].size * w1;
-  w3 = a[2].size * w2;
-
-  // c = 1;
-  i0 = c;
-  if(normalize){
-    i1 = x * (float(a[1].size)-0.00005f);
-    i2 = y * (float(a[2].size)-0.00005f);
-    i3 = z * (float(a[3].size)-0.00005f);
-  }else{
-    i1 = x;
-    i2 = y;
-    i3 = z;
-  }
-  if(i1<0 || i2<0 || i3<0 || i1 >= a[1].size || i2 >= a[2].size || i3 >= a[3].size){
-    // sum += i1+i2+i3;
-    // printf("sum %u\n",sum);
-    return defaultv;
-  }
-
-  int i = i3*w3 + i2*w2 + i1*w1 + i0*w0;
-  // if(i>big){
-  //   big=i;
-  //   printf("big %u\n",big);
-  // }
-  float v = data[i]/3000.f;
-
-  return v;
+void View::movetime(int d){
+  // printf("timestep %d\n",timestep);
+  // printf("movetime %d\n",d);
+  timestep += d;
+  // printf("timestep %d\n",timestep);
+  if(timestep < experiment->low)timestep = experiment->low;
+  if(timestep > experiment->high)timestep = experiment->high;
+  // printf("timestep %d\n",timestep);
+  setvolume(experiment->get(timestep));
 }
+// float View::sample(int t, int c, float x, float y, float z, float defaultv, bool normalize){
+//   // static long big = 0;
+//   // static long sum = 0;
+//   Nrrd *n = experiment->nrrds[t];
+//   NrrdAxisInfo *a = n->axis;
+//   short *data = (short*)n->data;
+
+//   int w0,w1,w2,w3;
+//   int i0,i1,i2,i3;
+
+//   w0 = 1;
+//   w1 = a[0].size * w0;
+//   w2 = a[1].size * w1;
+//   w3 = a[2].size * w2;
+
+//   // c = 1;
+//   i0 = c;
+//   if(normalize){
+//     i1 = x * (float(a[1].size)-0.00005f);
+//     i2 = y * (float(a[2].size)-0.00005f);
+//     i3 = z * (float(a[3].size)-0.00005f);
+//   }else{
+//     i1 = x;
+//     i2 = y;
+//     i3 = z;
+//   }
+//   if(i1<0 || i2<0 || i3<0 || i1 >= a[1].size || i2 >= a[2].size || i3 >= a[3].size){
+//     // sum += i1+i2+i3;
+//     // printf("sum %u\n",sum);
+//     return defaultv;
+//   }
+
+//   int i = i3*w3 + i2*w2 + i1*w1 + i0*w0;
+//   // if(i>big){
+//   //   big=i;
+//   //   printf("big %u\n",big);
+//   // }
+//   float v = data[i]/3000.f;
+
+//   return v;
+// }
 void View::render(){
   sf::Clock clock;
   sf::Time elapsed1 = clock.getElapsedTime();
   if(position>=1)position=1;
   if(position<0)position=0;
-  if(timestep>2)timestep=2;
-  if(timestep<0)timestep=0;
   float zz=position;
   int i=0;
   float xx=0,yy=0, vv=0;
@@ -183,7 +184,7 @@ void View::render(){
     for(int y=0;y<h;++y){
       xx = float(x)/float(w);
       yy = float(y)/float(h);
-      vv = sample(timestep,0,zz,xx,yy);
+      vv = qsample(0,zz,xx,yy);
       get_color(vv, texdata+i);
       i+=4;
     }
@@ -203,9 +204,6 @@ void View::move(vec3 v){
 }
 void View::raytrace(){
   
-
-  if(timestep>2)timestep=2;
-  if(timestep<0)timestep=0;
   
   vec3 forward = camera.look;
   vec3 right   = camera.right;
