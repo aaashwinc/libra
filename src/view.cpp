@@ -46,15 +46,15 @@ vec4 Colormap::computecolor(float x){
   vec4 color(0,0,0,0);
   // color.x = ftoi(1/(1+(x-0.8)*(x-0.8)) -0.6);
   // color.y = ftoi(1/(1+4*(1-x)*(1-x)) -0.2);
-  color.x = x;
-  color.y = x*x;
+  color.x = sqrt(x);
+  color.y = x;
   color.z = 1.f-x;
   // color.z = ftoi(2/(1+(x-0.5)*(x-0.5)) - 1.6);
   float w = x-0.2;
   if(w<0)w=0;
   w*=1/0.8f;
-  w = w*w*w*w;
-  color.w = w;
+  // w = w*;
+  color.w = sqrt(w);
   // color = vec4(x,x,x,x);
   return color;
 }
@@ -81,9 +81,9 @@ void View::get_color(float x, sf::Uint8 *color){
   if(x>=1)x=1;
   if(x<0)x=0;
   vec4 col = colormap.colorof(x);
-  color[0] = ftoi(col.x);
-  color[1] = ftoi(col.y);
-  color[2] = ftoi(col.z);
+  color[0] = ftoi(x);
+  color[1] = ftoi(x*x);
+  color[2] = ftoi(x*x*x);
   color[3] = 255;
 
 }
@@ -104,7 +104,7 @@ inline float View::qsample(int c, float x, float y, float z){
   }
 
   int i = i3*vcache.w3 + i2*vcache.w2 + i1*vcache.w1 + i0;
-  return vcache.data[i]/3000.f;
+  return vcache.data[i]/30000.f;
 }
 void View::setvolume(Nrrd *n){
   NrrdAxisInfo *a = n->axis;
@@ -121,6 +121,9 @@ void View::setvolume(Nrrd *n){
   vcache.a2 = a[2].size;
   vcache.a3 = a[3].size;
 }
+int View::gettime(){
+  return timestep;
+}
 void View::movetime(int d){
   // printf("timestep %d\n",timestep);
   // printf("movetime %d\n",d);
@@ -130,6 +133,9 @@ void View::movetime(int d){
   if(timestep > experiment->high)timestep = experiment->high;
   // printf("timestep %d\n",timestep);
   setvolume(experiment->get(timestep));
+}
+int View::get_time(){
+  return timestep;
 }
 // float View::sample(int t, int c, float x, float y, float z, float defaultv, bool normalize){
 //   // static long big = 0;
@@ -173,6 +179,7 @@ void View::movetime(int d){
 //   return v;
 // }
 void View::render(){
+  // printf("render %p\n",vcache.data);
   sf::Clock clock;
   sf::Time elapsed1 = clock.getElapsedTime();
   if(position>=1)position=1;
@@ -180,17 +187,20 @@ void View::render(){
   float zz=position;
   int i=0;
   float xx=0,yy=0, vv=0;
+  // printf("slice %.2f\n",zz);
   for(int x=0;x<w;++x){
     for(int y=0;y<h;++y){
-      xx = float(x)/float(w);
-      yy = float(y)/float(h);
+      xx = float(x)/w * (float(vcache.a1)-0.00005f);
+      yy = float(y)/h * (float(vcache.a2)-0.00005f);
+      zz = position * (float(vcache.a3)-0.00005f);
+      // printf("s %.1f %.1f %.1f\n",xx,yy,zz);
       vv = qsample(0,zz,xx,yy);
       get_color(vv, texdata+i);
       i+=4;
     }
   }
   sf::Time elapsed2 = clock.getElapsedTime();
-  std::cout <<"time: "<< (elapsed2.asSeconds() - elapsed1.asSeconds()) << std::endl;
+  // std::cout <<"time: "<< (elapsed2.asSeconds() - elapsed1.asSeconds()) << std::endl;
 
   texture.update(texdata);
 }

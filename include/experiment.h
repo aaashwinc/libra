@@ -4,6 +4,7 @@
 #include <teem/nrrd.h>
 #include <string>
 #include <map>
+#include "filter.h"
 
 struct NrrdFrame{
   int n;
@@ -19,6 +20,7 @@ public:
   int low;
   int high;
 private:
+  Filter filter;
   std::string *paths;
   int nframes;
   int npaths;

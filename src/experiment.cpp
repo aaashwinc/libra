@@ -50,7 +50,7 @@ Experiment::Experiment(std::string path, int digits, int low, int high, int mem_
 }
 
 Nrrd* Experiment::get(int n){
-  // printf("get frame %d\n",n);
+  printf("get frame %d\n",n);
   ++time;
   int min_i   = 0;
   int min_acc = frames[0].accessed;
@@ -75,6 +75,11 @@ Nrrd* Experiment::get(int n){
   frames[i].accessed = time;
   frames[i].path = paths[n-low];
   frames[i].nrrd = load_nrrd(paths[n-low].c_str());
+
+  filter.init(frames[i].nrrd);
+  filter.normalize();
+  filter.commit();
+
   // printf("loaded frame %d: %u, %s, %p\n", n, time, paths[n-low].c_str(), frames[i].nrrd);
   return frames[i].nrrd;
 }

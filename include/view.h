@@ -56,18 +56,20 @@ private:
 public:
   Camera camera;
   Colormap colormap;
-
   float position;
+
   float sample(int t, int c, float x, float y, float z, float defaultv=0.f, bool normalize=true);
   float qsample(int c, float x, float y, float z);
   void setvolume(Nrrd *nrrd);
   void render();
   void moveforward(float v);
   void movetime(int n);
+  int  gettime();
   void move(vec3 v);
   void turn(float r);
   void raytrace();
   void setExperiment(Experiment *e);
+  int get_time();
   long check();
   sf::Sprite &getSprite();
 };
