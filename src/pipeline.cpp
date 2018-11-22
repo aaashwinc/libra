@@ -31,44 +31,75 @@ void Pipeline::process(int low, int high){
 
   tick("begin.");
 
-  Filter gaussian;
-  gaussian.set_kernel(gaussian.gaussian(1.0, 3));
-  gaussian.init(exp->get(low));
+  Filter filter;
+  filter.init(exp->get(low));
   tick("init.");
 
-  // gaussian.threshold(1000,30000);
+  DiscreteKernel gaussian    = filter.gaussian(5.0, 30);
+  DiscreteKernel gaussian2   = filter.gaussian(2.0,  10);
+  DiscreteKernel interpolate = filter.interpolation();
+
+
+  // filter.threshold(1000,30000);
   // tick("threshold.");
 
-  // // gaussian.median1();
-  // // tick();
+  // filter.set_kernel(interpolate);
+  // filter.filter();
+
+
+
+
+  // filter.median1();
+  // tick("median.");
+  // filter.median1();
+  // tick("median.");
   // // return;
 
-  // gaussian.filter();
-  // tick("gaussian.");
+  filter.set_kernel(gaussian);
+  filter.filter();
+  // filter.filter();
+  // filter.normalize(1);
+  // filter.filter();
+  tick("gaussian.");
 
-  // gaussian.laplacian3d();
-  // tick("laplacian.");
+  // filter.max1();
+  // tick("max filter.");
 
-  // std::vector<glm::ivec3> maxima = gaussian.find_maxima();
-  // gaussian.highlight(maxima);
+  // filter.normalize();
+  // filter.laplacian3d(1);
+  // filter.normalize();
+  // filter.set_kernel(gaussian2);
+  // filter.filter();
+  // filter.print();
+  // filter.max1();
+  tick("laplacian.");
+
+  // filter.max1();
+  // tick("max filter.");
+
+  // std::vector<glm::ivec3> maxima = filter.find_maxima();
+  // filter.highlight(maxima);
   // tick("highlights.");
 
   // // printf("normalize\n");
-  // // gaussian.normalize(0);
+  // // filter.normalize(0);
   // // tick();
 
 
-  // gaussian.maxima();
+  // filter.maxima();
   // tick("maxima.");
 
-  gaussian.normalize();
+  filter.normalize();
   tick("normalize.");
 
-  std::vector<ScaleBlob*> blobs = gaussian.find_blobs();
-  tick("blobs");
+  std::vector<ScaleBlob*> blobs = filter.find_blobs();
+  tick("blobs.");
 
-  gaussian.commit();
-  gaussian.destroy();
+  // filter.normalize(0.10);
+  tick("exponent.");
+
+  filter.commit();
+  filter.destroy();
 
   tick("done.");
   // for(int i=low;i<=high;++i){

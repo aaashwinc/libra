@@ -2,27 +2,20 @@
 // #include "medianfilter.h"
 #include "HuangQS.h"
 #include <vector>
+#include <queue> 
+#include <unordered_set>
+#include <unordered_map>
 #include <unistd.h>
-
+#include <climits>
 #define pi (3.14159265358979323846264)
 #define gaus(x,stdv) (exp(-((x)*(x))/(2*(stdv)*(stdv)))/((stdv)*sqrt(2*pi)))
 #define gausd2(x,sig)(exp(-x*x/(2.0*sig*sig))*(x*x-sig*sig) /       \
      (sig*sig*sig*sig*sig*2.50662827463100050241))
 
-static inline int circle_next(int i, int max){
-  i+=1;
-  if(i>=max)i=0;
-  return i;
-}
-static inline int circle_prev(int i, int max){
-  i-=1;
-  if(i<0)i=max-1;
-}
 
-//todo: check
-inline void Filter::conv1d(Nrrd *nin, Nrrd *nout, int start, int skip, int n, DiscreteKernel kernel){
-
-
+DiscreteKernel::DiscreteKernel(){
+  data = 0;
+  temp = 0;
 }
 void Filter::conv2d(short *in, short *out, int xlen, int ylen, int zlen, int xstep, int ystep, int zstep, DiscreteKernel kernel){
   // printf("conv2d %d %d\n",xlen, ylen);
@@ -30,25 +23,56 @@ void Filter::conv2d(short *in, short *out, int xlen, int ylen, int zlen, int xst
   int skip  = zstep;
   int n = zlen;
 
+  // n = 20;
+
   for(int x=0; x<xlen; ++x){
       // printf("%d\n",x);
     for (int y=0; y<ylen; ++y){
       int start = x*xstep + y*ystep;
-
-      // printf("conv1d %d %d %d\n", start, skip, n);
-      // Filter::print_kernel(kernel);
 
       // printf("input:\n ");
       // for(int i=0;i<n;i++)printf(" %d ",in[start+skip*i]);
       // printf("\n");
 
       double v = 0;
-      for(int i=0;i<n-kernel.radius*2;++i){
+
+      // handle leading edge of input (within radius of edge).
+      int i = 0;
+      for(i=0;i<kernel.radius;++i){
         v=0;
-        for(int j=0,ji=start+skip*i;j<kernel.support;++j,ji+=skip){
+        for(int j=0,ji=start+skip*(i-kernel.radius);j<kernel.support;++j,ji+=skip){
+          if(ji<start){   // out of bounds.
+            v += kernel.data[j] * in[start];
+          }
+          else{        // in bounds.
+            v += kernel.data[j] * in[ji];
+          }
+        }
+        out[start+skip*i] = short(v);
+      }
+
+      // handle trailing edge of input.
+      for(i=n-kernel.radius;i<n;++i){
+        v=0;
+        for(int j=0,ji=start+skip*(i-kernel.radius);j<kernel.support;++j,ji+=skip){
+          if(ji>start+skip*(n-1)){
+            v += kernel.data[j] * in[start+skip*(n-1)];
+          }
+          else{        // in bounds.
+            v += kernel.data[j] * in[ji];
+          }
+        }
+        out[start+skip*i] = short(v);
+      }
+
+      // convolve the center of the image.
+      for(i=kernel.radius;i<n-kernel.radius;++i){
+        v=0;
+        for(int j=0,ji=start+skip*(i-kernel.radius);j<kernel.support;++j,ji+=skip){
           v += kernel.data[j] * in[ji];
           // printf(" + %.1f*%d", kernel.data[j], in[ji]);
         }
+        // v = in[start+skip*i];
         out[start+skip*i] = short(v);
         // printf(" = %.1f\n",v);
       }
@@ -65,28 +89,28 @@ void Filter::filter(){
   short *in  = self.buff[self.curr];
   short *out = self.buff[itempbuf()];
 
-  conv2d(in,  out, self.a1, self.a2, self.a3, self.w1, self.w2, self.w3, self.kernel);  // xy(z) axis.
-  conv2d(out, out, self.a1, self.a3, self.a2, self.w1, self.w3, self.w2, self.kernel);  // x(y)z axis.
-  conv2d(out, out, self.a2, self.a3, self.a1, self.w2, self.w3, self.w1, self.kernel);  // (x)yz axis.
+  conv2d(in, out, self.a1, self.a2, self.a3, self.w1, self.w2, self.w3, self.kernel);  // xy(z) axis.
+  conv2d(out, in, self.a1, self.a3, self.a2, self.w1, self.w3, self.w2, self.kernel);  // x(y)z axis.
+  conv2d(in, out, self.a2, self.a3, self.a1, self.w2, self.w3, self.w1, self.kernel);  // (x)yz axis.
 
   int from,to;
 
-  for(int z=self.a3-1;z>=0;z--){
-    for(int y=self.a2-1;y>=0;y--){
-      for(int x=self.a1-1;x>=0;x--){
-        to = x*self.w1 + y*self.w2 + z*self.w3;
+  // for(int z=self.a3-1;z>=0;z--){
+  //   for(int y=self.a2-1;y>=0;y--){
+  //     for(int x=self.a1-1;x>=0;x--){
+  //       to = x*self.w1 + y*self.w2 + z*self.w3;
         
-        if(  x<self.kernel.radius || y<self.kernel.radius || z<self.kernel.radius
-          || x>=self.a1-self.kernel.radius || y>=self.a2-self.kernel.radius || z>=self.a3-self.kernel.radius){
-            out[to] = 0;
-          continue;
-        }
+  //       if(  x<self.kernel.radius || y<self.kernel.radius || z<self.kernel.radius
+  //         || x>=self.a1-self.kernel.radius || y>=self.a2-self.kernel.radius || z>=self.a3-self.kernel.radius){
+  //           out[to] = 0;
+  //         continue;
+  //       }
         
-        from = (x-self.kernel.radius)*self.w1 + (y-self.kernel.radius)*self.w2 + (z-self.kernel.radius)*self.w3;
-        out[to] = out[from];
-      }
-    }
-  }
+  //       from = (x-self.kernel.radius)*self.w1 + (y-self.kernel.radius)*self.w2 + (z-self.kernel.radius)*self.w3;
+  //       out[to] = out[from];
+  //     }
+  //   }
+  // }
   self.curr = itempbuf();
 }
 DiscreteKernel Filter::gaussian(double sigma, int radius, int d){
@@ -104,18 +128,23 @@ DiscreteKernel Filter::gaussian(double sigma, int radius, int d){
     else      k.data[h+i]   = gaus(i,sigma);
     k.data[h-i] = k.data[h+i];
   }
+  // normalize so that the kernel sums to 1.0.
+  double sum = 0;
+  for(int i=0;i<k.support;++i)sum += k.data[i];
+  for(int i=0;i<k.support;++i)k.data[i] /= sum;
+
   print_kernel(k);
   return k;
 }
-DiscreteKernel Filter::laplacian(){
+DiscreteKernel Filter::interpolation(){
   DiscreteKernel k;
   k.radius = 1;
   k.support = 3;
   k.data = new double[3];
   k.temp = new double[3];
-  k.data[0] = 1.0;
-  k.data[1] = -2.0;
-  k.data[2] = 1.0;
+  k.data[0] = 0.5;
+  k.data[1] = 0;
+  k.data[2] = 0.5;
   return k;
 }
 void Filter::set_kernel(DiscreteKernel k){
@@ -162,19 +191,61 @@ void Filter::print_kernel(DiscreteKernel k){
 //     else f.out[i] = 0;
 //   }
 // }
-void Filter::laplacian3d(){
+
+// double Filter::comp_max_laplacian(short *in){
+//   double max = 0;
+//   double lap;
+//   int xi, xm;
+//   for(int x=boundary;x<self.a1;++x){
+//     for(int y=boundary;y<self.a2;++y){
+//       xi = x*self.w1 + y*self.w2 + 1*self.w3;
+//       for(; xi<self.w4-self.w3; xi+=self.w3){
+//         lap = 2.0*in[xi] - in[xi-self.w3] - in[xi+self.w3];
+//         if(lap>max)max=lap;
+//       }
+//     }
+//   }
+//   for(int x=boundary;x<self.a1;++x){
+//     for(int z=boundary;z<self.a3;++z){
+//       xi = x*self.w1 + 1*self.w2           + z*self.w3;
+//       xm = x*self.w1 + (self.a2-1)*self.w2 + z*self.w3;
+//       for(; xi<xm; xi+=self.w2){
+//         lap = 2.0*in[xi] - in[xi-self.w2] - in[xi+self.w2];
+//         if(lap>max)max=lap;
+//       }
+//     }
+//   }
+
+//   for(int y=boundary;y<self.a2;++y){
+//     for(int z=boundary;z<self.a3;++z){
+//       xi = 1*self.w1 + y*self.w2           + z*self.w3;
+//       xm = (self.a1-1)*self.w1 + y*self.w2 + z*self.w3;
+//       for(; xi<xm; xi+=self.w1){
+//         lap = 2.0*in[xi] - in[xi-self.w1] - in[xi+self.w1];
+//         if(lap>max)max=lap;
+//       }
+//     }
+//   }
+//   return 3.0*max/2.0;
+// }
+void Filter::laplacian3d(int boundary){
   short *in  = self.buff[self.curr];
   short *out = self.buff[itempbuf()];
 
-  printf("dims %d %d %d %d\n",self.a0,self.a1,self.a2,self.a3);
-  printf("max %d\n",self.w4);
+  // printf("lap %p -> %p\n",in,out);
+  // printf("nb %d %p %p\n",self.nbuf, self.buff[0], self.buff[1]);
+
+  // printf("dims %d %d %d %d\n",self.a0,self.a1,self.a2,self.a3);
+  // printf("max %d\n",self.w4);
+
+  // double max_laplacian = comp_max_laplacian(in);
   int xo;
   for(int z=0;z<self.a3; z++){
     for(int y=0; y<self.a2; y++){
       for(int x=0; x<self.a1; x++){
         xo = x*self.w1 + y*self.w2 + z*self.w3;
 
-        if(x<3 || y<3 || z<3 || x>=self.a1-3 || y>=self.a2-3 || z>=self.a3-3){
+        if(x<1+boundary || y<1+boundary || z<1+boundary || x>=self.a1-1-boundary || y>=self.a2-1-boundary || z>=self.a3-1-boundary){
           out[xo]=0;
           continue;
         }
@@ -191,6 +262,8 @@ void Filter::laplacian3d(){
         p5 = xi-self.w3;
         p6 = xi+self.w3;
 
+        // printf("%d %d -> %d %d\n",xi, in[xi], p1, in[p1]);
+
         double l1=0,l2=0,l3=0;
 
         l1 = in[xi] - 0.5*in[p1] - 0.5*in[p2];
@@ -200,11 +273,119 @@ void Filter::laplacian3d(){
         // double mn = fmin(l1,fmin(l2,l3));
         // printf("%f %f %f -> %f %f\n",l1,l2,l3,mx,mn);
         v = (l1+l2+l3)/3.0;
+        // v *= 30000.0/max_laplacian;
+        // v = fabs(in[p5]);
         if(v<0)v=0;
         out[xo] = short(v);
       }
     }
   }
+  self.curr = itempbuf();
+}
+
+inline int median(int a, int b, int c){
+  if(a<b){            // a b
+    if(b<c)return b;  // a b c
+    if(c<a)return a;  // c a b
+    else   return c;  // a c b
+  }else{              // b a
+    if(a<c)return a;  // b a c
+    if(c<b)return b;  // c b a
+    else   return c;  // b c a
+  }
+}
+void Filter::max1(){
+  short *in  = self.buff[self.curr];
+  short *out = self.buff[itempbuf()];
+
+  int xi,xm;
+  for(int x=0;x<self.a1;++x){
+    for(int y=0;y<self.a2;++y){
+      xi = x*self.w1 + y*self.w2 + 1*self.w3;
+      for(; xi<self.w4-self.w3; xi+=self.w3){
+        out[xi] = median(in[xi], in[xi-self.w3],in[xi+self.w3]);
+        // out[xi] = max(in[xi],max(in[xi-self.w3],in[xi+self.w3]));
+      }
+    }
+  }
+  for(int x=0;x<self.a1;++x){
+    for(int z=0;z<self.a3;++z){
+      xi = x*self.w1 + 1*self.w2           + z*self.w3;
+      xm = x*self.w1 + (self.a2-1)*self.w2 + z*self.w3;
+      for(; xi<xm; xi+=self.w2){
+        in[xi] = median(out[xi],out[xi-self.w2],out[xi+self.w2]);
+        // in[xi] = max(out[xi],max(out[xi-self.w2],out[xi+self.w2]));
+      }
+    }
+  }
+
+  for(int y=0;y<self.a2;++y){
+    for(int z=0;z<self.a3;++z){
+      xi = 1*self.w1 + y*self.w2           + z*self.w3;
+      xm = (self.a1-1)*self.w1 + y*self.w2 + z*self.w3;
+      for(; xi<xm; xi+=self.w1){
+        out[xi] = median(in[xi],in[xi-self.w1],in[xi+self.w1]);
+        // out[xi] = max(in[xi],max(in[xi-self.w1],in[xi+self.w1]));
+      }
+    }
+  }
+  // for(int z=0;z<self.a3; z++){
+  //   for(int y=0; y<self.a2; y++){
+  //     for(int x=0; x<self.a1; x++){
+
+  //       xi = x*self.w1 + y*self.w2 + z*self.w3;
+        
+  //       int neighbor[27];
+  //       for(int i=0;i<27;i++){
+  //         neighbor[i] = xi;
+  //       }
+  //       int nindex = 0;
+  //       for(int xx=-1;xx<=1;++xx){
+  //         for(int yy=-1;yy<=1;++yy){
+  //           for(int zz=-1;zz<=1;++zz){
+  //             int xii = xi + xx*self.w1 + yy*self.w2 + zz*self.w3;
+  //             if(xii>=0 && xii < self.w4){
+  //               neighbor[nindex] = xii;
+  //               ++nindex;
+  //             }
+  //           }
+  //         }
+  //       }
+  //       double v;
+
+  //       v = max(
+  //             max(
+  //               max(
+  //                 max(
+  //                   max(in[neighbor[0]],in[neighbor[1]]),
+  //                   max(in[neighbor[2]],in[neighbor[3]])),
+  //                 max(
+  //                   max(in[neighbor[4]],in[neighbor[5]]),
+  //                   max(in[neighbor[6]],in[neighbor[7]]))),
+  //               max(
+  //                 max(
+  //                   max(in[neighbor[8]],in[neighbor[9]]),
+  //                   max(in[neighbor[10]],in[neighbor[11]])),
+  //                 max(
+  //                   max(in[neighbor[12]],in[neighbor[13]]),
+  //                   max(in[neighbor[14]],in[neighbor[15]])))),
+  //             max(
+  //               max(
+  //                 max(
+  //                   max(in[neighbor[16]],in[neighbor[17]]),
+  //                   max(in[neighbor[18]],in[neighbor[19]])),
+  //                 max(
+  //                   in[neighbor[20]],
+  //                   max(in[neighbor[21]],in[neighbor[22]]))),
+  //               max(
+  //                 max(in[neighbor[23]],in[neighbor[24]]),
+  //                 max(in[neighbor[25]],in[neighbor[26]]))));
+
+  //       out[xi] = short(v);
+  //     }
+  //   }
+  // }
+
   self.curr = itempbuf();
 }
 
@@ -238,17 +419,17 @@ void Filter::normalize(double power){
     double r = double(data[i]-min)/double(max);
     if(power == 1)out[i] = r * 30000.0;
     else out[i] = pow(r,power) * 30000.0;
-    int bucket = (int)(r*10.0);
-    if(bucket<0)bucket=0;
-    if(bucket>9)bucket=9;
-    buckets[bucket]++;
+    // int bucket = (int)(r*10.0);
+    // if(bucket<0)bucket=0;
+    // if(bucket>9)bucket=9;
+    // buckets[bucket]++;
   }
-  printf("histogram:\n ");
-  for(int i=0;i<10;i++){
-    printf("%4d, ",buckets[i]);
-  }
-  printf("\n");
-  printf("minmax: %.1f %.1f\n",min,min+max);
+  // printf("histogram:\n ");
+  // for(int i=0;i<10;i++){
+  //   printf("%4d, ",buckets[i]);
+  // }
+  // printf("\n");
+  // printf("minmax: %.1f %.1f\n",min,min+max);
   self.curr = itempbuf();
 }
 void Filter::median1(){
@@ -346,6 +527,7 @@ int Filter::itempbuf(int c){
   if(c>=self.nbuf){
     return 0;
   }
+  return c;
 }
 int Filter::itempbuf(){
   return itempbuf(self.curr);
@@ -386,10 +568,11 @@ std::vector<glm::ivec3> Filter::find_maxima(){
       }
     }
   }
+  printf("found %d maxima.\n",maxima.size());
   return maxima;
 }
 void Filter::highlight(std::vector<glm::ivec3> points){
-  printf("maxima: %d\n",points.size());
+  // printf("maxima: %d\n",points.size());
   int max = 0;
   
   short *buff = self.buff[self.curr];
@@ -401,7 +584,7 @@ void Filter::highlight(std::vector<glm::ivec3> points){
   for(int i=0;i<points.size();++i){
     glm::ivec3 v = points[i];
     int xi = v.x*self.w1 + v.y*self.w2 + v.z*self.w3;
-    buff[xi] = max;
+    if(xi>=0 && xi<self.w4)buff[xi] = max;
   }
 }
 
@@ -424,118 +607,221 @@ struct Balloon{
   glm::ivec3 position;
 };
 
+struct Point{
+  glm::ivec3 p;
+  int   i;
+};
+
 std::vector<ScaleBlob*> Filter::find_blobs(){
   using namespace glm;
 
-  // maintain a list of all blobs. return this list.
-  std::vector<ScaleBlob*> blobs;
-  short *data = self.buff[self.curr];
+  std::vector<ivec3> maxima;
+  // std::vector<glm::ivec3> maxima = find_maxima();
+  // printf("maxima: %d\n",maxima.size());
 
-  // init balloons to 0.
-  Balloon *balloons = new Balloon[self.w4/self.w1];
-  for(int i=0;i<self.w4/self.w1;i++){
-    balloons[i].gradient = 0;
-    balloons[i].volume   = 0;
-    balloons[i].position = ivec3(0,0,0);
+  int *labelled = new int[self.w4];  // mark each point with a label indicated which cell it's part of.
+  for(int i=0;i<self.w4;i++){        // initialize to -1.
+    labelled[i] = -1;
   }
+  short *data     = self.buff[self.curr];
+
+  // breadcumb trail that we leave behind as we look for the max.
+  // when we find the max, also update the maxes for each trailing
+  // point that we also visited.
+  const int max_trail_len = 10000;
+  int trail[max_trail_len];
+  int trail_length = 0; // length of the trail.
 
   int x=0,y=0,z=0;
-  for(int i=0;i<self.w4/self.w1;i++){
 
-    short v = data[2*i];
-    
-    // get values of neighbors.
-    int offneighs[6]  = {0,0,0,0,0,0};
+  // hill-climb to determine labels.
+  for(int z=0;z<self.a3; z++){
+    if(z%50 == 0)printf("find_blobs progress %d/%d\n",z,self.a3);
+    for(int y=0; y<self.a2; y++){
+      for(int x=0; x<self.a1; x++){
+        int i = x*self.w1 + y*self.w2 + z*self.w3;
+      
+        // starting position is this pixel.
+        Point peak;
+        peak.p = ivec3(x,y,z);
+        peak.i = i;
 
-    // get values of neighbors with out-of-bounds checking.
-    if(x>0)         offneighs[0] = -self.w1 / self.w1;  // divide by w1 because
-    if(x<self.a1-1) offneighs[1] =  self.w1 / self.w1;  // we're ignoring the
-    if(y>0)         offneighs[2] = -self.w2 / self.w1;  // first [channel] axis.
-    if(y<self.a2-1) offneighs[3] =  self.w2 / self.w1;
-    if(z>0)         offneighs[4] = -self.w3 / self.w1;
-    if(z<self.a3-1) offneighs[5] =  self.w3 / self.w1;
-    
-    // if(i>1020 && i<1030){
-    //   printf("xyz = %d %d %d\n",x,y,z);
-    //   printf("offneighs = %d %d %d %d %d %d\n",offneighs[0],offneighs[1],offneighs[2],offneighs[3],offneighs[4],offneighs[5]);
-    // }
-    // get maximum neighbor.
-    int  max_neighbor = 0;
-    bool peak = true;
+        // printf("(%d %d %d %d)\n",peak.p.x, peak.p.y, peak.p.z, data[peak.i]);
+        trail_length = 0;
+        for(;;){
+          // printf("  -> (%d %d %d %d) ",peak.p.x, peak.p.y, peak.p.z, data[peak.i]);
+          int   maxi = INT_MIN;  // max neighbor index
+          int   maxv = INT_MIN;  // max neighbor value
+          ivec3 maxp = ivec3(0); // max neighbor coordinates
 
-    for(int j=0;j<6;++j){
-      if(data[2*(i+offneighs[j])] >= data[2*(i+max_neighbor)]){
-        max_neighbor = offneighs[j];
-        peak = false;
-      }
-    }
-    // if(i>1020 && i<1030)printf("max: data[%d+%d] = %d\n",i, max_neighbor, max_value);
-    balloons[i].gradient = (max_neighbor);      // set next higher voxel (or 0).
-    balloons[i].position = ivec3(x,y,z);
-    if(peak){
-      printf("apex at %d %d %d\n",x,y,z);
-      printf("%d > %d %d %d %d %d %d\n",data[i],
-        data[2*(i+offneighs[0])], data[2*(i+offneighs[1])],
-        data[2*(i+offneighs[2])], data[2*(i+offneighs[3])],
-        data[2*(i+offneighs[4])], data[2*(i+offneighs[5])]);
-    }
-    // if(i>1020 && i<1030)printf("balloon[%d].gradient = %d\n",i, balloons[i].gradient);
-    // if(max_neighbor == i){
-    //   balloons[i].apex = new ScaleBlob;   // this is an apex == Blob.
-    //   blobs.push_back(balloons[i].apex);  // keep track of this blob.
-    // }
-    // next voxel.
-    ++x;
-    if(x == self.a1){
-      x=0;
-      ++y;
-    }if(y == self.a2){
-      y=0;
-      ++z;
-    }if(z == self.a3){
-      z=0;
-      break;
-    }
-  }
+          if(labelled[peak.i] != -1){
+            // we have reached a pixel that already has a label.
+            // use this pixel's label as our own (if we keep 
+            // climbing we'll reach the same point anyway).
 
-  // exit(0);
+            labelled[i] = labelled[peak.i];
+            break;
+          }
 
-  // now that we have computed where each balloon goes, we can compute our blobs.
-  // printf("debug...\n");
-  // printf("balloon[%d].gradient = %d\n",1022, balloons[1022].gradient);
+          // add to the trail.
+          if(trail_length < max_trail_len){
+            trail[trail_length] = peak.i;
+            trail_length++;
+          }
 
-  for(int i=0;i<self.w4/self.w1;i++){
-    // printf("i %d\n",i);
-    Balloon here = balloons[i];
-    Balloon apex = here;
-    int j = i;
-    while(apex.gradient != 0){
-      j = j+apex.gradient;
 
-      if(j<0){
-        printf("balloon[%d].gradient = %d\n",j-apex.gradient, apex.gradient);
-        printf("less than 0!\n");
-      }
+          // search for a higher neighbor.
+          // do not change the order of traversal.
+          // if there are ties, then the lowest index is chosen.
+          for(int zz=max(peak.p.z-1,0);zz<=min(peak.p.z+1,self.a3-1); zz++){
+            for(int yy=max(peak.p.y-1,0);yy<=min(peak.p.y+1,self.a2-1); yy++){
+              for(int xx=max(peak.p.x-1,0);xx<=min(peak.p.x+1,self.a1-1); xx++){
+                // printf("  %d %d %d\n",xx,yy,zz);
+                int ii = xx*self.w1 + yy*self.w2 + zz*self.w3;
+                int testv = data[ii];
+                if(testv > maxv){
+                  maxv = testv;
+                  maxi = ii;
+                  maxp = ivec3(xx,yy,zz);
+                }
+              }
+            }
+          }
+          if(maxi == peak.i){
+            // this is a peak. label it with the index of the maxima.
+            labelled[i] = peak.i;
+            break;
+          }
+          peak.p = maxp;
+          peak.i = maxi;
+        }
 
-      apex = balloons[j];
-    }
-    balloons[j].volume += 1;
-  }
-  int ct = 0;
-  for(int i=0;i<self.w4/self.w1;i++){
-    if(balloons[i].volume > 1){
-      ivec3 p = balloons[i].position;
-      // printf("apex at %d %d %d\n",p.x,p.y,p.z);
-      ++ct;
+        // We have successfully labelled this pixel.
+        // Now label all the points that we traversed while getting here.
+        for(int j=0;j<trail_length;j++){
+          labelled[trail[j]] = labelled[i];
+        }
+      } 
     }
   }
-  printf("total number apexes: %d\n",ct);
 
-  //   a->apex->voxels.push_back(b->position);
+  // now, each pixel knows where its peak is. form a list of unique peaks.
+
+  // short *output = self.buff[self.curr];
+  // for(int i=0;i<self.w4;i++){
+  //   output[i] = output[i]*3/4;
   // }
+  // for(int i=0;i<self.w4;i++){
+  //   output[labelled[i]] = 30000;
+  // }
+
+  // map labels to volume.
+  std::unordered_map<int,int> labels_to_counts;
+  for(int i=0;i<self.w4;i+=2){
+    labels_to_counts[labelled[i]] = 0;
+  }
+  for(int i=0;i<self.w4;i+=2){
+    labels_to_counts[labelled[i]] = labels_to_counts[labelled[i]] + 1;
+  }
+
+  // construct a mapping from index to blob.
+  // also discard small blobs.
+  std::unordered_map<int, ScaleBlob*> blobs;
+  for ( auto it = labels_to_counts.begin(); it != labels_to_counts.end(); ++it ){
+    int index = it->first;
+    int count = it->second;
+    if(count > 64){ // arbitrary minimum size, as an optimization.
+      blobs[index] = new ScaleBlob();
+    }
+  }
+
+  printf("compute blob statistics.\n");
+  // now construct the scaleblobs with data in 2 passes.
+  for(int pass=0;pass<2;++pass){
+    for(int i=0;i<self.w4;i+=2){
+      auto blob = blobs.find(labelled[i]);
+      if(blob != blobs.end()){
+        double x = (i/self.w1)%self.a1;
+        double y = (i/self.w2)%self.a2;
+        double z = (i/self.w3)%self.a3;
+        blob->second->pass(glm::dvec3(x,y,z), double(data[i]));
+      }
+    }
+    for (std::pair<int, ScaleBlob*> blob : blobs){
+      blob.second->commit();
+    }
+  }
+
+  printf("list blobs:\n");
+  for (std::pair<int, ScaleBlob*> blob : blobs){
+    blob.second->print();
+  }
+
+  std::vector<ivec3>       positions;
+  std::vector<ScaleBlob*> output;
+
+  for (std::pair<int, ScaleBlob*> blob : blobs){
+    output.push_back(blob.second);
+    positions.push_back(ivec3(blob.second->position));
+  }
+
+  // construct a sorted list of unique labels from this set.
+  // std::vector<int> labels;
+  // labels.assign( set.begin(), set.end() );
+  // sort( labels.begin(), labels.end() );
+
+  // construct a list of counts.
+  // std::vector<int> counts(labels.size());
+
+  // std::vector<ivec3>
+
+  highlight(positions);
+  printf("number of blobs: %d\n",output.size());
+  delete[] labelled;
   printf("done.\n");
-  // usleep(2000000);
-  // exit(0);
-  delete[] balloons;
-  return blobs;
+  return output;
+}
+
+void Filter::print(){
+
+  int channel = 0;  
+  int buckets[10];
+  for(int i=0;i<10;++i)buckets[i] = 0;
+
+  printf("axes %d %d %d %d\n",self.a0,self.a1,self.a2,self.a3);
+
+  NrrdAxisInfo *a = self.a;
+  short *data = self.buff[self.curr];
+
+  double max = 0;
+  double min = 30000;
+  for(int i=channel;i<self.w4;i+=2){
+    if(data[i] < min)min=data[i];
+    if(data[i] > max)max=data[i];
+  }
+  max = max-min;
+  for(int i=channel;i<self.w4;i+=2){
+    double r = double(data[i]-min)/double(max);
+    int bucket = (int)(r*10.0);
+    if(bucket<0)bucket=0;
+    if(bucket>9)bucket=9;
+    buckets[bucket]++;
+  }
+  printf("histogram:\n ");
+  for(int i=0;i<10;i++){
+    printf("%4d, ",buckets[i]);
+  }
+  printf("\n");
+  printf("minmax: %.1f %.1f\n",min,min+max);
+}
+
+void Filter::draw_blobs(std::vector<ScaleBlob*> blobs){
+  for(int z=0;z<self.a3; z++){
+    if(z%50 == 0)printf("find_blobs progress %d/%d\n",z,self.a3);
+    for(int y=0; y<self.a2; y++){
+      for(int x=0; x<self.a1; x++){
+        int i = x*self.w1 + y*self.w2 + z*self.w3;
+      }
+    }
+  }
 }

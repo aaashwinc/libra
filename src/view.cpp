@@ -50,11 +50,11 @@ vec4 Colormap::computecolor(float x){
   color.y = x;
   color.z = 1.f-x;
   // color.z = ftoi(2/(1+(x-0.5)*(x-0.5)) - 1.6);
-  float w = x-0.2;
-  if(w<0)w=0;
-  w*=1/0.8f;
+  float w = x;
+  // if(w<0)w=0;
+  // w*=1/0.99f;
   // w = w*;
-  color.w = sqrt(w);
+  color.w = pow(w,2.5);
   // color = vec4(x,x,x,x);
   return color;
 }
@@ -75,6 +75,7 @@ View::View(int w, int h) : w(w), h(h){
   colormap = Colormap();
   position =0;
   timestep =0 ;
+  rf = 0;
 }
 
 void View::get_color(float x, sf::Uint8 *color){
@@ -221,38 +222,57 @@ void View::raytrace(){
 
   vec3 ray = forward;
   vec3 dx  = (right * camera.lhorz)/(float(w)/2.f);
-  vec3 dy  = -(up    * camera.lvert)/(float(h)/2.f);
+  vec3 dy  = -(up   * camera.lvert)/(float(h)/2.f);
   vec3 topleft = forward - (right*camera.lhorz) + (up*camera.lvert);
 
   int i=0;
 
+  vec3 p;
+  float color_x,color_y,color_z,color_w;
+  vec4 probe;
+  vec3 startp = camera.pos * 33.f;
   for(int py=0;py<h;++py){
     for(int px=0;px<w;++px){
-      ray = topleft + float(px)*dx + float(py)*dy;
-      // ray = normalize(ray) * 0.033f;
-      ray = ray * 0.033f;
-      vec3 p = camera.pos;
-      vec4 color(0,0,0,1), probe(0);
-      while(color.w > 0.01f){
-        p += ray;
-  
-        float v = qsample(0, p.x*33.f, p.y*33.f, p.z*33.f);
+      if(rf < 1){
+        ray = topleft + float(px)*dx + float(py)*dy;
 
-        probe = colormap.colorof(v);
-        color += vec4((probe.x*probe.w*color.w), (probe.y*probe.w*color.w), (probe.z*probe.w*color.w), -color.w*probe.w);
-        // color.x = 0;
+        ray = ray * 0.033f * 33.f;
+        p   = startp;
 
-        // color.w *= (1.f - probe.w); // this light is reflected back and is no longer part of the ray.
-        color.w *= 0.993f;           // some light is absorbed or refracted away.
+        color_x = 0;
+        color_y = 0;
+        color_z = 0;
+        color_w = 1;
+
+        while(color_w > 0.01f){
+          p += ray;
+    
+          float v = qsample(0, p.x, p.y, p.z);
+
+          probe = colormap.colorof(v);
+          color_x += probe.x*probe.w*color_w;
+          color_y += probe.y*probe.w*color_w;
+          color_z += probe.z*probe.w*color_w;
+          color_w += -color_w*probe.w;
+
+          color_w *= 0.995f;           // some light is absorbed or refracted away.
+        }
+        texdata[i+0] = int(color_x*255.999999);
+        texdata[i+1] = int(color_y*255.999999);
+        texdata[i+2] = int(color_z*255.999999);
+        texdata[i+3] = 255;
+      }else{
+        // texdata[i+0] /= 2;
+        // texdata[i+1] /= 2;
+        // texdata[i+2] /= 2;
       }
-      texdata[i+0] = ftoi(color.x);
-      texdata[i+1] = ftoi(color.y);
-      texdata[i+2] = ftoi(color.z);
-      texdata[i+3] = 255;
+      ++rf;
+      if(rf==3)rf = 0;
       i+=4;
     }
   }
-
+  rf += 1;
+  rf %= 3;
   texture.update(texdata);
 }
 sf::Sprite &View::getSprite(){

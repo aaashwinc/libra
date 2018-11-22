@@ -42,6 +42,7 @@ private:
   sf::Texture texture;
   Experiment *experiment;
   int timestep;
+  int rf;
 
   struct{
     Nrrd *n;

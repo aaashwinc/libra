@@ -18,13 +18,13 @@ void handle_keys(){
   // }
 }
 int main(){
-  synth();
+  // synth();
   sf::RenderWindow window(sf::VideoMode(350,350), "Artemis");
 
   View view(350,350);
-  view.camera.set(vec3(-4,10,7), vec3(1,0,0), vec3(0,0,1));
+  view.camera.set(vec3(-4,3,6), vec3(1,0,-0.33), vec3(0,0,1));
   // Experiment experiment("/home/ashwin/data/?.nrrd",3,0,19,4);
-  Experiment experiment("/home/ashwin/data/synth/?.nrrd",3,0,1,4);
+  Experiment experiment("/home/ashwin/data/small/?.nrrd",3,0,1,4);
   view.setExperiment(&experiment);
   // view.render();
   view.movetime(0);
@@ -69,7 +69,9 @@ int main(){
   }
   // printf("hi!\n");
 
-  window.setFramerateLimit(30); 
+  window.setFramerateLimit(30);
+
+  int render = 1;
 
   bool flat   = false;
   while (window.isOpen()){
@@ -80,55 +82,54 @@ int main(){
     }
 
     if(window.hasFocus()){
-      bool render = false;
       float speed = 0.1f;
       if(sf::Keyboard::isKeyPressed(sf::Keyboard::LShift)){
         speed *= 10.f;
       } 
       if(sf::Keyboard::isKeyPressed(sf::Keyboard::A)){
-        render=true;
+        render= 5;
         flat=false;
         view.move(-speed*view.camera.right);
       }
       if(sf::Keyboard::isKeyPressed(sf::Keyboard::D)){
-        render=true;
+        render= 5;
         flat=false;
         view.move(speed*view.camera.right);
       }
       if(sf::Keyboard::isKeyPressed(sf::Keyboard::R)){
-        render=true;
+        render= 5;
         flat=false;
         view.move(speed*view.camera.up);
       }
       if(sf::Keyboard::isKeyPressed(sf::Keyboard::F)){
-        render=true;
+        render= 5;
         flat=false;
         view.move(-speed*view.camera.up);
       }
       if(sf::Keyboard::isKeyPressed(sf::Keyboard::W)){
-        render=true;
+        render= 5;
         flat=false;
         view.move(speed*view.camera.look);
       }
       if(sf::Keyboard::isKeyPressed(sf::Keyboard::S)){
-        render=true;
+        render= 5;
         flat=false;
         view.move(-speed*view.camera.look);
       }
       if(sf::Keyboard::isKeyPressed(sf::Keyboard::Left)){
-        render=true;
+        render= 5;
         flat=false;
         view.camera.set(view.camera.pos, view.camera.look - view.camera.right*0.1f, vec3(0,0,1));
       }
       if(sf::Keyboard::isKeyPressed(sf::Keyboard::Right)){
-        render=true;
+        render= 5;
         flat=false;
         view.camera.set(view.camera.pos, view.camera.look + view.camera.right*0.1f, vec3(0,0,1));
       }
       if(sf::Keyboard::isKeyPressed(sf::Keyboard::Down)){
         float dot = glm::dot(view.camera.look,vec3(0,0,1));
         if(dot>-0.9){
-          render=true;
+          render= 5;
           flat=false;
           view.camera.set(view.camera.pos, view.camera.look - view.camera.up*0.1f, vec3(0,0,1));
         }
@@ -136,30 +137,30 @@ int main(){
       if(sf::Keyboard::isKeyPressed(sf::Keyboard::Up)){
         float dot = glm::dot(view.camera.look,vec3(0,0,1));
         if(dot<0.9){
-          render=true;
+          render= 5;
           flat=false;
           view.camera.set(view.camera.pos, view.camera.look + view.camera.up*0.1f, vec3(0,0,1));
         }
       } 
       if(sf::Keyboard::isKeyPressed(sf::Keyboard::O)){
-        render=true;
+        render= 5;
         view.movetime(1);
         sf::sleep(sf::milliseconds(400));
       }
       if(sf::Keyboard::isKeyPressed(sf::Keyboard::P)){
-        render=true;
+        render= 5;
         view.movetime(-1);
         sf::sleep(sf::milliseconds(400));
       }
       if(sf::Keyboard::isKeyPressed(sf::Keyboard::M)){
         flat=true;
-        render=true;
+        render= 5;
         view.position += 0.004*speed;
         // sf::sleep(sf::milliseconds(10));
       }
       if(sf::Keyboard::isKeyPressed(sf::Keyboard::N)){
         flat=true;
-        render=true;
+        render= 5;
         view.position -= 0.004*speed;
         // sf::sleep(sf::milliseconds(10));
       }
@@ -167,9 +168,9 @@ int main(){
         printf("blurring...\n");
         pipeline.process(view.get_time(),view.get_time());
         printf("blurred.\n");
-        render = true;
+        render = 5;
       }
-      if(render){
+      if(render-- > 0){
         sf::Time elapsed1 = clock.getElapsedTime();
         if(flat) view.render();
         else     view.raytrace();

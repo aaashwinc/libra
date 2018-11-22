@@ -13,19 +13,21 @@
 
 #define DIM 100
 
+// problems with >=85 and 10/20
+
 void synth(){
-  return;
+  // return;
   // 10 20 60
   using namespace glm;
   short *data = new short[2*DIM*DIM*DIM];
   Nrrd *nval = nrrdNew();
 
-  srand (time(NULL));
+  srand (0);
 
   int a0=DIM,a1=DIM,a2=DIM;
 
   std::vector<vec3> ps;
-  for(int i=0;i<1;i++){
+  for(int i=0;i<5;i++){
     double x = (rand() % DIM/10)/(DIM/10.0);
     double y = (rand() % DIM/10)/(DIM/10.0);
     double z = (rand() % DIM/10)/(DIM/10.0);
@@ -33,6 +35,7 @@ void synth(){
     ps.push_back(vec3(x,y,z));
   }
 
+  double stdv = 0.01;
 
   double x,y,z,v;
   for(int i=0;i<a0*a1*a2;i++){
@@ -43,13 +46,15 @@ void synth(){
     v = 0;
 
     for(int i=0;i<ps.size();i++){
-      double d = distance(ps[i],p);
-      v += gaus(d,0.07);
+      vec3 q = p-ps[i];
+      // q.z *= 1.6f;
+      double d = q.x*q.x + q.y*q.y + q.z*q.z;
+      v += gaus(d,stdv);
       // v += gaus(d,0.8);
       // v = y;
     }
 
-    v /= (ps.size()*gaus(0,0.07));
+    v /= (ps.size()*gaus(0,stdv));
 
     if(v<0)v=0;
     if(v>1)v=1;
