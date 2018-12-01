@@ -2,116 +2,213 @@
 #include <chrono> 
 #include <iostream>
 #include <glm/glm.hpp>
+#include <stdio.h>
+#include <string.h>
+#include <set>
+#include <queue>
+
 using namespace std::chrono; 
 using namespace std;
-
-Pipeline::Pipeline(Experiment *exp){
-  this->exp = exp;
-}
-void Pipeline::init(){
-  // gaussian.set_kernel(gaussian.gaussian(3.0, 3, 2));
-  // laplacian.set_kernel(gaussian.laplacian());
-}
 
 static void tick(std::string text){
   static auto clock = high_resolution_clock::now();
   auto next = high_resolution_clock::now();
   long d = duration_cast<milliseconds>(next-clock).count();
-  printf("%s\n",text.c_str());
+  printf("%s",text.c_str());
   printf(">> elapsed %lums\n\n",d);
   clock = next;
 }
+ReprMode::ReprMode(const char *name){
+  this->name = name;
+  blob.scale = 0;
+  timestep   = 0;
+}
+bool ReprMode::operator==(ReprMode &r){
+  return (name == r.name) && (timestep == r.timestep)
+    && ((blob.scale == r.blob.scale));
+}
+ArPipeline::ArPipeline(ArExperiment *exp){
+  this->exp = exp;
+  for(int i=0;i<exp->high-exp->low+1;i++){
+    ArFrameData data;
+    data.blob     = 0;
+    data.complete = false;
+    frames.push_back(data);
+  }
+  store.nbuf = 3;
+  store.buf  = new Nrrd*[store.nbuf];
+  for(int i=0;i<store.nbuf;++i){
+    store.buf[i] = exp->copy(0);
+  }
+  store.init = true;
 
-std::vector<glm::ivec3> find_maxima(Nrrd *in){
-  // for(int i=0;i<)
-  return std::vector<glm::ivec3>();
+  filter.init(store.buf[0]);
+}
+ArFrameData ArPipeline::get(int frame){
+  return frames[frame - exp->low];
+}
+int ArPipeline::low(){
+  return exp->low;
+}
+int ArPipeline::high(){
+  return exp->high;
 }
 
-void Pipeline::process(int low, int high){
+static std::vector<float> collect_scales(ScaleBlob *blob){
+  std::set<float> scales;
+  std::queue<ScaleBlob*> queue;
+  queue.push(blob);
+  while(!queue.empty()){
+    blob = queue.front();
+    queue.pop();
+    scales.insert(blob->scale);
+    for(ScaleBlob *child : blob->children){
+      queue.push(child);
+    }
+  }
+  return std::vector<float>(scales.begin(), scales.end());
+}
+static float compute_epsilon(std::vector<float> &v){
+  if(v.size() < 2)return 0;
+  float eps = fabs(v[1] - v[0]);
+  for(int i=1;i<v.size();++i){
+    eps = fmin(eps, fabs(v[i]-v[i-1]));
+  }
+  return eps/2.f;
+}
 
-  tick("begin.");
+ReprMode ArPipeline::repr_coarser(ReprMode rm){
+  std::vector<float> scales = get(rm.timestep).scales;
+  ++rm.blob.scale;
+  if(rm.blob.scale < 0)rm.blob.scale = 0;
+  if(rm.blob.scale >= scales.size()) rm.blob.scale = scales.size()-1;
+  return rm;
+}
+ReprMode ArPipeline::repr_finer(ReprMode rm){
+  std::vector<float> scales = get(rm.timestep).scales;
+  --rm.blob.scale;
+  if(rm.blob.scale < 0)rm.blob.scale = 0;
+  if(rm.blob.scale >= scales.size()) rm.blob.scale = scales.size()-1;
+  return rm;
+}
 
-  Filter filter;
-  filter.init(exp->get(low));
-  tick("init.");
+/* store.buf[0] contains the output of the filter chain.
+ * store.buf[1] contains the output of repr().
+ */
+void ArPipeline::process(int low, int high){
+  printf("pipeline.process %d\n",low);
+  tick("");
 
-  DiscreteKernel gaussian    = filter.gaussian(5.0, 30);
-  DiscreteKernel gaussian2   = filter.gaussian(2.0,  10);
-  DiscreteKernel interpolate = filter.interpolation();
+  filter.capture(exp->get(low));
 
+  ScaleBlob *blob           = filter.compute_blob_tree();
+  std::vector<float> scales = collect_scales(blob);
 
-  // filter.threshold(1000,30000);
-  // tick("threshold.");
+  frames[low - exp->low].blob      = blob;
+  frames[low - exp->low].scales    = scales;
+  frames[low - exp->low].scale_eps = compute_epsilon(scales);
+  frames[low - exp->low].complete  = true;
 
-  // filter.set_kernel(interpolate);
-  // filter.filter();
-
-
-
-
-  // filter.median1();
-  // tick("median.");
-  // filter.median1();
-  // tick("median.");
-  // // return;
-
-  filter.set_kernel(gaussian);
-  filter.filter();
-  // filter.filter();
-  // filter.normalize(1);
-  // filter.filter();
-  tick("gaussian.");
-
-  // filter.max1();
-  // tick("max filter.");
-
-  // filter.normalize();
-  // filter.laplacian3d(1);
-  // filter.normalize();
-  // filter.set_kernel(gaussian2);
-  // filter.filter();
-  // filter.print();
-  // filter.max1();
-  tick("laplacian.");
-
-  // filter.max1();
-  // tick("max filter.");
-
-  // std::vector<glm::ivec3> maxima = filter.find_maxima();
-  // filter.highlight(maxima);
-  // tick("highlights.");
-
-  // // printf("normalize\n");
-  // // filter.normalize(0);
-  // // tick();
+  filter.commit(store.buf[2]);
 
 
-  // filter.maxima();
-  // tick("maxima.");
+  // printf("blob tree:\n  ");
+  // frames[low - exp->low].blob->printtree();
+  // printf("\n\n");
 
-  filter.normalize();
-  tick("normalize.");
+  tick("done.\n");
+}
+static std::vector<ScaleBlob*> collect_blobs(ScaleBlob *blob, float scalemin, float scalemax){
+  // scalemin = -1000;
+  // scalemax = 10000;
+  printf("(");
+  std::vector<ScaleBlob*> blobs;
+  if(blob->scale >= scalemin || blob->scale == 0){
+    if(blob->scale <= scalemax || blob->scale == 0){
+      printf(".");
+      blobs.push_back(blob);      
+    }
+    for(ScaleBlob *child : blob->children){
+      std::vector<ScaleBlob*> childblobs = collect_blobs(child, scalemin, scalemax);
+      blobs.insert(blobs.end(), childblobs.begin(), childblobs.end());
+    }
+  }
+  printf(")");
+  return blobs;
+}
+Nrrd *ArPipeline::repr(ReprMode &mode){
+  if(mode.timestep < exp->low)mode.timestep = exp->low;
+  if(mode.timestep > exp->high)mode.timestep = exp->high;
+  if(!strcmp(mode.name, "plain")){
+    // plain representation is simple and is always allowed.
+    // default to plain if there the frame has not been processed yet.
+    // printf("repr plain\n");
+    return exp->get(mode.timestep);
+  }
+  if(!strcmp(mode.name, "filter residue")){
+    printf("repr %s\n", mode.name);
+    return store.buf[2];
+  }
+  if(!strcmp(mode.name, "filter internal")){
+    printf("repr %s\n", mode.name);
+    return store.buf[0];
+  }
+  if(!strcmp(mode.name, "sandbox")){
+    filter.capture(exp->get(mode.timestep));
+    filter.max1();
+    // filter.normalize(3.f);
+    filter.commit(store.buf[1]);
+    return store.buf[1];
+  }
+  if(!get(mode.timestep).complete){
+    return exp->get(mode.timestep);
+  }
 
-  std::vector<ScaleBlob*> blobs = filter.find_blobs();
-  tick("blobs.");
-
-  // filter.normalize(0.10);
-  tick("exponent.");
-
-  filter.commit();
-  filter.destroy();
-
-  tick("done.");
-  // for(int i=low;i<=high;++i){
-  //   ScaleTree tree;
-  //   Nrrd *frame = exp.get(i);
-  //   std::vector<ScaleBlob> blobs;
-  //   copy(frame, st.buf[0]);
-  //   for(int i=0;i<10;++i){
-  //     gaussian.filter(st.buf[0], st.buf[0], 3.0);
-  //     laplacian.filter(st.buf[0],st.buf[1]);
-  //     find_next_blobs(st.buf[1],blobs);
-  //     // SWAP(st.buf[0],st.buf[1],st.vp);
-  //   }
-  // }
+  static ReprMode last_repr("");
+  static Nrrd *last_nrrd;
+  if(mode == last_repr){
+    // printf("repr %s unchanged.\n",mode.name);
+    return last_nrrd;
+  }
+  last_repr  = mode;
+  // printf("repr %s\n",mode.name);
+  if(!strcmp(mode.name, "blobs")){
+    ArFrameData frame = get(mode.timestep);
+    float scalemin = frame.scales[mode.blob.scale] - frame.scale_eps;
+    float scalemax = frame.scales[mode.blob.scale] + frame.scale_eps;
+    printf("mode %s. view scale %d with %.2f %.2f\n", mode.name, scalemin, scalemax);
+    std::vector<ScaleBlob*> blobs = collect_blobs(frame.blob, scalemin, scalemax);
+    printf("\n");
+    filter.draw_blobs(blobs, true);
+    filter.commit(store.buf[1]);
+    return (last_nrrd = store.buf[1]);
+  }
+  if(!strcmp(mode.name, "gaussian")){
+    printf("mode %s.\n", mode.name);
+    ArFrameData frame = get(mode.timestep);
+    float scale = frame.scales[mode.blob.scale];
+    filter.capture(exp->get(mode.timestep));
+    DiscreteKernel kernel = filter.gaussian(scale, int(scale*4));
+    filter.set_kernel(kernel);
+    filter.max1();
+    filter.filter();
+    filter.commit(store.buf[1]);
+    kernel.destroy();
+    return (last_nrrd = store.buf[1]);
+  }
+  if(!strcmp(mode.name, "laplacian")){
+    printf("mode %s.\n", mode.name);
+    ArFrameData frame = get(mode.timestep);
+    float scale = frame.scales[mode.blob.scale];
+    filter.capture(exp->get(mode.timestep));
+    DiscreteKernel kernel = filter.gaussian(scale, int(scale*4));
+    filter.set_kernel(kernel);
+    filter.max1();
+    filter.filter();
+    filter.laplacian3d();
+    filter.normalize();
+    filter.commit(store.buf[1]);
+    kernel.destroy();
+    return (last_nrrd = store.buf[1]);
+  }
 }

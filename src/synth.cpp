@@ -9,7 +9,7 @@
 #include <time.h>       /* time */
 
 #define pi (3.14159265358979)
-#define gaus(x,stdv) (exp(-((x)*(x))/(2*(stdv)*(stdv)))/((stdv)*sqrt(2*pi)))
+#define gaus(x,stdv) (exp(-((x)*(x))/(2*(stdv)*(stdv)))/((stdv)*sqrt(2*pi*pi*pi*2*2)))
 
 #define DIM 100
 
@@ -31,11 +31,11 @@ void synth(){
     double x = (rand() % DIM/10)/(DIM/10.0);
     double y = (rand() % DIM/10)/(DIM/10.0);
     double z = (rand() % DIM/10)/(DIM/10.0);
-    printf("p %.0f %.0f %.0f\n",x*DIM,y*DIM,z*DIM);
+    printf("p %.3f %.3f %.3f\n",x*DIM,y*DIM,z*DIM);
     ps.push_back(vec3(x,y,z));
   }
 
-  double stdv = 0.01;
+  double stdv = 0.025;
 
   double x,y,z,v;
   for(int i=0;i<a0*a1*a2;i++){
@@ -47,7 +47,7 @@ void synth(){
 
     for(int i=0;i<ps.size();i++){
       vec3 q = p-ps[i];
-      // q.z *= 1.6f;
+      // q.z *= 1.f;
       double d = q.x*q.x + q.y*q.y + q.z*q.z;
       v += gaus(d,stdv);
       // v += gaus(d,0.8);
@@ -55,6 +55,10 @@ void synth(){
     }
 
     v /= (ps.size()*gaus(0,stdv));
+
+    if(v >= 1){
+      printf("v %.3f\n");
+    }
 
     if(v<0)v=0;
     if(v>1)v=1;

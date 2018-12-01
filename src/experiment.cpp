@@ -6,8 +6,25 @@
 #include <cstdio>
 #include <cmath>
 
-// nrrdNuke(nrrds[n]);
+static Nrrd* convert_short4_to_float4_and_destroy(Nrrd *nin){
+  int a0 = nin->axis[0].size;
+  int a1 = nin->axis[1].size;
+  int a2 = nin->axis[2].size;
+  int a3 = nin->axis[3].size;
 
+  Nrrd *nout = nrrdNew();
+
+  short *in  = (short*)nin->data;
+  float *out = new float[a0*a1*a2*a3];
+
+  for(int i=0;i<a0*a1*a2*a3;++i){
+    out[i] = (float)(in[i] / 32768.0);
+  }
+
+  nrrdWrap_va(nout, out, nrrdTypeFloat, 4, a0, a1, a2, a3);
+  nrrdNuke(nin);
+  return nout;
+}
 static Nrrd* load_nrrd(const char *filename){
   printf("load %s\n", filename);
   Nrrd *nrrd = nrrdNew();
@@ -17,11 +34,30 @@ static Nrrd* load_nrrd(const char *filename){
     free(err);
     exit(0);
   }
-  return nrrd;
+  return convert_short4_to_float4_and_destroy(nrrd);
 }
 
 
-Experiment::Experiment(std::string path, int digits, int low, int high, int mem_cap){
+/** Returns length of first sequence of 'c' in str.
+  * Eg. f("abcccdefccccc", 'c') = 3.
+  */ 
+static int length_first_repeated_sequence(const char *str, const char c){
+  int digits = 0;
+  const char *p = str;
+  while(*p){          // while not hit null-terminator.
+    if(*p == c){      // count number of question marks.    
+      ++digits;
+    }
+    else if(digits){  // no longer a question mark, after
+      return digits;  // we started counting (because digits > 0).
+    }                 // return digits.
+    ++p;
+  }
+  return digits;
+}
+
+ArExperiment::ArExperiment(std::string path, int low, int high, int mem_cap){
+  int digits = length_first_repeated_sequence(path.c_str(),'?');
   paths = new std::string[high-low+1];
   char counter[digits+1];
   memset(counter,'\0',digits);
@@ -30,7 +66,7 @@ Experiment::Experiment(std::string path, int digits, int low, int high, int mem_
     std::string filename = path;
     int p;
     while((p=filename.find('?')) != std::string::npos){
-      filename = filename.replace(p,1,counter);
+      filename = filename.replace(p,digits,counter);
     }
     paths[i] = filename;
   }
@@ -49,8 +85,8 @@ Experiment::Experiment(std::string path, int digits, int low, int high, int mem_
   this->time    = 0;
 }
 
-Nrrd* Experiment::get(int n){
-  printf("get frame %d\n",n);
+Nrrd* ArExperiment::get(int n){
+  // printf("get frame %d\n",n);
   ++time;
   int min_i   = 0;
   int min_acc = frames[0].accessed;
@@ -82,4 +118,23 @@ Nrrd* Experiment::get(int n){
 
   // printf("loaded frame %d: %u, %s, %p\n", n, time, paths[n-low].c_str(), frames[i].nrrd);
   return frames[i].nrrd;
+}
+
+Nrrd* ArExperiment::copy(int n){
+  Nrrd *src = get(n);
+  Nrrd *dst = nrrdNew();
+
+  int a0 = src->axis[0].size;
+  int a1 = src->axis[1].size;
+  int a2 = src->axis[2].size;
+  int a3 = src->axis[3].size;
+
+  float *in  = (float*)src->data;
+  float *out = new float[a0*a1*a2*a3];
+
+  for(int i=0;i<a0*a1*a2*a3;++i){
+    out[i] = in[i];
+  }
+  nrrdWrap_va(dst, out, nrrdTypeFloat, 4, a0, a1, a2, a3);
+  return dst;
 }

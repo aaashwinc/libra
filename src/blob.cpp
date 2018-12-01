@@ -1,26 +1,29 @@
 #include "blob.h"
 #include <cstdio>
+#include <cmath>
+#include <limits>
 
-
+#define pi (3.14159265358979323846264338)
 
 ScaleBlob::ScaleBlob(){
 
-  position = dvec3(0);
+  position = vec3(0);
   
   shape = mat3x3(0);
-  eigs  = mat3x3(0);
-  min   = dvec3(0);
-  max   = dvec3(0);
+  // eigs  = mat3x3(0);
+  float inf = std::numeric_limits<float>::infinity();
+  min   = vec3(inf, inf, inf);
+  max   = vec3(0);
 
   parent = 0;
   scale  = 0;
-  volume = 0;
+  // volume = 0;
   n      = 0;
   npass  = 0;
 }
-void ScaleBlob::pass(dvec3 point, double value){
+void ScaleBlob::pass(vec3 point, float value){
   if(npass == 0){  // calculate mean, min, max.
-    position += point*value;
+    position += dvec3(point*value);
     n += value;
     if(point.x<min.x)min.x = point.x;
     if(point.y<min.y)min.y = point.y;
@@ -31,14 +34,27 @@ void ScaleBlob::pass(dvec3 point, double value){
   }
   if(npass == 1){  // calculate covariance.
     // printf("yo!");
-    dvec3 v = point - position;
-    shape[0][0] += v.x*v.x*value/n;
-    shape[0][1] += v.x*v.y*value/n;
-    shape[0][2] += v.x*v.z*value/n;
-    shape[1][1] += v.y*v.y*value/n;
-    shape[1][2] += v.y*v.z*value/n;
-    shape[2][2] += v.z*v.z*value/n;
+    vec3 v = point - vec3(position);
+    shape[0][0] += v.x*v.x*value/(n-1);
+    shape[0][1] += v.x*v.y*value/(n-1);
+    shape[0][2] += v.x*v.z*value/(n-1);
+    shape[1][1] += v.y*v.y*value/(n-1);
+    shape[1][2] += v.y*v.z*value/(n-1);
+    shape[2][2] += v.z*v.z*value/(n-1);
+
+    invCov    = glm::inverse(mat3(shape));
+    detCov    = glm::determinant(shape);
+    pdfCoef   = pow(glm::determinant(shape*pi*2.0),-0.5);
   }
+}
+float ScaleBlob::pdf(vec3 p){
+  p = p - vec3(position);
+  return pdfCoef * exp(-0.5 * glm::dot(p,(invCov*p)));
+}
+float ScaleBlob::cellpdf(vec3 p){
+  p = p - vec3(position);
+  float mag = glm::dot(p,(invCov*p));
+  return 1.f/(0.1f + 0.05f*mag*mag);
 }
 void ScaleBlob::commit(){
   if(npass == 0){  // compute mean.
@@ -58,4 +74,13 @@ void ScaleBlob::print(){
     position[0],position[1],position[2],
     shape[0][0],shape[1][1],shape[2][2],
     shape[0][1],shape[0][2],shape[1][2]);
+}
+void ScaleBlob::printtree(int depth){
+  // printf("\n");
+  // for(int i=0;i<depth;++i)printf(" ");
+  printf("(%.f",scale);
+  for(auto c : children){
+    c->printtree(depth+1);
+  }
+  printf(")");
 }

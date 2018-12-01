@@ -12,15 +12,19 @@ struct NrrdFrame{
   std::string path;
   Nrrd* nrrd;
 };
-class Experiment{
+
+// Exposes methods for interacting with
+// the raw data of the experiment.
+class ArExperiment{
 public:
-  Experiment(std::string path, int digits, int low, int high, int mem_cap);
+  ArExperiment(std::string path, int low, int high, int mem_cap);
   NrrdFrame* frames;
   Nrrd* get(int n);
+  Nrrd* copy(int n);
   int low;
   int high;
 private:
-  Filter filter;
+  ArFilter filter;
   std::string *paths;
   int nframes;
   int npaths;

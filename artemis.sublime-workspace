@@ -1,0 +1,819 @@
+{
+	"auto_complete":
+	{
+		"selected_items":
+		[
+			[
+				"unordered",
+				"unordered_map\tstandard header (since c++11)"
+			],
+			[
+				"stdio",
+				"cstdio\tstandard header"
+			],
+			[
+				"vector",
+				"vector\tstandard header"
+			],
+			[
+				"trail",
+				"trail_length"
+			],
+			[
+				"limi",
+				"climits\tstandard header"
+			],
+			[
+				"math",
+				"cmath\tstandard header"
+			]
+		]
+	},
+	"buffers":
+	[
+		{
+			"file": "src/main.cpp",
+			"settings":
+			{
+				"buffer_size": 6279,
+				"encoding": "UTF-8",
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "include/pipeline.h",
+			"settings":
+			{
+				"buffer_size": 975,
+				"encoding": "UTF-8",
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "include/view.h",
+			"settings":
+			{
+				"buffer_size": 1361,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "src/view.cpp",
+			"settings":
+			{
+				"buffer_size": 6509,
+				"encoding": "UTF-8",
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "include/experiment.h",
+			"settings":
+			{
+				"buffer_size": 455,
+				"encoding": "UTF-8",
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "src/experiment.cpp",
+			"settings":
+			{
+				"buffer_size": 3176,
+				"encoding": "UTF-8",
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "src/filter.cpp",
+			"settings":
+			{
+				"buffer_size": 27230,
+				"encoding": "UTF-8",
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "src/pipeline.cpp",
+			"settings":
+			{
+				"buffer_size": 838,
+				"encoding": "UTF-8",
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"contents": "Package Control Messages\n========================\n\nSublimeLinter\n-------------\n\n  \n    ____        _     _ _                _     _       _\n   / ___| _   _| |__ | (_)_ __ ___   ___| |   (_)_ __ | |_ ___ _ __\n   \\___ \\| | | | '_ \\| | | '_ ` _ \\ / _ \\ |   | | '_ \\| __/ _ \\ '__|\n    ___) | |_| | |_) | | | | | | | |  __/ |___| | | | | ||  __/ |\n   |____/ \\__,_|_.__/|_|_|_| |_| |_|\\___|_____|_|_| |_|\\__\\___|_|\n  \n  \n  Welcome to SublimeLinter, a linter framework for Sublime Text 3.\n  Linters are not included, they must be installed separately.\n  \n  \n  For complete documentation on how to use and configure SublimeLinter,\n  please see: http://www.sublimelinter.com\n  \n  To report issues: https://github.com/SublimeLinter/SublimeLinter\n\n\nSublimeLinter-contrib-clang-tidy\n--------------------------------\n\n  SublimeLinter-contrib-clang-tidy\n  -------------------------------\n  This linter plugin for SublimeLinter provides an interface to clang-tidy.\n  \n  ** IMPORTANT! **\n  \n  Before this plugin will activate, you *must*\n  follow the installation instructions here:\n  \n  https://github.com/rwols/SublimeLinter-contrib-clang-tidy\n",
+			"settings":
+			{
+				"buffer_size": 1130,
+				"line_ending": "Unix",
+				"name": "Package Control Messages",
+				"read_only": true,
+				"scratch": true
+			}
+		}
+	],
+	"build_system": "",
+	"build_system_choices":
+	[
+	],
+	"build_varint": "",
+	"command_palette":
+	{
+		"height": 0.0,
+		"last_filter": "",
+		"selected_items":
+		[
+			[
+				"install",
+				"Package Control: Install Package"
+			],
+			[
+				"package",
+				"Package Control: Install Package"
+			],
+			[
+				"Package Control: ",
+				"Package Control: Install Package"
+			],
+			[
+				"install package",
+				"Package Control: Install Package"
+			]
+		],
+		"width": 0.0
+	},
+	"console":
+	{
+		"height": 0.0,
+		"history":
+		[
+		]
+	},
+	"distraction_free":
+	{
+		"menu_visible": true,
+		"show_minimap": false,
+		"show_open_files": false,
+		"show_tabs": false,
+		"side_bar_visible": false,
+		"status_bar_visible": false
+	},
+	"expanded_folders":
+	[
+		"/home/ashwin/repo/libra"
+	],
+	"file_history":
+	[
+		"/home/ashwin/repo/libra/src/blob.cpp",
+		"/home/ashwin/repo/libra/include/view.h",
+		"/home/ashwin/repo/libra/src/view.cpp",
+		"/home/ashwin/repo/libra/src/main.cpp",
+		"/home/ashwin/repo/libra/src/experiment.cpp",
+		"/home/ashwin/repo/libra/src/filter.cpp",
+		"/home/ashwin/repo/libra/include/filter.h",
+		"/home/ashwin/repo/libra/include/blob.h",
+		"/home/ashwin/repo/libra/include/pipeline.h",
+		"/home/ashwin/repo/libra/src/synth.cpp",
+		"/home/ashwin/repo/libra/src/pipeline.cpp",
+		"/home/ashwin/repo/libra/include/experiment.h",
+		"/home/ashwin/repo/libra/include/medianfilter.h",
+		"/home/ashwin/repo/libra/include/medianheap.h",
+		"/usr/share/gnome-shell/theme/gdm3.css",
+		"/home/ashwin/repo/libra/include/HuangQS.h",
+		"/home/ashwin/repo/libra/src/quickselect.cpp",
+		"/home/ashwin/repo/libra/include/quickselect.h",
+		"/home/ashwin/repo/libra/build/main.cpp",
+		"/home/ashwin/test.txt"
+	],
+	"find":
+	{
+		"height": 39.0
+	},
+	"find_in_files":
+	{
+		"height": 101.0,
+		"where_history":
+		[
+			"/home/ashwin/repo/libra/src,/home/ashwin/repo/libra/include",
+			"src/*",
+			"src",
+			""
+		]
+	},
+	"find_state":
+	{
+		"case_sensitive": true,
+		"find_history":
+		[
+			"pipeline.",
+			"event.code",
+			"window.",
+			"view.",
+			"clock",
+			"assert",
+			"static ",
+			"Down",
+			"Y",
+			"B",
+			"D",
+			"A",
+			";\n",
+			")",
+			"||",
+			"fpswap",
+			"pswap",
+			"void",
+			"=",
+			"+curr",
+			"curr",
+			"movetime",
+			"path",
+			"st",
+			"buff",
+			"set_kernel",
+			"newblobs",
+			"n",
+			"double",
+			"dvec3",
+			"dvec",
+			"destroy",
+			"stdv",
+			"it",
+			"labels_to_counts",
+			"0",
+			"highlight",
+			"find_blobs",
+			"2",
+			"laplacian3d",
+			"normalize",
+			"30000",
+			"double",
+			"30000",
+			"medianfilter",
+			"short",
+			"float",
+			"short",
+			",",
+			"short",
+			"2",
+			"filter",
+			"42",
+			"40",
+			"85",
+			"2f",
+			"2",
+			"filter",
+			"p",
+			"ftoi(",
+			"ftoi",
+			"x",
+			"ray",
+			"x",
+			".",
+			"color.",
+			"*33.f",
+			"*=",
+			"ftoi(color.x)",
+			"2",
+			"render=true",
+			"7",
+			"0",
+			"w3",
+			"normalize",
+			"();\n",
+			"new",
+			"1",
+			"filter",
+			"11",
+			"support",
+			"convolve",
+			"9",
+			"data",
+			"neighbor",
+			"in",
+			"indices",
+			"out",
+			"in",
+			"xo",
+			"0",
+			"x",
+			"double *",
+			"gaussian",
+			"set_kernel",
+			"8",
+			"3"
+		],
+		"highlight": true,
+		"in_selection": false,
+		"preserve_case": false,
+		"regex": false,
+		"replace_history":
+		[
+			"float"
+		],
+		"reverse": false,
+		"show_context": true,
+		"use_buffer2": true,
+		"whole_word": false,
+		"wrap": true
+	},
+	"groups":
+	[
+		{
+			"selected": 1,
+			"sheets":
+			[
+				{
+					"buffer": 0,
+					"file": "src/main.cpp",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 6279,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								4973,
+								4973
+							]
+						],
+						"settings":
+						{
+							"SL.13.region_keys":
+							[
+							],
+							"syntax": "Packages/C++/C++.sublime-syntax",
+							"tab_size": 2,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 2726.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 3,
+					"type": "text"
+				},
+				{
+					"buffer": 1,
+					"file": "include/pipeline.h",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 975,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								957,
+								957
+							]
+						],
+						"settings":
+						{
+							"SL.20.region_keys":
+							[
+							],
+							"syntax": "Packages/C++/C++.sublime-syntax",
+							"tab_size": 2,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 1,
+					"type": "text"
+				},
+				{
+					"buffer": 2,
+					"file": "include/view.h",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 1361,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								1164,
+								1164
+							]
+						],
+						"settings":
+						{
+							"SL.14.region_keys":
+							[
+							],
+							"syntax": "Packages/C++/C++.sublime-syntax",
+							"tab_size": 2,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 712.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 8,
+					"type": "text"
+				},
+				{
+					"buffer": 3,
+					"file": "src/view.cpp",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 6509,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								1603,
+								1603
+							]
+						],
+						"settings":
+						{
+							"SL.15.region_keys":
+							[
+							],
+							"syntax": "Packages/C++/C++.sublime-syntax",
+							"tab_size": 2,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 864.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 4,
+					"type": "text"
+				},
+				{
+					"buffer": 4,
+					"file": "include/experiment.h",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 455,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								20,
+								20
+							]
+						],
+						"settings":
+						{
+							"SL.16.region_keys":
+							[
+							],
+							"syntax": "Packages/C++/C++.sublime-syntax",
+							"tab_size": 2,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 7,
+					"type": "text"
+				},
+				{
+					"buffer": 5,
+					"file": "src/experiment.cpp",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 3176,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								1458,
+								1458
+							]
+						],
+						"settings":
+						{
+							"SL.17.region_keys":
+							[
+							],
+							"syntax": "Packages/C++/C++.sublime-syntax",
+							"tab_size": 2,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 594.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 5,
+					"type": "text"
+				},
+				{
+					"buffer": 6,
+					"file": "src/filter.cpp",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 27230,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								27009,
+								27009
+							]
+						],
+						"settings":
+						{
+							"SL.18.region_keys":
+							[
+							],
+							"syntax": "Packages/C++/C++.sublime-syntax",
+							"tab_size": 2,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 16064.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 6,
+					"type": "text"
+				}
+			]
+		},
+		{
+			"selected": 1,
+			"sheets":
+			[
+				{
+					"buffer": 7,
+					"file": "src/pipeline.cpp",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 838,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								601,
+								601
+							]
+						],
+						"settings":
+						{
+							"SL.23.region_keys":
+							[
+							],
+							"syntax": "Packages/C++/C++.sublime-syntax",
+							"tab_size": 2,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 2,
+					"type": "text"
+				},
+				{
+					"buffer": 8,
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 1130,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								1129,
+								1129
+							]
+						],
+						"settings":
+						{
+							"SL.35.region_keys":
+							[
+							],
+							"auto_indent": false,
+							"syntax": "Packages/Text/Plain text.tmLanguage",
+							"tab_width": 2,
+							"word_wrap": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 0,
+					"type": "text"
+				}
+			]
+		}
+	],
+	"incremental_find":
+	{
+		"height": 27.0
+	},
+	"input":
+	{
+		"height": 39.0
+	},
+	"layout":
+	{
+		"cells":
+		[
+			[
+				0,
+				0,
+				1,
+				1
+			],
+			[
+				1,
+				0,
+				2,
+				1
+			]
+		],
+		"cols":
+		[
+			0.0,
+			0.5,
+			1.0
+		],
+		"rows":
+		[
+			0.0,
+			1.0
+		]
+	},
+	"menu_visible": true,
+	"output.SublimeLinter":
+	{
+		"height": 0.0
+	},
+	"output.find_results":
+	{
+		"height": 0.0
+	},
+	"pinned_build_system": "",
+	"project": "artemis.sublime-project",
+	"replace":
+	{
+		"height": 50.0
+	},
+	"save_all_on_build": true,
+	"select_file":
+	{
+		"height": 0.0,
+		"last_filter": "",
+		"selected_items":
+		[
+			[
+				"piep",
+				"src/pipeline.cpp"
+			],
+			[
+				"pipeline.h",
+				"include/pipeline.h"
+			],
+			[
+				"filter.cpp",
+				"src/filter.cpp"
+			],
+			[
+				"blob.cpp",
+				"src/blob.cpp"
+			],
+			[
+				"view.cpp",
+				"src/view.cpp"
+			],
+			[
+				"view.h",
+				"include/view.h"
+			],
+			[
+				"experiment.h",
+				"include/experiment.h"
+			],
+			[
+				"experiment.cpp",
+				"src/experiment.cpp"
+			],
+			[
+				"main.cp",
+				"src/main.cpp"
+			],
+			[
+				"filter.h",
+				"include/filter.h"
+			],
+			[
+				"main",
+				"src/main.cpp"
+			],
+			[
+				"main.cpp",
+				"src/main.cpp"
+			],
+			[
+				"blob.h",
+				"include/blob.h"
+			],
+			[
+				"blob",
+				"src/blob.cpp"
+			],
+			[
+				"synth",
+				"src/synth.cpp"
+			],
+			[
+				"pipe",
+				"src/pipeline.cpp"
+			],
+			[
+				"synth.cpp",
+				"src/synth.cpp"
+			],
+			[
+				"pipeline",
+				"src/pipeline.cpp"
+			],
+			[
+				"main.",
+				"src/main.cpp"
+			],
+			[
+				"view.cp",
+				"src/view.cpp"
+			],
+			[
+				"main.c",
+				"build/main.cpp"
+			],
+			[
+				"piepl",
+				"src/pipeline.cpp"
+			],
+			[
+				"hell",
+				"hello-world.cu"
+			]
+		],
+		"width": 0.0
+	},
+	"select_project":
+	{
+		"height": 0.0,
+		"last_filter": "",
+		"selected_items":
+		[
+		],
+		"width": 0.0
+	},
+	"select_symbol":
+	{
+		"height": 0.0,
+		"last_filter": "",
+		"selected_items":
+		[
+		],
+		"width": 0.0
+	},
+	"selected_group": 1,
+	"settings":
+	{
+	},
+	"show_minimap": true,
+	"show_open_files": false,
+	"show_tabs": true,
+	"side_bar_visible": true,
+	"side_bar_width": 150.0,
+	"status_bar_visible": true,
+	"template_settings":
+	{
+	}
+}

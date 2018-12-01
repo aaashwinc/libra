@@ -11,183 +11,251 @@
 #include "pipeline.h"
 #include "synth.h"
 
-
-void handle_keys(){
-  // if(sf::Keyboard::isKeyPressed(sf::Keyboard::Left)){
-  //   std::cout << "left" << std::endl;
-  // }
-}
-int main(){
-  // synth();
-  sf::RenderWindow window(sf::VideoMode(350,350), "Artemis");
-
-  View view(350,350);
-  view.camera.set(vec3(-4,3,6), vec3(1,0,-0.33), vec3(0,0,1));
-  // Experiment experiment("/home/ashwin/data/?.nrrd",3,0,19,4);
-  Experiment experiment("/home/ashwin/data/small/?.nrrd",3,0,1,4);
-  view.setExperiment(&experiment);
-  // view.render();
-  view.movetime(0);
-  printf("begin vis\n");
-  view.raytrace();
+class Game{
+public:
+  View *view;
+  ArExperiment *experiment;
+  sf::RenderWindow *window;
+  sf::View sfview;
+  ArPipeline *pipeline;
 
   sf::Clock clock;
   sf::Font font;
   sf::Text text;
-  if (!font.loadFromFile("../rsc/CallingCode-Regular.ttf")){
-    printf("Error loading font. Exit.\n");
-    exit(0);
+
+  ReprMode reprmode;
+
+  bool keys[1024];
+
+  float scale  = 0;
+  Game() : reprmode("plain"){
+
   }
-  text.setFont(font);
-  text.setString("Loading...");
-  text.setCharacterSize(16);
-  text.setFillColor(sf::Color::White);
-  text.setStyle(sf::Text::Bold);
+  void asserts(bool b, char *message){
+    if(!b){
+      fprintf(stderr,"ASSERT: %s\n", message);
+      exit(0);
+    }
+  }
+  void initUI(){
+    asserts(font.loadFromFile("../rsc/CallingCode-Regular.ttf"), "loading font");
+    text.setFont(font);
+    text.setString("Loading...");
+    text.setCharacterSize(16);
+    text.setFillColor(sf::Color::White);
+    text.setStyle(sf::Text::Bold);
 
-  Pipeline pipeline(&experiment);
-  pipeline.init();
+    window = new sf::RenderWindow(sf::VideoMode(800, 600), "Artemis");
+    window->setFramerateLimit(30);
 
-  if(true && false){
-    sf::Event event;
-    double total_time = 0;
-    int i=0;
-    for(i=0;i<15;i++){
-      while (window.pollEvent(event));
-      sf::Time elapsed1 = clock.getElapsedTime();
-      view.raytrace();
+    sfview = window->getDefaultView();
+  }
+  void init(){
+    view->camera.set(vec3(-4,3,6), vec3(1,0,-0.33), vec3(0,0,1));
+
+    // printf("camera: %.2f %.2f %.2f\n",view->camera.right.x,view->camera.right.y,view->camera.right.z);
+
+    experiment = new ArExperiment("/home/ashwin/data/mini/???.nrrd",0,10,4);
+
+    pipeline = new ArPipeline(experiment);
+    view->setvolume(pipeline->repr(reprmode));
+    for(int i=0;i<1024;i++)keys[i]=false;
+  }
+
+  void handle_events(){
+      sf::Event event;
+      while (window->pollEvent(event)){
+        if (event.type == sf::Event::Closed){
+          window->close();
+        }
+        if (event.type == sf::Event::KeyPressed){
+          if(event.key.code >= 0){
+            keys[event.key.code] = true;
+          }
+        }
+        if (event.type == sf::Event::KeyReleased){
+          if(event.key.code >= 0){
+            keys[event.key.code] = false;
+          }
+        }
+        if (event.type == sf::Event::Resized){
+          window->setView(sfview = sf::View(sf::FloatRect(0,0,window->getSize().x, window->getSize().y)));
+        }
+      }
+  }
+
+  void check_keys(){
+    using glm::vec3;
+    float speed = 0.1f;
+
+    if(keys[sf::Keyboard::LShift]){
+      speed *= 10.f;
+    }
+    if(keys[sf::Keyboard::W]){
+      view->camera.drawflat = false;
+      view->move3D(vec3(0,0,speed));
+    }
+    if(keys[sf::Keyboard::S]){
+      view->camera.drawflat = false;
+      view->move3D(vec3(0,0,-speed));
+    }
+    if(keys[sf::Keyboard::A]){
+      view->camera.drawflat = false;
+      view->move3D(vec3(-speed,0,0));
+    }
+    if(keys[sf::Keyboard::D]){
+      view->camera.drawflat = false;
+      view->move3D(vec3(speed,0,0));
+    }
+    if(keys[sf::Keyboard::R]){
+      view->camera.drawflat = false;
+      view->move3D(vec3(0,speed,0));
+    }
+    if(keys[sf::Keyboard::F]){
+      view->camera.drawflat = false;
+      view->move3D(vec3(0,-speed,0));
+    }
+    if(keys[sf::Keyboard::Left]){
+      view->camera.drawflat = false;
+      view->rotateH(0.1f);
+    }
+    if(keys[sf::Keyboard::Right]){
+      view->camera.drawflat = false;
+      view->rotateH(-0.1f);
+    }
+    if(keys[sf::Keyboard::Down]){
+      view->camera.drawflat = false;
+      view->rotateV(-0.1f);
+    }
+    if(keys[sf::Keyboard::Up]){
+      view->camera.drawflat = false;
+      view->rotateV(0.1f);
+    }
+    if(keys[sf::Keyboard::M]){
+      view->camera.flat.slice += 0.04*speed;
+      view->camera.drawflat = true;
+      view->touch();
+    }
+    if(keys[sf::Keyboard::N]){
+      view->camera.flat.slice -= 0.04*speed;
+      view->camera.drawflat = true;
+      view->touch();
+    }
+    if(keys[sf::Keyboard::O]){
+      ++reprmode.timestep;
+      view->setvolume(pipeline->repr(reprmode));
+      view->touch();
+    }
+    if(keys[sf::Keyboard::P]){
+      --reprmode.timestep;
+      view->setvolume(pipeline->repr(reprmode));
+      view->touch();
+    }
+    if(keys[sf::Keyboard::Num1]){
+      reprmode.name = "plain";
+      view->setvolume(pipeline->repr(reprmode));
+      view->touch();
+    }
+    if(keys[sf::Keyboard::Num2]){
+      reprmode.name = "blobs";
+      view->setvolume(pipeline->repr(reprmode));
+      view->touch();
+    }
+    if(keys[sf::Keyboard::Num3]){
+      reprmode.name = "filter residue";
+      view->setvolume(pipeline->repr(reprmode));
+      view->touch();
+    }
+    if(keys[sf::Keyboard::Num4]){
+      reprmode.name = "filter internal";
+      view->setvolume(pipeline->repr(reprmode));
+      view->touch();
+    }
+    if(keys[sf::Keyboard::Num5]){
+      reprmode.name = "gaussian";
+      view->setvolume(pipeline->repr(reprmode));
+      view->touch();
+    }
+    if(keys[sf::Keyboard::Num6]){
+      reprmode.name = "laplacian";
+      view->setvolume(pipeline->repr(reprmode));
+      view->touch();
+    }
+    if(keys[sf::Keyboard::Num0]){
+      reprmode.name = "sandbox";
+      view->setvolume(pipeline->repr(reprmode));
+      view->touch();
+    }
+    if(keys[sf::Keyboard::I]){
+      reprmode = pipeline->repr_coarser(reprmode);
+      view->setvolume(pipeline->repr(reprmode));
+      view->touch();
+    }
+    if(keys[sf::Keyboard::K]){
+      reprmode = pipeline->repr_finer(reprmode);
+      view->setvolume(pipeline->repr(reprmode));
+      view->touch();
+    }
+    if(keys[sf::Keyboard::U]){
+      pipeline->process(reprmode.timestep,reprmode.timestep);
+      // printf("hello!\n");
+      view->setvolume(pipeline->repr(reprmode));
+      // printf("bello!\n");
+      view->touch();
+      // printf("mello!\n");
+    }
+  }
+  void renderall(){
+    using std::to_string;
+    sf::Time elapsed1 = clock.getElapsedTime();
+    static int ms = 0;
+    static int renderframenum = 0;
+    if(view->render()){
+      // printf("render.\n");
       sf::Time elapsed2 = clock.getElapsedTime();
       double time = (elapsed2.asSeconds() - elapsed1.asSeconds());
-      total_time += time;
-      printf("trial %d %.2f\n", i, time);
-
-      window.clear();
-      window.draw(view.getSprite());
-      window.display();
+      ms = time*1000;
+      ++renderframenum;
     }
-    printf("average: %.2f\n", (total_time/i));
-    exit(0);
+    text.setString(
+        "(rendered " + to_string(renderframenum) +" frames, " + to_string(ms) + "ms)\n" + 
+        "timestep "+to_string(reprmode.timestep)+"\n"+
+        "render mode: " + std::string(reprmode.name) + "\n" + 
+        "scale: " + to_string(reprmode.blob.scale) + "\n"
+      );
+
+    window->clear();
+    sf::Sprite spr = view->getSprite();
+
+    sf::Vector2u spr_s = spr.getTexture()->getSize();
+    sf::Vector2u win_s = window->getSize();
+
+    // printf("window size: %d %d\n", win_s.x, win_s.y);
+
+    float square = min(win_s.x, win_s.y);
+
+    spr.setScale(square/spr_s.x, square/spr_s.y);
+    spr.setPosition(sf::Vector2f((win_s.x-square)/2.f,(win_s.y-square)/2.f));
+
+    window->clear(sf::Color(10,10,10));
+    window->draw(spr);
+    window->draw(text);
+    window->display();
   }
-  // printf("hi!\n");
+  int run(){
+    view = new View(350,350);
+    init();
+    initUI();
 
-  window.setFramerateLimit(30);
+    while (window->isOpen()){
+      handle_events();
+      check_keys();
 
-  int render = 1;
-
-  bool flat   = false;
-  while (window.isOpen()){
-    sf::Event event;
-    while (window.pollEvent(event)){
-      if (event.type == sf::Event::Closed)
-        window.close();
-    }
-
-    if(window.hasFocus()){
-      float speed = 0.1f;
-      if(sf::Keyboard::isKeyPressed(sf::Keyboard::LShift)){
-        speed *= 10.f;
-      } 
-      if(sf::Keyboard::isKeyPressed(sf::Keyboard::A)){
-        render= 5;
-        flat=false;
-        view.move(-speed*view.camera.right);
-      }
-      if(sf::Keyboard::isKeyPressed(sf::Keyboard::D)){
-        render= 5;
-        flat=false;
-        view.move(speed*view.camera.right);
-      }
-      if(sf::Keyboard::isKeyPressed(sf::Keyboard::R)){
-        render= 5;
-        flat=false;
-        view.move(speed*view.camera.up);
-      }
-      if(sf::Keyboard::isKeyPressed(sf::Keyboard::F)){
-        render= 5;
-        flat=false;
-        view.move(-speed*view.camera.up);
-      }
-      if(sf::Keyboard::isKeyPressed(sf::Keyboard::W)){
-        render= 5;
-        flat=false;
-        view.move(speed*view.camera.look);
-      }
-      if(sf::Keyboard::isKeyPressed(sf::Keyboard::S)){
-        render= 5;
-        flat=false;
-        view.move(-speed*view.camera.look);
-      }
-      if(sf::Keyboard::isKeyPressed(sf::Keyboard::Left)){
-        render= 5;
-        flat=false;
-        view.camera.set(view.camera.pos, view.camera.look - view.camera.right*0.1f, vec3(0,0,1));
-      }
-      if(sf::Keyboard::isKeyPressed(sf::Keyboard::Right)){
-        render= 5;
-        flat=false;
-        view.camera.set(view.camera.pos, view.camera.look + view.camera.right*0.1f, vec3(0,0,1));
-      }
-      if(sf::Keyboard::isKeyPressed(sf::Keyboard::Down)){
-        float dot = glm::dot(view.camera.look,vec3(0,0,1));
-        if(dot>-0.9){
-          render= 5;
-          flat=false;
-          view.camera.set(view.camera.pos, view.camera.look - view.camera.up*0.1f, vec3(0,0,1));
-        }
-      }
-      if(sf::Keyboard::isKeyPressed(sf::Keyboard::Up)){
-        float dot = glm::dot(view.camera.look,vec3(0,0,1));
-        if(dot<0.9){
-          render= 5;
-          flat=false;
-          view.camera.set(view.camera.pos, view.camera.look + view.camera.up*0.1f, vec3(0,0,1));
-        }
-      } 
-      if(sf::Keyboard::isKeyPressed(sf::Keyboard::O)){
-        render= 5;
-        view.movetime(1);
-        sf::sleep(sf::milliseconds(400));
-      }
-      if(sf::Keyboard::isKeyPressed(sf::Keyboard::P)){
-        render= 5;
-        view.movetime(-1);
-        sf::sleep(sf::milliseconds(400));
-      }
-      if(sf::Keyboard::isKeyPressed(sf::Keyboard::M)){
-        flat=true;
-        render= 5;
-        view.position += 0.004*speed;
-        // sf::sleep(sf::milliseconds(10));
-      }
-      if(sf::Keyboard::isKeyPressed(sf::Keyboard::N)){
-        flat=true;
-        render= 5;
-        view.position -= 0.004*speed;
-        // sf::sleep(sf::milliseconds(10));
-      }
-      if(sf::Keyboard::isKeyPressed(sf::Keyboard::U)){
-        printf("blurring...\n");
-        pipeline.process(view.get_time(),view.get_time());
-        printf("blurred.\n");
-        render = 5;
-      }
-      if(render-- > 0){
-        sf::Time elapsed1 = clock.getElapsedTime();
-        if(flat) view.render();
-        else     view.raytrace();
-        sf::Time elapsed2 = clock.getElapsedTime();
-        double time = (elapsed2.asSeconds() - elapsed1.asSeconds());
-        int ms = time*1000;
-        text.setString(std::to_string(view.gettime())+": "+std::to_string(ms)+"ms");
-      }else{
-        // sf::sleep(sf::milliseconds(200));
-      }
-    }
-
-    window.clear();
-    window.draw(view.getSprite());
-    window.draw(text);
-    window.display();
+      renderall();
+    }  
   }
-
-  return 0;
+};
+int main(){  
+  Game game;
+  return game.run();
 }

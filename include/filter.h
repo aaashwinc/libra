@@ -10,20 +10,24 @@
 class DiscreteKernel{
 public:
   DiscreteKernel();
+  ~DiscreteKernel();
   int radius;
   int support;
   double *data;
   double *temp;
+  void destroy();
 };
 
 
-class Filter{
+class ArFilter{
 private:
   struct{
     Nrrd  **nrrd;
-    short **buff;
-    int     nbuf;
-    int     curr;
+    float **buff;   // transient internal buffers for computing
+    int     nbuf;   // successive image filters. There are no
+    int     curr;   // guarantees about the contents of these images,
+                    // except that buff[curr] holds the result of the
+                    // most recent filter.
     
     DiscreteKernel kernel;
 
@@ -34,10 +38,10 @@ private:
   }self;
   int itempbuf(int c);
   int itempbuf();
-  double comp_max_laplacian(short *data);
+  double comp_max_laplacian(float *data);
 public:
-  Filter();
-  void conv2d(short *nin, short *nout, int xmax, int ymax, int zmax, int xstep, int ystep, int zstep, DiscreteKernel kernel);
+  ArFilter();
+  void conv2d(float *nin, float *nout, int xmax, int ymax, int zmax, int xstep, int ystep, int zstep, DiscreteKernel kernel);
   void convolve(Nrrd *nin, Nrrd *nout, DiscreteKernel kernel);
   DiscreteKernel gaussian(double sigma, int radius, int d=0);
   DiscreteKernel interpolation();
@@ -58,10 +62,12 @@ public:
   std::vector<glm::ivec3> find_maxima();
   void highlight(std::vector<glm::ivec3> points);
   std::vector<ScaleBlob*> find_blobs();
-  void draw_blobs(std::vector<ScaleBlob*>);
+  void draw_blobs(std::vector<ScaleBlob*>, bool highlight=false);
+  ScaleBlob* compute_blob_tree();
 
+  void capture(Nrrd *nin);
   void init(Nrrd *nin);
-  Nrrd *commit();
+  Nrrd *commit(Nrrd *nout = 0);
   void destroy();
 
   static void print_kernel(DiscreteKernel k);

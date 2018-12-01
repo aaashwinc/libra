@@ -1,4 +1,5 @@
 #include <glm/glm.hpp>
+#include <SFML/Graphics.hpp>
 
 #include "experiment.h"
 
@@ -26,53 +27,64 @@ public:
   float lhorz, lvert;
   vec3 pos;
   vec3 look, up, right;
+  vec3 sky;
   mat4 screenToWorld;
+
+  bool drawflat;
+
+  struct{
+    float slice;
+  }flat;
+
   void setYawPitch(float y, float p);
   void set(vec3 pos, vec3 look, vec3 up);
 };
 
+/* Describes a View into a particular ArPipeline.
+ */
 class View{
 public:
   View(int w, int h);
 private:
   sf::Uint8 *texdata;
-  int mode;
   int const w, h;
   sf::Sprite  sprite;
   sf::Texture texture;
-  Experiment *experiment;
-  int timestep;
-  int rf;
+  int beat;
+  int unstable;
 
   struct{
     Nrrd *n;
     NrrdAxisInfo *a;
     int w0,w1,w2,w3;
     int    a1,a2,a3;
-    short *data;
+    float *data;
   }vcache;
 
-  void get_color(float x, sf::Uint8 *color);
+  void drawflat();
+  void raytrace();
+  float qsample(int c, float x, float y, float z);
 
 public:
   Camera camera;
   Colormap colormap;
   float position;
 
-  float sample(int t, int c, float x, float y, float z, float defaultv=0.f, bool normalize=true);
-  float qsample(int c, float x, float y, float z);
+  // render
+  void touch();
+  int  render();
+
+  // input
   void setvolume(Nrrd *nrrd);
-  void render();
-  void moveforward(float v);
-  void movetime(int n);
-  int  gettime();
-  void move(vec3 v);
-  void turn(float r);
-  void raytrace();
-  void setExperiment(Experiment *e);
-  int get_time();
-  long check();
+
+  // movement
+  void move3D(vec3 v);
+  void rotateH(float r);
+  void rotateV(float r);
+
+  // output
   sf::Sprite &getSprite();
+  void render_to(sf::Window *window);
 };
 
 #endif
