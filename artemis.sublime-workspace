@@ -4,6 +4,14 @@
 		"selected_items":
 		[
 			[
+				"unorder",
+				"unordered_set\tstandard header (since c++11)"
+			],
+			[
+				"render",
+				"renderframenum"
+			],
+			[
 				"unordered",
 				"unordered_map\tstandard header (since c++11)"
 			],
@@ -32,91 +40,95 @@
 	"buffers":
 	[
 		{
-			"file": "src/main.cpp",
+			"file": "src/bsptree.cpp",
 			"settings":
 			{
-				"buffer_size": 6279,
+				"buffer_size": 40,
 				"encoding": "UTF-8",
 				"line_ending": "Unix"
 			}
 		},
 		{
-			"file": "include/pipeline.h",
+			"file": "include/bsptree.h",
 			"settings":
 			{
-				"buffer_size": 975,
+				"buffer_size": 2685,
 				"encoding": "UTF-8",
 				"line_ending": "Unix"
-			}
-		},
-		{
-			"file": "include/view.h",
-			"settings":
-			{
-				"buffer_size": 1361,
-				"line_ending": "Unix"
-			}
-		},
-		{
-			"file": "src/view.cpp",
-			"settings":
-			{
-				"buffer_size": 6509,
-				"encoding": "UTF-8",
-				"line_ending": "Unix"
-			}
-		},
-		{
-			"file": "include/experiment.h",
-			"settings":
-			{
-				"buffer_size": 455,
-				"encoding": "UTF-8",
-				"line_ending": "Unix"
-			}
-		},
-		{
-			"file": "src/experiment.cpp",
-			"settings":
-			{
-				"buffer_size": 3176,
-				"encoding": "UTF-8",
-				"line_ending": "Unix"
-			}
-		},
-		{
-			"file": "src/filter.cpp",
-			"settings":
-			{
-				"buffer_size": 27230,
-				"encoding": "UTF-8",
-				"line_ending": "Unix"
-			}
-		},
-		{
-			"file": "src/pipeline.cpp",
-			"settings":
-			{
-				"buffer_size": 838,
-				"encoding": "UTF-8",
-				"line_ending": "Unix"
-			}
-		},
-		{
-			"contents": "Package Control Messages\n========================\n\nSublimeLinter\n-------------\n\n  \n    ____        _     _ _                _     _       _\n   / ___| _   _| |__ | (_)_ __ ___   ___| |   (_)_ __ | |_ ___ _ __\n   \\___ \\| | | | '_ \\| | | '_ ` _ \\ / _ \\ |   | | '_ \\| __/ _ \\ '__|\n    ___) | |_| | |_) | | | | | | | |  __/ |___| | | | | ||  __/ |\n   |____/ \\__,_|_.__/|_|_|_| |_| |_|\\___|_____|_|_| |_|\\__\\___|_|\n  \n  \n  Welcome to SublimeLinter, a linter framework for Sublime Text 3.\n  Linters are not included, they must be installed separately.\n  \n  \n  For complete documentation on how to use and configure SublimeLinter,\n  please see: http://www.sublimelinter.com\n  \n  To report issues: https://github.com/SublimeLinter/SublimeLinter\n\n\nSublimeLinter-contrib-clang-tidy\n--------------------------------\n\n  SublimeLinter-contrib-clang-tidy\n  -------------------------------\n  This linter plugin for SublimeLinter provides an interface to clang-tidy.\n  \n  ** IMPORTANT! **\n  \n  Before this plugin will activate, you *must*\n  follow the installation instructions here:\n  \n  https://github.com/rwols/SublimeLinter-contrib-clang-tidy\n",
-			"settings":
-			{
-				"buffer_size": 1130,
-				"line_ending": "Unix",
-				"name": "Package Control Messages",
-				"read_only": true,
-				"scratch": true
 			}
 		}
 	],
-	"build_system": "",
+	"build_system": "Packages/User/artemis.sublime-build",
 	"build_system_choices":
 	[
+		[
+			[
+				[
+					"Packages/C++/C++ Single File.sublime-build",
+					""
+				],
+				[
+					"Packages/C++/C++ Single File.sublime-build",
+					"Run"
+				]
+			],
+			[
+				"Packages/C++/C++ Single File.sublime-build",
+				""
+			]
+		],
+		[
+			[
+				[
+					"Packages/C++/C++ Single File.sublime-build",
+					""
+				],
+				[
+					"Packages/C++/C++ Single File.sublime-build",
+					"Run"
+				],
+				[
+					"Packages/User/artemis.sublime-build",
+					""
+				]
+			],
+			[
+				"Packages/User/artemis.sublime-build",
+				""
+			]
+		],
+		[
+			[
+				[
+					"Packages/Makefile/Make.sublime-build",
+					""
+				],
+				[
+					"Packages/Makefile/Make.sublime-build",
+					"Clean"
+				]
+			],
+			[
+				"Packages/Makefile/Make.sublime-build",
+				""
+			]
+		],
+		[
+			[
+				[
+					"Packages/User/artemis.sublime-build",
+					""
+				],
+				[
+					"Packages/User/artemis.sublime-build",
+					"Clean"
+				]
+			],
+			[
+				"Packages/User/artemis.sublime-build",
+				""
+			]
+		]
 	],
 	"build_varint": "",
 	"command_palette":
@@ -125,6 +137,10 @@
 		"last_filter": "",
 		"selected_items":
 		[
+			[
+				"install pack",
+				"Package Control: Install Package"
+			],
 			[
 				"install",
 				"Package Control: Install Package"
@@ -162,23 +178,38 @@
 	},
 	"expanded_folders":
 	[
-		"/home/ashwin/repo/libra"
+		"/home/ashwin/repo/libra/include",
+		"/home/ashwin/repo/libra/src"
 	],
 	"file_history":
 	[
-		"/home/ashwin/repo/libra/src/blob.cpp",
-		"/home/ashwin/repo/libra/include/view.h",
-		"/home/ashwin/repo/libra/src/view.cpp",
+		"/home/ashwin/repo/include/bsptree.h",
 		"/home/ashwin/repo/libra/src/main.cpp",
-		"/home/ashwin/repo/libra/src/experiment.cpp",
-		"/home/ashwin/repo/libra/src/filter.cpp",
-		"/home/ashwin/repo/libra/include/filter.h",
-		"/home/ashwin/repo/libra/include/blob.h",
-		"/home/ashwin/repo/libra/include/pipeline.h",
-		"/home/ashwin/repo/libra/src/synth.cpp",
+		"/home/ashwin/.config/sublime-text-3/Packages/User/artemis.sublime-build",
+		"/home/ashwin/.config/sublime-text-3/Packages/User/HighlightBuildErrors.sublime-settings",
+		"/home/ashwin/.config/sublime-text-3/Packages/Highlight Build Errors/HighlightBuildErrors.sublime-settings",
+		"/home/ashwin/repo/libra/src/bsptree.cpp",
+		"/home/ashwin/repo/libra/include/bsptree.h",
 		"/home/ashwin/repo/libra/src/pipeline.cpp",
+		"/home/ashwin/repo/libra/include/filter.h",
+		"/home/ashwin/repo/libra/src/filter.cpp",
+		"/home/ashwin/repo/libra/src/view.cpp",
+		"/home/ashwin/repo/libra/src/experiment.cpp",
+		"/home/ashwin/repo/libra/include/pipeline.h",
+		"/home/ashwin/repo/libra/include/blob.h",
+		"/home/ashwin/repo/libra/src/blob.cpp",
+		"/home/ashwin/repo/libra/build/Makefile",
+		"/home/ashwin/repo/libra/src/octtree.cpp",
+		"/home/ashwin/repo/libra/include/octtree.h",
 		"/home/ashwin/repo/libra/include/experiment.h",
+		"/home/ashwin/repo/libra/include/glm/glm.hpp",
+		"/home/ashwin/repo/libra/include/view.h",
 		"/home/ashwin/repo/libra/include/medianfilter.h",
+		"/home/ashwin/repo/libra/src/colormap.cpp",
+		"/home/ashwin/repo/libra/src/camera.cpp",
+		"/home/ashwin/repo/libra/include/renderer.h",
+		"/home/ashwin/repo/libra/artemis.sublime-project",
+		"/home/ashwin/repo/libra/src/synth.cpp",
 		"/home/ashwin/repo/libra/include/medianheap.h",
 		"/usr/share/gnome-shell/theme/gdm3.css",
 		"/home/ashwin/repo/libra/include/HuangQS.h",
@@ -189,11 +220,11 @@
 	],
 	"find":
 	{
-		"height": 39.0
+		"height": 44.0
 	},
 	"find_in_files":
 	{
-		"height": 101.0,
+		"height": 116.0,
 		"where_history":
 		[
 			"/home/ashwin/repo/libra/src,/home/ashwin/repo/libra/include",
@@ -207,103 +238,134 @@
 		"case_sensitive": true,
 		"find_history":
 		[
+			"\n    children[0] = BSPTree(depth-1, min, vec3(center.x,max.y,max.z));\n    children[1] = BSPTree(depth-1, vec3(center.x,min.y,min.z), max);",
+			"int",
+			"0",
+			"draw_blobs",
+			"Oct",
+			"ScaleBlob",
+			"OCTTREE",
+			"conv: ",
+			"=",
+			"sb->max.",
+			"sb->min.",
+			"max",
+			"%f",
+			"*",
+			"->",
+			"(sb",
+			"float(sb",
+			"int",
+			"sb.",
+			"blob",
+			"blob.",
+			"y",
+			"x",
+			"fmedian()",
+			"median",
+			"median(),",
+			"filter",
+			"1",
+			"int",
+			"sigma",
+			"!",
+			"timestep",
+			"rm.scale",
+			"mode.blob.",
+			"get(rm.timestep)",
+			"scales",
+			"mode.blob.",
+			"ReprMode)",
+			"ReprMode ",
+			";",
+			"+",
+			"timestep, ",
+			"head",
+			"traverse",
+			"current",
+			"curr",
+			"itempbuf",
+			"self.curr",
+			"highlight",
+			"filter()",
+			"std::",
+			"1.f",
+			"0.1f",
+			"02",
+			"1",
+			"04",
+			"repr",
+			"frame",
+			"blob at",
+			"blob ",
+			"raytrace",
+			"Filter",
+			"View",
+			"ArExperimental",
+			"Experiment",
+			"Pipeline",
+			"reprmode.",
+			"mode.",
+			"blob.",
+			"arFrameData",
+			"03",
+			"-",
+			"nrrdCopy",
+			"0",
+			"init",
+			"short",
+			"nout",
+			"nin",
+			"copy",
+			"camera",
+			"camera.right",
+			"350",
+			"process",
+			"view->camera.time.step",
+			"timestep",
+			"view->",
+			"view",
+			"camera.",
+			"move",
+			"rf",
+			"mode",
+			".mode",
+			"mode",
+			"pipeline",
+			"render",
+			"representation",
+			"get",
+			"high",
+			"low",
+			"experiment",
+			"keys[k",
+			"k",
+			"kLShift",
+			"int",
+			"repr",
+			"sky",
+			"view->",
+			"high",
+			"low",
+			"experiment",
+			"view->",
+			"get_color",
+			"sample",
+			"Experiment",
+			"position",
+			"timestep",
+			"=",
+			"get_color",
+			"getSprite",
+			"::Camera",
+			"get_time",
+			"\n  ",
+			"moveforward",
+			"setvolume",
 			"pipeline.",
 			"event.code",
 			"window.",
-			"view.",
-			"clock",
-			"assert",
-			"static ",
-			"Down",
-			"Y",
-			"B",
-			"D",
-			"A",
-			";\n",
-			")",
-			"||",
-			"fpswap",
-			"pswap",
-			"void",
-			"=",
-			"+curr",
-			"curr",
-			"movetime",
-			"path",
-			"st",
-			"buff",
-			"set_kernel",
-			"newblobs",
-			"n",
-			"double",
-			"dvec3",
-			"dvec",
-			"destroy",
-			"stdv",
-			"it",
-			"labels_to_counts",
-			"0",
-			"highlight",
-			"find_blobs",
-			"2",
-			"laplacian3d",
-			"normalize",
-			"30000",
-			"double",
-			"30000",
-			"medianfilter",
-			"short",
-			"float",
-			"short",
-			",",
-			"short",
-			"2",
-			"filter",
-			"42",
-			"40",
-			"85",
-			"2f",
-			"2",
-			"filter",
-			"p",
-			"ftoi(",
-			"ftoi",
-			"x",
-			"ray",
-			"x",
-			".",
-			"color.",
-			"*33.f",
-			"*=",
-			"ftoi(color.x)",
-			"2",
-			"render=true",
-			"7",
-			"0",
-			"w3",
-			"normalize",
-			"();\n",
-			"new",
-			"1",
-			"filter",
-			"11",
-			"support",
-			"convolve",
-			"9",
-			"data",
-			"neighbor",
-			"in",
-			"indices",
-			"out",
-			"in",
-			"xo",
-			"0",
-			"x",
-			"double *",
-			"gaussian",
-			"set_kernel",
-			"8",
-			"3"
+			"view."
 		],
 		"highlight": true,
 		"in_selection": false,
@@ -311,6 +373,12 @@
 		"regex": false,
 		"replace_history":
 		[
+			"ArFilter",
+			"ArView",
+			"ArExperiment",
+			"ArPipeline",
+			"ArFrameData",
+			"gettime",
 			"float"
 		],
 		"reverse": false,
@@ -327,57 +395,24 @@
 			[
 				{
 					"buffer": 0,
-					"file": "src/main.cpp",
+					"file": "src/bsptree.cpp",
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 6279,
+						"buffer_size": 40,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								4973,
-								4973
+								40,
+								40
 							]
 						],
 						"settings":
 						{
-							"SL.13.region_keys":
-							[
-							],
-							"syntax": "Packages/C++/C++.sublime-syntax",
-							"tab_size": 2,
-							"translate_tabs_to_spaces": true
-						},
-						"translation.x": 0.0,
-						"translation.y": 2726.0,
-						"zoom_level": 1.0
-					},
-					"stack_index": 3,
-					"type": "text"
-				},
-				{
-					"buffer": 1,
-					"file": "include/pipeline.h",
-					"semi_transient": false,
-					"settings":
-					{
-						"buffer_size": 975,
-						"regions":
-						{
-						},
-						"selection":
-						[
-							[
-								957,
-								957
-							]
-						],
-						"settings":
-						{
-							"SL.20.region_keys":
+							"SL.106.region_keys":
 							[
 							],
 							"syntax": "Packages/C++/C++.sublime-syntax",
@@ -392,25 +427,25 @@
 					"type": "text"
 				},
 				{
-					"buffer": 2,
-					"file": "include/view.h",
+					"buffer": 1,
+					"file": "include/bsptree.h",
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 1361,
+						"buffer_size": 2685,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								1164,
-								1164
+								2020,
+								2020
 							]
 						],
 						"settings":
 						{
-							"SL.14.region_keys":
+							"SL.108.region_keys":
 							[
 							],
 							"syntax": "Packages/C++/C++.sublime-syntax",
@@ -418,211 +453,7 @@
 							"translate_tabs_to_spaces": true
 						},
 						"translation.x": 0.0,
-						"translation.y": 712.0,
-						"zoom_level": 1.0
-					},
-					"stack_index": 8,
-					"type": "text"
-				},
-				{
-					"buffer": 3,
-					"file": "src/view.cpp",
-					"semi_transient": false,
-					"settings":
-					{
-						"buffer_size": 6509,
-						"regions":
-						{
-						},
-						"selection":
-						[
-							[
-								1603,
-								1603
-							]
-						],
-						"settings":
-						{
-							"SL.15.region_keys":
-							[
-							],
-							"syntax": "Packages/C++/C++.sublime-syntax",
-							"tab_size": 2,
-							"translate_tabs_to_spaces": true
-						},
-						"translation.x": 0.0,
-						"translation.y": 864.0,
-						"zoom_level": 1.0
-					},
-					"stack_index": 4,
-					"type": "text"
-				},
-				{
-					"buffer": 4,
-					"file": "include/experiment.h",
-					"semi_transient": false,
-					"settings":
-					{
-						"buffer_size": 455,
-						"regions":
-						{
-						},
-						"selection":
-						[
-							[
-								20,
-								20
-							]
-						],
-						"settings":
-						{
-							"SL.16.region_keys":
-							[
-							],
-							"syntax": "Packages/C++/C++.sublime-syntax",
-							"tab_size": 2,
-							"translate_tabs_to_spaces": true
-						},
-						"translation.x": 0.0,
-						"translation.y": 0.0,
-						"zoom_level": 1.0
-					},
-					"stack_index": 7,
-					"type": "text"
-				},
-				{
-					"buffer": 5,
-					"file": "src/experiment.cpp",
-					"semi_transient": false,
-					"settings":
-					{
-						"buffer_size": 3176,
-						"regions":
-						{
-						},
-						"selection":
-						[
-							[
-								1458,
-								1458
-							]
-						],
-						"settings":
-						{
-							"SL.17.region_keys":
-							[
-							],
-							"syntax": "Packages/C++/C++.sublime-syntax",
-							"tab_size": 2,
-							"translate_tabs_to_spaces": true
-						},
-						"translation.x": 0.0,
-						"translation.y": 594.0,
-						"zoom_level": 1.0
-					},
-					"stack_index": 5,
-					"type": "text"
-				},
-				{
-					"buffer": 6,
-					"file": "src/filter.cpp",
-					"semi_transient": false,
-					"settings":
-					{
-						"buffer_size": 27230,
-						"regions":
-						{
-						},
-						"selection":
-						[
-							[
-								27009,
-								27009
-							]
-						],
-						"settings":
-						{
-							"SL.18.region_keys":
-							[
-							],
-							"syntax": "Packages/C++/C++.sublime-syntax",
-							"tab_size": 2,
-							"translate_tabs_to_spaces": true
-						},
-						"translation.x": 0.0,
-						"translation.y": 16064.0,
-						"zoom_level": 1.0
-					},
-					"stack_index": 6,
-					"type": "text"
-				}
-			]
-		},
-		{
-			"selected": 1,
-			"sheets":
-			[
-				{
-					"buffer": 7,
-					"file": "src/pipeline.cpp",
-					"semi_transient": false,
-					"settings":
-					{
-						"buffer_size": 838,
-						"regions":
-						{
-						},
-						"selection":
-						[
-							[
-								601,
-								601
-							]
-						],
-						"settings":
-						{
-							"SL.23.region_keys":
-							[
-							],
-							"syntax": "Packages/C++/C++.sublime-syntax",
-							"tab_size": 2,
-							"translate_tabs_to_spaces": true
-						},
-						"translation.x": 0.0,
-						"translation.y": 0.0,
-						"zoom_level": 1.0
-					},
-					"stack_index": 2,
-					"type": "text"
-				},
-				{
-					"buffer": 8,
-					"semi_transient": false,
-					"settings":
-					{
-						"buffer_size": 1130,
-						"regions":
-						{
-						},
-						"selection":
-						[
-							[
-								1129,
-								1129
-							]
-						],
-						"settings":
-						{
-							"SL.35.region_keys":
-							[
-							],
-							"auto_indent": false,
-							"syntax": "Packages/Text/Plain text.tmLanguage",
-							"tab_width": 2,
-							"word_wrap": true
-						},
-						"translation.x": 0.0,
-						"translation.y": 0.0,
+						"translation.y": 1653.0,
 						"zoom_level": 1.0
 					},
 					"stack_index": 0,
@@ -633,11 +464,11 @@
 	],
 	"incremental_find":
 	{
-		"height": 27.0
+		"height": 32.0
 	},
 	"input":
 	{
-		"height": 39.0
+		"height": 44.0
 	},
 	"layout":
 	{
@@ -648,18 +479,11 @@
 				0,
 				1,
 				1
-			],
-			[
-				1,
-				0,
-				2,
-				1
 			]
 		],
 		"cols":
 		[
 			0.0,
-			0.5,
 			1.0
 		],
 		"rows":
@@ -673,15 +497,19 @@
 	{
 		"height": 0.0
 	},
+	"output.exec":
+	{
+		"height": 265.0
+	},
 	"output.find_results":
 	{
 		"height": 0.0
 	},
-	"pinned_build_system": "",
+	"pinned_build_system": "Packages/User/artemis.sublime-build",
 	"project": "artemis.sublime-project",
 	"replace":
 	{
-		"height": 50.0
+		"height": 60.0
 	},
 	"save_all_on_build": true,
 	"select_file":
@@ -691,44 +519,40 @@
 		"selected_items":
 		[
 			[
-				"piep",
-				"src/pipeline.cpp"
+				"bsp",
+				"include/bsptree.h"
 			],
 			[
-				"pipeline.h",
-				"include/pipeline.h"
+				"bsptree",
+				"src/bsptree.cpp"
 			],
 			[
-				"filter.cpp",
-				"src/filter.cpp"
-			],
-			[
-				"blob.cpp",
-				"src/blob.cpp"
-			],
-			[
-				"view.cpp",
-				"src/view.cpp"
-			],
-			[
-				"view.h",
-				"include/view.h"
-			],
-			[
-				"experiment.h",
-				"include/experiment.h"
-			],
-			[
-				"experiment.cpp",
-				"src/experiment.cpp"
-			],
-			[
-				"main.cp",
+				"main.",
 				"src/main.cpp"
+			],
+			[
+				"bsptree.cp",
+				"src/bsptree.cpp"
+			],
+			[
+				"pipelin",
+				"src/pipeline.cpp"
 			],
 			[
 				"filter.h",
 				"include/filter.h"
+			],
+			[
+				"bsptree.c",
+				"src/bsptree.cpp"
+			],
+			[
+				"octree",
+				"src/octtree.cpp"
+			],
+			[
+				"octtre",
+				"include/octtree.h"
 			],
 			[
 				"main",
@@ -739,8 +563,124 @@
 				"src/main.cpp"
 			],
 			[
+				"makefile",
+				"build/Makefile"
+			],
+			[
+				"filter.cpp",
+				"src/filter.cpp"
+			],
+			[
+				"filter.cp",
+				"src/filter.cpp"
+			],
+			[
+				"pipeline.",
+				"src/pipeline.cpp"
+			],
+			[
+				"mian.cp",
+				"src/main.cpp"
+			],
+			[
+				"pipe",
+				"src/pipeline.cpp"
+			],
+			[
+				"experiment.",
+				"src/experiment.cpp"
+			],
+			[
+				"view.cpp",
+				"src/view.cpp"
+			],
+			[
+				"main.cp",
+				"src/main.cpp"
+			],
+			[
+				"blob.cp",
+				"src/blob.cpp"
+			],
+			[
 				"blob.h",
 				"include/blob.h"
+			],
+			[
+				"main.c",
+				"src/main.cpp"
+			],
+			[
+				"pipeline.cpp",
+				"src/pipeline.cpp"
+			],
+			[
+				"experim",
+				"src/experiment.cpp"
+			],
+			[
+				"filter.c",
+				"src/filter.cpp"
+			],
+			[
+				"piep",
+				"src/pipeline.cpp"
+			],
+			[
+				"pi",
+				"src/pipeline.cpp"
+			],
+			[
+				"experiment.h",
+				"include/experiment.h"
+			],
+			[
+				"piple",
+				"include/pipeline.h"
+			],
+			[
+				"pipeline",
+				"src/pipeline.cpp"
+			],
+			[
+				"camera.p",
+				"src/camera.cpp"
+			],
+			[
+				"view.h",
+				"include/view.h"
+			],
+			[
+				"colormap",
+				"src/colormap.cpp"
+			],
+			[
+				"ex",
+				"include/experiment.h"
+			],
+			[
+				"view.cp",
+				"src/view.cpp"
+			],
+			[
+				"experiment",
+				"include/experiment.h"
+			],
+			[
+				"piepline.h",
+				"include/pipeline.h"
+			],
+			[
+				"pipeline.h",
+				"include/pipeline.h"
+			],
+			[
+				"blob.cpp",
+				"src/blob.cpp"
+			],
+			[
+				"experiment.cpp",
+				"src/experiment.cpp"
 			],
 			[
 				"blob",
@@ -751,28 +691,8 @@
 				"src/synth.cpp"
 			],
 			[
-				"pipe",
-				"src/pipeline.cpp"
-			],
-			[
 				"synth.cpp",
 				"src/synth.cpp"
-			],
-			[
-				"pipeline",
-				"src/pipeline.cpp"
-			],
-			[
-				"main.",
-				"src/main.cpp"
-			],
-			[
-				"view.cp",
-				"src/view.cpp"
-			],
-			[
-				"main.c",
-				"build/main.cpp"
 			],
 			[
 				"piepl",
@@ -803,7 +723,7 @@
 		],
 		"width": 0.0
 	},
-	"selected_group": 1,
+	"selected_group": 0,
 	"settings":
 	{
 	},

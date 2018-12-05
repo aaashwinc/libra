@@ -179,6 +179,7 @@ Nrrd *ArPipeline::repr(ReprMode &mode){
     printf("mode %s. view scale %d with %.2f %.2f\n", mode.name, scalemin, scalemax);
     std::vector<ScaleBlob*> blobs = collect_blobs(frame.blob, scalemin, scalemax);
     printf("\n");
+    filter.clear();
     filter.draw_blobs(blobs, true);
     filter.commit(store.buf[1]);
     return (last_nrrd = store.buf[1]);

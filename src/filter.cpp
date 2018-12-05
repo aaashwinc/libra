@@ -1,5 +1,5 @@
 #include "filter.h"
-// #include "medianfilter.h"
+#include "bsptree.h"
 #include "HuangQS.h"
 #include <vector>
 #include <queue> 
@@ -612,7 +612,7 @@ std::vector<glm::ivec3> ArFilter::find_maxima(){
       }
     }
   }
-  printf("found %d maxima.\n",maxima.size());
+  printf("found %lu maxima.\n",maxima.size());
   return maxima;
 }
 void ArFilter::highlight(std::vector<glm::ivec3> points){
@@ -830,7 +830,7 @@ std::vector<ScaleBlob*> ArFilter::find_blobs(){
   // std::vector<ivec3>
   // normalize(0.1);
   // highlight(positions);
-  printf("number of blobs: %d\n",output.size());
+  printf("number of blobs: %lu\n",output.size());
   delete[] labelled;
   printf("done.\n");
   return output;
@@ -869,10 +869,14 @@ void ArFilter::print(){
   printf("minmax: %.1f %.1f\n",min,min+max);
 }
 
+void ArFilter::clear(){
+  float *data = self.buff[self.curr];
+  for(int i=0;i<self.w4;i++)data[i] = 0;
+}
+
 void ArFilter::draw_blobs(std::vector<ScaleBlob*> blobs, bool highlight){
   using namespace glm;
   float *data = self.buff[self.curr];
-  for(int i=0;i<self.w4;i++)data[i] = 0;
   for(auto blob = blobs.begin(); blob != blobs.end(); ++blob){
     ScaleBlob *sb = *blob;
     float minx = sb->min.x;
@@ -940,6 +944,7 @@ static inline float sq(float x){
 }
 
 ScaleBlob* ArFilter::compute_blob_tree(){
+  BSPTree<ScaleBlob*> bspblobs(0,10,vec3(-1.f,-1.f,-1.f),vec3(a1+1.f,a2+1.f,a3+1.f)); // safe against any rounding errors.
   DiscreteKernel kernel; 
   float sigma = 2.f;
   float scale = 0.f;

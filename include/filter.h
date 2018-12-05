@@ -58,6 +58,7 @@ public:
   void median1();
   void maxima();
   void print();
+  void clear();
 
   std::vector<glm::ivec3> find_maxima();
   void highlight(std::vector<glm::ivec3> points);

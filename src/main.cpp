@@ -24,7 +24,6 @@ public:
   sf::Text text;
 
   ReprMode reprmode;
-
   bool keys[1024];
 
   float scale  = 0;
