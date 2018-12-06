@@ -8,6 +8,8 @@
 #include <queue>
 #include <limits>
 
+#include <SFML/Graphics.hpp>
+
 
 using namespace std::chrono; 
 using namespace std;
@@ -167,6 +169,31 @@ void ArPipeline::process(int low, int high){
 }
 
 ArGeometry3D* ArPipeline::reprgeometry(ReprMode &mode){
+  geometry.lines = std::vector<vec3>();
+  geometry.lines_c = std::vector<sf::Color>();
+  printf("mode %s\n", mode.geom);
+  if(!strcmp(mode.geom, "graph")){
+    if(get(mode.timestep).complete){
+      ArFrameData frame = get(mode.timestep);
+      float scalemin = frame.scales[mode.blob.scale] - frame.scale_eps;
+      float scalemax = frame.scales[mode.blob.scale] + frame.scale_eps;
+      std::vector<ScaleBlob*> blobs = collect_blobs(frame.blob, scalemin, scalemax);
+      for(ScaleBlob *sb : blobs){
+        for(ScaleBlob *succ : sb->succ){
+          geometry.lines.push_back(sb->position);
+          geometry.lines.push_back(succ->position);
+          geometry.lines_c.push_back(sf::Color::White);
+          geometry.lines_c.push_back(sf::Color::White);
+        }
+        if(sb->parent){
+          geometry.lines.push_back(sb->position);
+          geometry.lines.push_back(sb->parent->position);
+          geometry.lines_c.push_back(sf::Color::Blue);
+          geometry.lines_c.push_back(sf::Color::Blue);
+        }
+      }
+    }
+  }
   return &geometry;
 }
 Nrrd *ArPipeline::repr(ReprMode &mode){

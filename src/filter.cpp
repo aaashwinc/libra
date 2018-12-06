@@ -913,17 +913,17 @@ void ArFilter::draw_blobs(std::vector<ScaleBlob*> blobs, bool highlight){
       }
     }
   }
-  normalize(0.3f);
-  scale(0.2f);
-  for(auto blob = blobs.begin(); blob != blobs.end(); ++blob){
-    ScaleBlob *sb = *blob;
-    if(sb->parent){
-      // rasterlineadd(vec3(sb->position), vec3(sb->parent->position), 1.9f);
-    }
-    for(ScaleBlob *succ : sb->succ){
-      rasterlineadd(vec3(sb->position), vec3(succ->position), 1.1f, 1.5f);
-    }
-  }
+  normalize(1);
+  // scale(0.2f);
+  // for(auto blob = blobs.begin(); blob != blobs.end(); ++blob){
+  //   ScaleBlob *sb = *blob;
+  //   if(sb->parent){
+  //     rasterlineadd(vec3(sb->position), vec3(sb->parent->position), 1.1f, 1.5f);
+  //   }
+  //   // for(ScaleBlob *succ : sb->succ){
+  //   //   rasterlineadd(vec3(sb->position), vec3(succ->position), 1.1f, 1.5f);
+  //   // }
+  // }
   // for(int z=0;z<self.a3; z++){
   //   if(z%50 == 0)printf("draw_blobs progress %d/%d\n",z,self.a3);
   //   for(int y=0; y<self.a2; y++){

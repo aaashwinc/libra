@@ -9,6 +9,19 @@
 
 using namespace glm;
 
+struct line3{
+  vec3 a;
+  vec3 b;
+
+  line3(vec3 a, vec3 b): a(a), b(b){}
+  vec3 &operator[](int i){
+    if(i==0)return a;
+    if(i==1)return b;
+    fprintf(stderr, "invalid access: line3[%d]\n", i);
+    exit(0);
+  }
+};
+
 class Camera{
 public:
   Camera();
@@ -17,7 +30,7 @@ public:
   vec3 pos;
   vec3 look, up, right;
   vec3 sky;
-  mat4 screenToWorld;
+  mat4 worldToScreen;
 
   bool drawflat;
 
@@ -27,6 +40,7 @@ public:
 
   void setYawPitch(float y, float p);
   void set(vec3 pos, vec3 look, vec3 up);
+  line3 to_screen(line3 x, ivec2 screen);
 };
 
 /* Describes a View into a particular ArPipeline.
@@ -35,10 +49,10 @@ class View{
 public:
   View(int w, int h);
 private:
-  ArGeometry3D *geom;
+  ArGeometry3D geom;
 
   sf::VertexArray lines;
-  // sf::VertexArray lines_window;
+  // sf::VertexArray lines  _window;
 
   sf::Uint8 *texdata;
   int const w, h;

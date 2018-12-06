@@ -59,27 +59,51 @@ void View::setvolume(Nrrd *n){
   touch();
 }
 void View::setgeometry(ArGeometry3D* geometry){
-  // geom = geometry;
+  geom = *geometry;
+  lines = sf::VertexArray(sf::Lines, geom.lines.size());
 }
 void View::draw_geometry(){
-  lines = sf::VertexArray(sf::Lines, 2);
-  
-  lines[0].position = sf::Vector2f(0,0);
-  lines[1].position = sf::Vector2f(0.5f,0.5f);
-
-  lines[0].color = sf::Color::White;
-  lines[1].color = sf::Color::White;
-  // RenderTarget::draw(const Vertex* vertices, std::size_t vertexCount,
-  //                       PrimitiveType type, const RenderStates& states)
-
   float square = min(win.width, win.height);
   float px = (win.width-square)/2.f;
   float py = (win.height-square)/2.f;
-  // transform to screen space:
-  for(int i=0;i<lines.getVertexCount();++i){
-    lines[i].position.x = px + lines[i].position.x*square;
-    lines[i].position.y = py + lines[i].position.y*square;
+
+  for(int i=0;i<geom.lines.size();i+=2){
+    lines[i+0].color = geom.lines_c[i+0];
+    lines[i+1].color = geom.lines_c[i+1];
+
+    line3 clipped = camera.to_screen(line3(geom.lines[i]/33.f, geom.lines[i+1]/33.f), ivec2(square, square));
+
+    // vec3 ps0 = camera.to_screen(geom.lines[i+0], ivec2(square, square));
+    // vec3 ps1 = camera.to_screen(geom.lines[i+1], ivec2(square, square));
+
+    if(clipped[0].z <= 0 && clipped[1].z <= 0){
+      // if both are behind the camera, then discard both.
+      lines[i  ].color = sf::Color::Transparent;
+      lines[i+1].color = sf::Color::Transparent;
+    }
+    // else{
+    //   if(ps0.z < 0){
+    //     vec3 v = ps1 - ps0; // v.z > 0
+    //     ps0 = ps0 + v*(-ps0.z/v.z);
+    //   }
+    //   if(ps1.z < 0){
+    //     vec3 v = ps0 - ps1; // v.z > 0
+    //     ps1 = ps1 + v*(-ps1.z/v.z);
+    //   }
+    // }
+
+    // transform to screen space:
+    lines[i+0].position.x = clipped[0].x + px;
+    lines[i+0].position.y = clipped[0].y + py;
+    lines[i+1].position.x = clipped[1].x + px;
+    lines[i+1].position.y = clipped[1].y + py;
+
+    // printf("line %.3f %.3f -> %.3f %.3f\n", lines[i].position.x, lines[i].position.y, lines[i+1].position.x, lines[i+1].position.y);
   }
+  
+  // lines[0].position = camera.to_screen(vec3());sf::Vector2f(0,0);
+  // lines[1].position = sf::Vector2f(0.5f,0.5f);
+
 }
 float View::qsample(int c, float x, float y, float z){
   int i0 = c;

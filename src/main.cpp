@@ -143,11 +143,13 @@ public:
     if(keys[sf::Keyboard::O]){
       ++reprmode.timestep;
       view->setvolume(pipeline->repr(reprmode));
+      view->setgeometry(pipeline->reprgeometry(reprmode));
       view->touch();
     }
     if(keys[sf::Keyboard::P]){
       --reprmode.timestep;
       view->setvolume(pipeline->repr(reprmode));
+      view->setgeometry(pipeline->reprgeometry(reprmode));
       view->touch();
     }
     if(keys[sf::Keyboard::Num1]){
@@ -188,11 +190,13 @@ public:
     if(keys[sf::Keyboard::I]){
       reprmode = pipeline->repr_coarser(reprmode);
       view->setvolume(pipeline->repr(reprmode));
+      view->setgeometry(pipeline->reprgeometry(reprmode));
       view->touch();
     }
     if(keys[sf::Keyboard::K]){
       reprmode = pipeline->repr_finer(reprmode);
       view->setvolume(pipeline->repr(reprmode));
+      view->setgeometry(pipeline->reprgeometry(reprmode));
       view->touch();
     }
     if(keys[sf::Keyboard::G]){
@@ -200,15 +204,20 @@ public:
         reprmode.geom = "none";
       }else if(!strcmp(reprmode.geom, "none")){
         reprmode.geom = "graph";
+      }else{
+        reprmode.geom = "none";
       }
       view->setgeometry(pipeline->reprgeometry(reprmode));
       view->touch();
+      keys[sf::Keyboard::G] = false;
     }
     if(keys[sf::Keyboard::U]){
       pipeline->process(reprmode.timestep,reprmode.timestep+1);
       reprmode.name = "blobs";
+      reprmode.geom = "graph";
       // printf("hello!\n");
       view->setvolume(pipeline->repr(reprmode));
+      view->setgeometry(pipeline->reprgeometry(reprmode));
       // printf("bello!\n");
       view->touch();
       // printf("mello!\n");
