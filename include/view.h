@@ -1,24 +1,12 @@
 #include <glm/glm.hpp>
 #include <SFML/Graphics.hpp>
-
+#include "colormap.h"
 #include "experiment.h"
 
 #ifndef VIEW_H
 #define VIEW_H
 
 using namespace glm;
-
-class Colormap{
-private:
-  int nsamples;
-  double step;
-  float *domain;
-  vec4  *range;
-  vec4 computecolor(float x);
-public:
-  Colormap();
-  inline vec4 colorof(double x);
-};
 
 class Camera{
 public:

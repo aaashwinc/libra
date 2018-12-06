@@ -28,6 +28,7 @@ public:
   BSPTree(BSPTree *parent, int depth, vec3 min, vec3 max) : parent(parent), min(min), max(max), children(0){
     split(depth);
   }
+  BSPTree() : min(vec3(0)), max(vec3(0)), parent(0), children(0){}
   
   vec3 min;
   vec3 max;
@@ -37,8 +38,38 @@ public:
   std::vector<E> members;
   int n;                  // number of children = 
 
-  std::vector<T*> find_within_distance(vec3, float);
-
+  void indent(int n){
+    for(int i=0;i<n;i++)printf(" ");
+  }
+  void print(int c = 0){
+    indent(c);
+    printf("T%d (%.1f %.1f %.1f)  %.0f %.0f %.0f  (%.1f %.1f %.1f)\n",c, min.x,min.y,min.z, cutting.normal.x, cutting.normal.y,cutting.normal.z, max.x, max.y, max.z);
+    if(children){
+      children[0].print(c+1);
+      children[1].print(c+1);
+    }else{
+      for(int i=0;i<members.size();i++){
+        indent(c+1);
+        printf("(%.1f %.1f %.1f) x\n", members[i].p.x, members[i].p.y, members[i].p.z);
+      }
+    }
+  }
+  void find_within_distance(std::vector<T*> &list, vec3 q, float maxdsq){
+    // check should ignore box? too far from q.
+    if(distsq_point_bbox(q) > maxdsq){
+      return; 
+    }
+    for(E e : members){
+      float edsq = distsq(q, e.p);
+      if(edsq < maxdsq){
+        list.push_back(e.v);
+      }
+    }
+    if(children){
+      children[0].find_within_distance(list, q, maxdsq);
+      children[1].find_within_distance(list, q, maxdsq);
+    }
+  }
   T *find_closest(vec3 q){
     T* ret = 0;
     float dist = 0;
@@ -46,21 +77,25 @@ public:
     return ret;
   }
   void find_closest(vec3 q, T* &v, float &maxdsq){
+    // printf("find closest to %.0f %.0f %.0f in [%.1f %.1f] [%.1f %.1f] [%.1f %.1f].\n", q.x, q.y, q.z, min.x, max.x, min.y, max.y, min.z, max.z);
     if(!v){
+      // printf("v=%p\n",v);
       // no candidate point found yet. search for one.
       if(children){
         children[0].find_closest(q, v, maxdsq);
         children[1].find_closest(q, v, maxdsq);
       }else{
         for(E e : members){
+          // printf("leaf.\n");
           float dsq = distsq(q, e.p);
-          if(dsq < maxdsq){
+          if(!v || dsq < maxdsq){
             maxdsq = dsq;
             v = e.v;
           }
         }
       }
     }
+    // printf("v=%p!\n",v);
     // if q is within the appropriate distance to this cell...
     if(distsq_point_bbox(q) < maxdsq){
       if(children){
@@ -95,10 +130,12 @@ public:
   }
   std::vector<T*> as_vector(){
     std::vector<T*> ret;
-    ret.insert(ret.end(), members.begin(), members.end());
+    for(int i=0;i<members.size();i++){
+      ret.push_back(members[i].v);
+    }
     if(children){
-      std::vector<E> lc = children[0]->as_vector();
-      std::vector<E> rc = children[1]->as_vector();
+      std::vector<T*> lc = children[0].as_vector();
+      std::vector<T*> rc = children[1].as_vector();
       ret.insert(ret.end(), lc.begin(), lc.end());
       ret.insert(ret.end(), rc.begin(), rc.end());
     }
@@ -115,7 +152,7 @@ public:
   void split(int depth){
     if(depth == 0)return;
 
-    children = new BSPTree[2];
+    children = new BSPTree<T>[2];
 
     float dx = max.x - min.x;
     float dy = max.y - min.y;
@@ -127,10 +164,10 @@ public:
     
     if(dx >= dy && dx >= dz)      cutting.normal = vec3(1,0,0);
     else if(dx >= dy && dx >= dz) cutting.normal = vec3(0,1,0);
-    else if(dx >= dy && dx >= dz) cutting.normal = vec3(0,0,1);
+    else cutting.normal = vec3(0,0,1);
 
-    children[0] = BSPTree(this, depth-1, min, max - cutting.normal*(dx/2.f));
-    children[1] = BSPTree(this, depth-1, min + cutting.normal*(dx/2.f), max);
+    children[0] = BSPTree(this, depth-1, min, max - cutting.normal*((max-min)/2.f));
+    children[1] = BSPTree(this, depth-1, min + cutting.normal*((max-min)/2.f), max);
 
     for(int i=0;i<members.size();i++){
       insert(members[i].v, members[i].p);

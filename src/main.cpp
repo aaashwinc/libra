@@ -30,7 +30,7 @@ public:
   Game() : reprmode("plain"){
 
   }
-  void asserts(bool b, char *message){
+  void asserts(bool b, const char *message){
     if(!b){
       fprintf(stderr,"ASSERT: %s\n", message);
       exit(0);
@@ -196,7 +196,8 @@ public:
       view->touch();
     }
     if(keys[sf::Keyboard::U]){
-      pipeline->process(reprmode.timestep,reprmode.timestep);
+      pipeline->process(reprmode.timestep,reprmode.timestep+1);
+      reprmode.name = "blobs";
       // printf("hello!\n");
       view->setvolume(pipeline->repr(reprmode));
       // printf("bello!\n");
@@ -220,7 +221,8 @@ public:
         "(rendered " + to_string(renderframenum) +" frames, " + to_string(ms) + "ms)\n" + 
         "timestep "+to_string(reprmode.timestep)+"\n"+
         "render mode: " + std::string(reprmode.name) + "\n" + 
-        "scale: " + to_string(reprmode.blob.scale) + "\n"
+        "scale: " + to_string(reprmode.blob.scale) + "\n" + 
+        ((pipeline->get(reprmode.timestep).complete)?"processed":"")
       );
 
     window->clear();

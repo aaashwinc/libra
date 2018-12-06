@@ -1,5 +1,4 @@
 #include "filter.h"
-#include "bsptree.h"
 #include "HuangQS.h"
 #include <vector>
 #include <queue> 
@@ -101,11 +100,11 @@ void ArFilter::filter(){
   float *in  = self.buff[self.curr];
   float *out = self.buff[itempbuf()];
 
-  printf("conv: %p -> %p\n", in, out);
+  // printf("conv: %p -> %p\n", in, out);
   conv2d(in, out, self.a1, self.a2, self.a3, self.w1, self.w2, self.w3, self.kernel);  // xy(z) axis.
-  printf("conv: %p -> %p\n", out, in);
+  // printf("conv: %p -> %p\n", out, in);
   conv2d(out, in, self.a1, self.a3, self.a2, self.w1, self.w3, self.w2, self.kernel);  // x(y)z axis.
-  printf("conv: %p -> %p\n", in, out);
+  // printf("conv: %p -> %p\n", in, out);
   conv2d(in, out, self.a2, self.a3, self.a1, self.w2,  self.w3, self.w1, self.kernel);  // (x)yz axis.
 
   int from,to;
@@ -129,7 +128,7 @@ void ArFilter::filter(){
   self.curr = itempbuf();
 }
 DiscreteKernel ArFilter::gaussian(double sigma, int radius, int d){
-  printf("create gaussian kernel: %.2f, %d\n",sigma, radius);
+  // printf("create gaussian kernel: %.2f, %d\n",sigma, radius);
   DiscreteKernel k;
   k.radius  = radius;
   k.support = radius*2 + 1;
@@ -436,11 +435,6 @@ void ArFilter::threshold(int min, int max){
 void ArFilter::normalize(double power){
   int channel =0 ;
   
-  int buckets[10];
-  for(int i=0;i<10;++i)buckets[i] = 0;
-
-  // printf("axes %d %d %d %d\n",self.a0,self.a1,self.a2,self.a3);
-
   NrrdAxisInfo *a = self.a;
   float *data = self.buff[self.curr];
   float *out  = self.buff[itempbuf()];
@@ -459,6 +453,12 @@ void ArFilter::normalize(double power){
     else out[i] = pow(r,power);
   }
   self.curr = itempbuf();
+}
+void ArFilter::scale(float s){
+  float *data = self.buff[self.curr];
+  for(int i=0;i<self.w4;i+=2){
+    data[i] *= s;
+  }
 }
 // void ArFilter::median1(){
 //   float *in = self.buff[self.curr];
@@ -547,7 +547,7 @@ Nrrd* ArFilter::commit(Nrrd *nout){
   if(0 != nout){
     // printf("memcpy %p %p\n", nout->data, self.nrrd[self.curr]);
     // memset(self.nrrd[self.curr], 0, sizeof(float)*self.w4);
-    printf("commit %p -> %p.\n", self.buff[self.curr], nout);
+    // printf("commit %p -> %p.\n", self.buff[self.curr], nout);
     memcpy(nout->data, self.buff[self.curr], sizeof(float)*self.w4);
     // printf("done.\n");
     // exit(0);
@@ -873,7 +873,21 @@ void ArFilter::clear(){
   float *data = self.buff[self.curr];
   for(int i=0;i<self.w4;i++)data[i] = 0;
 }
+void ArFilter::rasterlineadd(vec3 a, vec3 b, float va, float vb){
+  float *data = self.buff[self.curr];
+  int i;
 
+  vec3 v = b-a;
+  float len = length(b-a);
+  vec3 step = v/len;
+
+  for(int j=0;j<len;++j){
+    a += step;
+    i = int(a.x)*self.w1 + int(a.y)*self.w2 + int(a.z)*self.w3;
+    // printf(". %.1f %.1f %.1f\n", a.x, a.y, a.z);
+    data[i] = va + (float(j)/len)*(vb-va);
+  }
+}
 void ArFilter::draw_blobs(std::vector<ScaleBlob*> blobs, bool highlight){
   using namespace glm;
   float *data = self.buff[self.curr];
@@ -885,7 +899,7 @@ void ArFilter::draw_blobs(std::vector<ScaleBlob*> blobs, bool highlight){
     float maxx = sb->max.x;
     float maxy = sb->max.y;
     float maxz = sb->max.z;
-    printf("minmax %.1f %.1f %.1f %.1f %.1f %.1f\n",minx, miny, minz, maxx, maxy, maxz);
+    // printf("minmax %.1f %.1f %.1f %.1f %.1f %.1f\n",minx, miny, minz, maxx, maxy, maxz);
     for(float x=minx; x<=maxx; ++x){
       for(float y=miny; y<=maxy; ++y){
         for(float z=minz; z<=maxz; ++z){
@@ -897,6 +911,17 @@ void ArFilter::draw_blobs(std::vector<ScaleBlob*> blobs, bool highlight){
           }
         }
       }
+    }
+  }
+  normalize(0.3f);
+  scale(0.2f);
+  for(auto blob = blobs.begin(); blob != blobs.end(); ++blob){
+    ScaleBlob *sb = *blob;
+    if(sb->parent){
+      // rasterlineadd(vec3(sb->position), vec3(sb->parent->position), 1.9f);
+    }
+    for(ScaleBlob *succ : sb->succ){
+      rasterlineadd(vec3(sb->position), vec3(succ->position), 1.1f, 1.5f);
     }
   }
   // for(int z=0;z<self.a3; z++){
@@ -916,7 +941,7 @@ void ArFilter::draw_blobs(std::vector<ScaleBlob*> blobs, bool highlight){
   //     }
   //   }
   // }
-  normalize(1.f);
+  // normalize(1.f);
   return;
 
   // if(highlight){
@@ -944,7 +969,8 @@ static inline float sq(float x){
 }
 
 ScaleBlob* ArFilter::compute_blob_tree(){
-  BSPTree<ScaleBlob*> bspblobs(0,10,vec3(-1.f,-1.f,-1.f),vec3(a1+1.f,a2+1.f,a3+1.f)); // safe against any rounding errors.
+  BSPTree<ScaleBlob> bspblobs(0,10,vec3(-1.f,-1.f,-1.f),vec3(self.a1+1.f,self.a2+1.f,self.a3+1.f)); // safe against any rounding errors.
+  // bspblobs.print();
   DiscreteKernel kernel; 
   float sigma = 2.f;
   float scale = 0.f;
@@ -965,12 +991,12 @@ ScaleBlob* ArFilter::compute_blob_tree(){
   while(scale < 9.f){
 
     // printf("filter stack: %p %p. curr=%d.\n", self.buff[0], self.buff[1], self.curr);
-    // printf("gaussian %.2f\n",sigma);
+    printf("gaussian %.2f\n",sigma);
     kernel = gaussian(sigma, int(sigma*4));   // create gaussian kernel with new sigma.
     set_kernel(kernel);                       //
     filter();                                 // compute gaussian blur, store in self.buff[curr].
     scale = sqrt(scale*scale + sigma*sigma);  // compute scale factor with repeated gaussians.
-    printf("scale = %.2f\n", scale);
+    // printf("scale = %.2f\n", scale);
     float **blurred = self.buff + self.curr;  // address of blurred image.
     // printf("  laplacian., ");
     laplacian3d(1);                           // compute laplacian, store in self.buff[curr+1].
@@ -991,21 +1017,25 @@ ScaleBlob* ArFilter::compute_blob_tree(){
     std::vector<ScaleBlob*> bigblobs = find_blobs();
     for(ScaleBlob *sb : bigblobs){
       sb->scale = scale;
+      bspblobs.insert(sb, sb->mode);
     }
-    // printf("  connect.. ");
+    // printf("connect..\n");
     for(ScaleBlob *x : blobs){
-      ScaleBlob *closest  = 0;
-      float      min_dist = -1;
-      for(ScaleBlob *y : bigblobs){
-        float dist = sq(x->mode.x - y->mode.x) + sq(x->mode.y - y->mode.y) + sq(x->mode.z - y->mode.z);
-        if(!closest || dist < min_dist){
-          min_dist = dist;
-          closest = y;
-        }
-      }
+      // ScaleBlob *closest = 0;
+      // float      min_dist = -1;
+      // for(ScaleBlob *y : bigblobs){
+      //   float dist = sq(x->mode.x - y->mode.x) + sq(x->mode.y - y->mode.y) + sq(x->mode.z - y->mode.z);
+      //   if(!closest || dist < min_dist){
+      //     min_dist = dist;
+      //     closest = y;
+      //   }
+      // }
+
+      ScaleBlob *closest  = bspblobs.find_closest(x->mode);
       x->parent = closest;
       closest->children.push_back(x);
     }
+    bspblobs.clear();
 
     blobs = bigblobs;
 
@@ -1018,9 +1048,9 @@ ScaleBlob* ArFilter::compute_blob_tree(){
 
     // fppswap(&iscale, self.buff+self.curr);    // put the gaussian blurred image back at self.buff[curr]
                                               // for use in the next filter operation.
-    printf("done.\n");
+    // printf(".done.\n");
   }
-  printf("done.\n");
+  printf("..done.\n");
 
   // undo our pointer shenanigans.
   // remove the buffer that we just created
@@ -1030,7 +1060,7 @@ ScaleBlob* ArFilter::compute_blob_tree(){
       self.buff[i] = iscale;
     }
   }
-  printf("filter stack: %p %p. iscalec=%p.\n", self.buff[0], self.buff[1], iscalec);
+  // printf("filter stack: %p %p. iscalec=%p.\n", self.buff[0], self.buff[1], iscalec);
   --self.curr;
   if(self.curr<0)self.curr = self.nbuf-1;
   normalize();
@@ -1041,4 +1071,8 @@ ScaleBlob* ArFilter::compute_blob_tree(){
   frame->children = blobs;
   frame->parent = 0;
   return frame;
+}
+
+BSPTree<ScaleBlob> ArFilter::get_bsp(int depth){
+  return BSPTree<ScaleBlob>(0, depth, vec3(-1.f,-1.f,-1.f),vec3(self.a1+1.f,self.a2+1.f,self.a3+1.f));
 }

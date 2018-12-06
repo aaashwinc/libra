@@ -7,6 +7,8 @@
 #include "experiment.h"
 #include "filter.h"
 
+#include "bsptree.h"
+
 #define SWAP(x,y,t) {t=x;x=y;y=t;}
 
 using namespace glm;
@@ -25,6 +27,7 @@ public:
   bool operator==(ReprMode &r);
 };
 struct ArFrameData{
+  BSPTree<ScaleBlob> bspblobs;
   ScaleBlob *blob;
   std::vector<float> scales;
   float scale_eps;            // some epsilon that satisfies: for all i, scales[i+1] - scales[i] > epsilon.

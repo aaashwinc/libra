@@ -8,6 +8,7 @@
 
 
 #include "view.h"
+#include "colormap.h"
 
 static inline int ftoi(float i){
   return int(i*255.999999);
@@ -17,13 +18,6 @@ static inline float itof(int i){
 }
 static inline float sq(float in){
   return in*in;
-}
-vec4 Colormap::colorof(double x){
-  // return computecolor(float(x));
-  int n = int(x/step);
-  if(n<0)n=0;
-  if(n>=nsamples)n=nsamples-1;
-  return range[n];
 }
 static inline void put_color(float x, Colormap &colormap, sf::Uint8 *color){
   if(x>=1)x=1;
@@ -72,7 +66,7 @@ float View::qsample(int c, float x, float y, float z){
   int i2 = y;
   int i3 = z;
   if(i1<0 || i2<0 || i3<0 || i1 >= vcache.a1 || i2 >= vcache.a2 || i3 >= vcache.a3){
-    return 0.f;
+    return -1.f;
   }
   return vcache.data[
     i3*vcache.w3 + i2*vcache.w2 + i1*vcache.w1 + i0
@@ -120,7 +114,7 @@ void View::raytrace(){
       if(beat < 1){
         ray = topleft + float(px)*dx + float(py)*dy;
 
-        ray = ray * 0.033f * 33.f;
+        ray = ray * 0.033f * 33.f * 0.5f;
         p   = startp;
 
         color_x = 0;
@@ -128,17 +122,28 @@ void View::raytrace(){
         color_z = 0;
         color_w = 1;
 
+        if(p.x < 0)p = p + ray*(-p.x/ray.x);
+        if(p.y < 0)p = p + ray*(-p.y/ray.y);
+        if(p.z < 0)p = p + ray*(-p.z/ray.z);
+
+        if(p.x > vcache.a1)p = p - ray*(p.x - vcache.a1)/ray.x;
+        if(p.y > vcache.a2)p = p - ray*(p.y - vcache.a2)/ray.y;
+        if(p.z > vcache.a3)p = p - ray*(p.z - vcache.a3)/ray.z;
+
         while(color_w > 0.01f){
           p += ray;
     
           float v = qsample(0, p.x, p.y, p.z);
+          if(v<0)break;
 
           probe = colormap.colorof(v);
-          color_x += probe.x*probe.w*color_w;
-          color_y += probe.y*probe.w*color_w;
-          color_z += probe.z*probe.w*color_w;
-          color_w += -color_w*probe.w;
-
+          if(probe.w > 0.01f){
+            color_x += probe.x*probe.w*color_w;
+            color_y += probe.y*probe.w*color_w;
+            color_z += probe.z*probe.w*color_w;
+            color_w += -color_w*probe.w;
+          }
+          
           color_w *= 0.995f;           // some light is absorbed or refracted away.
         }
         texdata[i+0] = int(color_x*255.999999);

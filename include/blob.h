@@ -2,17 +2,26 @@
 #define BLOB_H
 
 #include <glm/glm.hpp>
+#include <Eigen/Eigen>
+#include <Eigen/Eigenvalues>
 #include <vector>
 using namespace glm;
 
 class ScaleBlob{
 public:
-  std::vector<ScaleBlob*> children;
-  ScaleBlob *parent;
+  ScaleBlob *parent;                // scale-tree parent
+  std::vector<ScaleBlob*> children; // scale-tree children
+
+  std::vector<ScaleBlob*> pred;     // temporal predecessors
+  std::vector<ScaleBlob*> succ;     // temporal successors
 
   vec3   mode;      // the local maxima which seeded this blob.
   dvec3  position;  // mean of this blob in space.
   dmat3x3 shape;    // covariance matrix of blob.
+
+  Eigen::Matrix3f covariance;
+
+
   // dmat3x3  eigs; // eigenvectors of covariance matrix.
   mat3x3 invCov;    // inverse of covariance matrix.
   float  detCov;    // determinant of covariance matrix.
@@ -31,6 +40,7 @@ public:
   void commit();
   void print();
   void printtree(int depth=0);
+  float distance(ScaleBlob*);
 };
 
 #endif

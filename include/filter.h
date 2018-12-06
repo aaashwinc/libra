@@ -3,6 +3,8 @@
 #include <glm/glm.hpp>
 #include <vector>
 #include "blob.h"
+#include "bsptree.h"
+
 
 #ifndef FILTER_H
 #define FILTER_H
@@ -49,6 +51,7 @@ public:
   void filter();
 
   void normalize(double power=1.0);
+  void scale(float s);
   void threshold(int min, int max);
   void positive(int channel=0);
   void negative(int channel=0);
@@ -60,11 +63,15 @@ public:
   void print();
   void clear();
 
+  // raster operations
+  void rasterlineadd(vec3 a, vec3 b, float va, float vb);
+
   std::vector<glm::ivec3> find_maxima();
   void highlight(std::vector<glm::ivec3> points);
   std::vector<ScaleBlob*> find_blobs();
   void draw_blobs(std::vector<ScaleBlob*>, bool highlight=false);
   ScaleBlob* compute_blob_tree();
+  BSPTree<ScaleBlob> get_bsp(int depth);
 
   void capture(Nrrd *nin);
   void init(Nrrd *nin);

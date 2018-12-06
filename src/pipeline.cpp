@@ -6,6 +6,8 @@
 #include <string.h>
 #include <set>
 #include <queue>
+#include <limits>
+
 
 using namespace std::chrono; 
 using namespace std;
@@ -66,6 +68,7 @@ static std::vector<float> collect_scales(ScaleBlob *blob){
       queue.push(child);
     }
   }
+  scales.erase(0);
   return std::vector<float>(scales.begin(), scales.end());
 }
 static float compute_epsilon(std::vector<float> &v){
@@ -92,40 +95,14 @@ ReprMode ArPipeline::repr_finer(ReprMode rm){
   return rm;
 }
 
-/* store.buf[0] contains the output of the filter chain.
- * store.buf[1] contains the output of repr().
- */
-void ArPipeline::process(int low, int high){
-  printf("pipeline.process %d\n",low);
-  tick("");
-
-  filter.capture(exp->get(low));
-
-  ScaleBlob *blob           = filter.compute_blob_tree();
-  std::vector<float> scales = collect_scales(blob);
-
-  frames[low - exp->low].blob      = blob;
-  frames[low - exp->low].scales    = scales;
-  frames[low - exp->low].scale_eps = compute_epsilon(scales);
-  frames[low - exp->low].complete  = true;
-
-  filter.commit(store.buf[2]);
-
-
-  // printf("blob tree:\n  ");
-  // frames[low - exp->low].blob->printtree();
-  // printf("\n\n");
-
-  tick("done.\n");
-}
 static std::vector<ScaleBlob*> collect_blobs(ScaleBlob *blob, float scalemin, float scalemax){
   // scalemin = -1000;
   // scalemax = 10000;
-  printf("(");
+  // printf("(");
   std::vector<ScaleBlob*> blobs;
   if(blob->scale >= scalemin || blob->scale == 0){
     if(blob->scale <= scalemax || blob->scale == 0){
-      printf(".");
+      // printf(".");
       blobs.push_back(blob);      
     }
     for(ScaleBlob *child : blob->children){
@@ -133,8 +110,60 @@ static std::vector<ScaleBlob*> collect_blobs(ScaleBlob *blob, float scalemin, fl
       blobs.insert(blobs.end(), childblobs.begin(), childblobs.end());
     }
   }
-  printf(")");
+  // printf(")");
   return blobs;
+}
+
+/* store.buf[0] contains the output of the filter chain.
+ * store.buf[1] contains the output of repr().
+ */
+void ArPipeline::process(int low, int high){
+
+  for(int frame=low;frame<=high;frame++){
+    printf("pipeline.process %d\n",frame);
+    tick("");
+
+    filter.capture(exp->get(frame));
+
+    ScaleBlob *blob             = filter.compute_blob_tree();
+    std::vector<float> scales   = collect_scales(blob);
+
+    frames[frame - exp->low].blob      = blob;
+    frames[frame - exp->low].scales    = scales;
+    frames[frame - exp->low].scale_eps = compute_epsilon(scales);
+    frames[frame - exp->low].complete  = true;
+    frames[frame - exp->low].bspblobs  = filter.get_bsp(10);;
+
+    BSPTree<ScaleBlob> *bsptree = &frames[frame - exp->low].bspblobs;
+    std::vector<ScaleBlob*> allblobs = collect_blobs(blob, 0, std::numeric_limits<float>::infinity());
+    
+    for(ScaleBlob *sb : allblobs){
+      bsptree->insert(sb, sb->position);
+    }
+
+    // link with previous frame.
+    if(frame-1 >= this->low() && get(frame-1).complete){
+      BSPTree<ScaleBlob> *t0 = &frames[ frame - exp->low -1 ].bspblobs;
+      BSPTree<ScaleBlob> *t1 = &frames[ frame - exp->low    ].bspblobs;
+
+      std::vector<ScaleBlob*> v0 = t0->as_vector();
+
+      for(ScaleBlob *sb : v0){
+        std::vector<ScaleBlob*> potential;
+        t1->find_within_distance(potential, sb->position, 200.f);
+        for(int i=0;i<potential.size();i++){
+          if(sb->distance(potential[i]) < 200.f){
+            sb->succ.push_back(potential[i]);            
+          }
+        }
+        // for(ScaleBlob *sb0 : sb->succ){
+        //   sb0->pred.push_back(sb);
+        // }
+      }
+    }
+    tick("done.\n");
+  }
+  filter.commit(store.buf[2]);
 }
 Nrrd *ArPipeline::repr(ReprMode &mode){
   if(mode.timestep < exp->low)mode.timestep = exp->low;
@@ -176,16 +205,16 @@ Nrrd *ArPipeline::repr(ReprMode &mode){
     ArFrameData frame = get(mode.timestep);
     float scalemin = frame.scales[mode.blob.scale] - frame.scale_eps;
     float scalemax = frame.scales[mode.blob.scale] + frame.scale_eps;
-    printf("mode %s. view scale %d with %.2f %.2f\n", mode.name, scalemin, scalemax);
+    // printf("mode %s. view scale %d with %.2f %.2f\n", mode.name, scalemin, scalemax);
     std::vector<ScaleBlob*> blobs = collect_blobs(frame.blob, scalemin, scalemax);
-    printf("\n");
+    // printf("\n");
     filter.clear();
     filter.draw_blobs(blobs, true);
     filter.commit(store.buf[1]);
     return (last_nrrd = store.buf[1]);
   }
   if(!strcmp(mode.name, "gaussian")){
-    printf("mode %s.\n", mode.name);
+    // printf("mode %s.\n", mode.name);
     ArFrameData frame = get(mode.timestep);
     float scale = frame.scales[mode.blob.scale];
     filter.capture(exp->get(mode.timestep));
@@ -198,7 +227,7 @@ Nrrd *ArPipeline::repr(ReprMode &mode){
     return (last_nrrd = store.buf[1]);
   }
   if(!strcmp(mode.name, "laplacian")){
-    printf("mode %s.\n", mode.name);
+    // printf("mode %s.\n", mode.name);
     ArFrameData frame = get(mode.timestep);
     float scale = frame.scales[mode.blob.scale];
     filter.capture(exp->get(mode.timestep));
