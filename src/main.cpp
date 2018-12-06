@@ -195,6 +195,15 @@ public:
       view->setvolume(pipeline->repr(reprmode));
       view->touch();
     }
+    if(keys[sf::Keyboard::G]){
+      if(!strcmp(reprmode.geom, "graph")){
+        reprmode.geom = "none";
+      }else if(!strcmp(reprmode.geom, "none")){
+        reprmode.geom = "graph";
+      }
+      view->setgeometry(pipeline->reprgeometry(reprmode));
+      view->touch();
+    }
     if(keys[sf::Keyboard::U]){
       pipeline->process(reprmode.timestep,reprmode.timestep+1);
       reprmode.name = "blobs";
@@ -211,7 +220,6 @@ public:
     static int ms = 0;
     static int renderframenum = 0;
     if(view->render()){
-      // printf("render.\n");
       sf::Time elapsed2 = clock.getElapsedTime();
       double time = (elapsed2.asSeconds() - elapsed1.asSeconds());
       ms = time*1000;
@@ -225,21 +233,10 @@ public:
         ((pipeline->get(reprmode.timestep).complete)?"processed":"")
       );
 
-    window->clear();
-    sf::Sprite spr = view->getSprite();
-
-    sf::Vector2u spr_s = spr.getTexture()->getSize();
-    sf::Vector2u win_s = window->getSize();
-
-    // printf("window size: %d %d\n", win_s.x, win_s.y);
-
-    float square = min(win_s.x, win_s.y);
-
-    spr.setScale(square/spr_s.x, square/spr_s.y);
-    spr.setPosition(sf::Vector2f((win_s.x-square)/2.f,(win_s.y-square)/2.f));
-
     window->clear(sf::Color(10,10,10));
-    window->draw(spr);
+    view->render_to(window);
+
+
     window->draw(text);
     window->display();
   }

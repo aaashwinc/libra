@@ -33,7 +33,6 @@ static inline void put_color(float x, Colormap &colormap, sf::Uint8 *color){
 View::View(int w, int h) : w(w), h(h){
   texture.create(w,h);
   texdata  = new sf::Uint8[w*h*4];
-  sprite.setTexture(texture);
   camera   = Camera();
   colormap = Colormap();
   unstable = 1;
@@ -59,7 +58,29 @@ void View::setvolume(Nrrd *n){
   vcache.a3 = a[3].size;
   touch();
 }
+void View::setgeometry(ArGeometry3D* geometry){
+  // geom = geometry;
+}
+void View::draw_geometry(){
+  lines = sf::VertexArray(sf::Lines, 2);
+  
+  lines[0].position = sf::Vector2f(0,0);
+  lines[1].position = sf::Vector2f(0.5f,0.5f);
 
+  lines[0].color = sf::Color::White;
+  lines[1].color = sf::Color::White;
+  // RenderTarget::draw(const Vertex* vertices, std::size_t vertexCount,
+  //                       PrimitiveType type, const RenderStates& states)
+
+  float square = min(win.width, win.height);
+  float px = (win.width-square)/2.f;
+  float py = (win.height-square)/2.f;
+  // transform to screen space:
+  for(int i=0;i<lines.getVertexCount();++i){
+    lines[i].position.x = px + lines[i].position.x*square;
+    lines[i].position.y = py + lines[i].position.y*square;
+  }
+}
 float View::qsample(int c, float x, float y, float z){
   int i0 = c;
   int i1 = x;
@@ -174,6 +195,7 @@ int View::render(){
   }else{
     raytrace();
   }
+  draw_geometry();
   --unstable;
   return 1;
 }
@@ -195,9 +217,31 @@ void View::rotateV(float r){
     camera.set(camera.pos, camera.look + camera.up*r, camera.sky);
   }
 }
-sf::Sprite &View::getSprite(){
-  return sprite;
-}
-void render_to(sf::Window *window){
+void View::render_to(sf::RenderWindow *window){
+  static sf::VertexArray quad(sf::TriangleFan, 4);
 
+  sf::Vector2u win_s = window->getSize();
+
+  if(win_s.x != win.width || win_s.y != win.height){
+    win.width  = win_s.x;
+    win.height = win_s.y;
+    draw_geometry();
+  }
+
+  float square = min(win_s.x, win_s.y);
+  float px = (win_s.x-square)/2.f;
+  float py = (win_s.y-square)/2.f;
+
+  quad[0].position = sf::Vector2f(px,py);
+  quad[1].position = sf::Vector2f(px+square,py);
+  quad[2].position = sf::Vector2f(px+square, py+square);
+  quad[3].position = sf::Vector2f(px,py+square);
+
+  quad[0].texCoords = sf::Vector2f(0,0);
+  quad[1].texCoords = sf::Vector2f(w,0);
+  quad[2].texCoords = sf::Vector2f(w,h);
+  quad[3].texCoords = sf::Vector2f(0,h);
+
+  window->draw(quad, &texture);
+  window->draw(lines);
 }

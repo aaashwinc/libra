@@ -1,10 +1,11 @@
+#ifndef VIEW_H
+#define VIEW_H
+
 #include <glm/glm.hpp>
 #include <SFML/Graphics.hpp>
 #include "colormap.h"
 #include "experiment.h"
-
-#ifndef VIEW_H
-#define VIEW_H
+#include "shapes.h"
 
 using namespace glm;
 
@@ -34,6 +35,11 @@ class View{
 public:
   View(int w, int h);
 private:
+  ArGeometry3D *geom;
+
+  sf::VertexArray lines;
+  // sf::VertexArray lines_window;
+
   sf::Uint8 *texdata;
   int const w, h;
   sf::Sprite  sprite;
@@ -49,7 +55,13 @@ private:
     float *data;
   }vcache;
 
+  struct{
+    int width;
+    int height;
+  }win;
+
   void drawflat();
+  void draw_geometry();
   void raytrace();
   float qsample(int c, float x, float y, float z);
 
@@ -64,6 +76,7 @@ public:
 
   // input
   void setvolume(Nrrd *nrrd);
+  void setgeometry(ArGeometry3D*);
 
   // movement
   void move3D(vec3 v);
@@ -71,8 +84,7 @@ public:
   void rotateV(float r);
 
   // output
-  sf::Sprite &getSprite();
-  void render_to(sf::Window *window);
+  void render_to(sf::RenderWindow *window);
 };
 
 #endif

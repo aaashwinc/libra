@@ -5,8 +5,9 @@
 #include <vector>
 #include <glm/glm.hpp>
 #include "experiment.h"
-#include "filter.h"
 
+#include "shapes.h"
+#include "filter.h"
 #include "bsptree.h"
 
 #define SWAP(x,y,t) {t=x;x=y;y=t;}
@@ -17,6 +18,7 @@ class ReprMode{
 public:
   ReprMode(const char* name);
   const char *name;
+  const char *geom;
   int timestep;
   struct{
     // no parameters here.
@@ -49,6 +51,7 @@ private:
   ArFilter filter;
   ArExperiment *exp;
   std::vector<ArFrameData> frames;
+  ArGeometry3D geometry;
 
 public:
   int low();
@@ -58,6 +61,7 @@ public:
   ArPipeline(ArExperiment *exp);
   void process(int low, int high);
   Nrrd *repr(ReprMode &mode);
+  ArGeometry3D *reprgeometry(ReprMode &mode);
 
   ReprMode repr_coarser(ReprMode);
   ReprMode repr_finer(ReprMode);

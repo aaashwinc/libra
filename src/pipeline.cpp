@@ -165,6 +165,10 @@ void ArPipeline::process(int low, int high){
   }
   filter.commit(store.buf[2]);
 }
+
+ArGeometry3D* ArPipeline::reprgeometry(ReprMode &mode){
+  return &geometry;
+}
 Nrrd *ArPipeline::repr(ReprMode &mode){
   if(mode.timestep < exp->low)mode.timestep = exp->low;
   if(mode.timestep > exp->high)mode.timestep = exp->high;

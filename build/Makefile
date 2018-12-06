@@ -1,4 +1,7 @@
 
+EIGEN=/usr/local/include/eigen3
+
+
 BUILD_DIR = $(shell pwd)
 SRC_DIR = $(BUILD_DIR)/../src
 
@@ -8,7 +11,7 @@ CC=gcc
 CXX=g++ -O4
 RM=rm -f
 
-IPATH    = -I$(VULKAN_SDK)/include -I$(GLFW)/include -I../include
+IPATH    = -I$(VULKAN_SDK)/include -I$(GLFW)/include -I${CURDIR}/../include -I$(EIGEN)
 RPATH    = -Wl,-rpath,$(GLFW)/build/src
 CPPFLAGS = -g $(IPATH)
 LDFLAGS  = -g -L$(GLFW)/build/src
