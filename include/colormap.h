@@ -9,11 +9,13 @@ private:
   int nsamples;
   double step;
   float *domain;
+  float gamma;
   vec4  *range;
   vec4 computecolor(float x);
 public:
-  Colormap();
+  Colormap(float gamma);
   vec4 colorof(double x);
+  void destroy();
 };
 
 #endif

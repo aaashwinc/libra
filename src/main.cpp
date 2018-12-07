@@ -25,6 +25,8 @@ public:
 
   ReprMode reprmode;
   bool keys[1024];
+  bool clicked[3];
+  ivec2 mousepos;
 
   float scale  = 0;
   Game() : reprmode("plain"){
@@ -54,33 +56,54 @@ public:
 
     // printf("camera: %.2f %.2f %.2f\n",view->camera.right.x,view->camera.right.y,view->camera.right.z);
 
-    experiment = new ArExperiment("/home/ashwin/data/mini/???.nrrd",0,10,4);
+    experiment = new ArExperiment("/home/ashwin/data/mini/???.nrrd",0,20,4);
 
     pipeline = new ArPipeline(experiment);
     view->setvolume(pipeline->repr(reprmode));
     for(int i=0;i<1024;i++)keys[i]=false;
+    for(int i=0;i<3;i++)clicked[i]=false;
   }
 
   void handle_events(){
-      sf::Event event;
-      while (window->pollEvent(event)){
-        if (event.type == sf::Event::Closed){
-          window->close();
-        }
-        if (event.type == sf::Event::KeyPressed){
-          if(event.key.code >= 0){
-            keys[event.key.code] = true;
-          }
-        }
-        if (event.type == sf::Event::KeyReleased){
-          if(event.key.code >= 0){
-            keys[event.key.code] = false;
-          }
-        }
-        if (event.type == sf::Event::Resized){
-          window->setView(sfview = sf::View(sf::FloatRect(0,0,window->getSize().x, window->getSize().y)));
+    sf::Event event;
+    while (window->pollEvent(event)){
+      if (event.type == sf::Event::Closed){
+        window->close();
+      }
+      if (event.type == sf::Event::KeyPressed){
+        if(event.key.code >= 0){
+          keys[event.key.code] = true;
         }
       }
+      if (event.type == sf::Event::KeyReleased){
+        if(event.key.code >= 0){
+          keys[event.key.code] = false;
+        }
+      }
+      if (event.type == sf::Event::Resized){
+        window->setView(sfview = sf::View(sf::FloatRect(0,0,window->getSize().x, window->getSize().y)));
+      }
+      if (event.type == sf::Event::MouseMoved){
+        mousepos.x = event.mouseMove.x;
+        mousepos.y = event.mouseMove.y;
+      }
+      if (event.type == sf::Event::MouseButtonPressed){
+        if (event.mouseButton.button == sf::Mouse::Left){
+          clicked[0] = true;
+        }
+        if (event.mouseButton.button == sf::Mouse::Right){
+          clicked[1] = true;
+        }
+      }
+      if (event.type == sf::Event::MouseButtonReleased){
+        if (event.mouseButton.button == sf::Mouse::Left){
+          clicked[0] = false;
+        }
+        if (event.mouseButton.button == sf::Mouse::Right){
+          clicked[1] = false;
+        }
+      }
+    }
   }
 
   void check_keys(){
@@ -89,6 +112,9 @@ public:
 
     if(keys[sf::Keyboard::LShift]){
       speed *= 10.f;
+    }
+    if(keys[sf::Keyboard::LControl]){
+      speed *= 0.1f;
     }
     if(keys[sf::Keyboard::W]){
       view->camera.drawflat = false;
@@ -130,6 +156,14 @@ public:
       view->camera.drawflat = false;
       view->rotateV(0.1f);
     }
+    if(keys[sf::Keyboard::Dash]){
+      view->step_gamma(1.1f);
+      view->touch();
+    }
+    if(keys[sf::Keyboard::Equal]){
+      view->step_gamma(1/1.1f);
+      view->touch();
+    }
     if(keys[sf::Keyboard::M]){
       view->camera.flat.slice += 0.04*speed;
       view->camera.drawflat = true;
@@ -141,13 +175,19 @@ public:
       view->touch();
     }
     if(keys[sf::Keyboard::O]){
-      ++reprmode.timestep;
+      if(!keys[sf::Keyboard::LShift]){
+        keys[sf::Keyboard::O] = false;
+      }
+      --reprmode.timestep;
       view->setvolume(pipeline->repr(reprmode));
       view->setgeometry(pipeline->reprgeometry(reprmode));
       view->touch();
     }
     if(keys[sf::Keyboard::P]){
-      --reprmode.timestep;
+      if(!keys[sf::Keyboard::LShift]){
+        keys[sf::Keyboard::P] = false;
+      }
+      ++reprmode.timestep;
       view->setvolume(pipeline->repr(reprmode));
       view->setgeometry(pipeline->reprgeometry(reprmode));
       view->touch();
@@ -211,8 +251,16 @@ public:
       view->touch();
       keys[sf::Keyboard::G] = false;
     }
+    if(clicked[0]){
+      printf("clicked %d %d\n", mousepos.x, mousepos.y);
+      pipeline->repr_highlight(&reprmode, view->camera.pos*33.f, view->pixel_to_ray(vec2(mousepos)), keys[sf::Keyboard::LShift]);
+      view->setvolume(pipeline->repr(reprmode));
+      view->setgeometry(pipeline->reprgeometry(reprmode));
+      view->touch();
+      clicked[0] = false;
+    }
     if(keys[sf::Keyboard::U]){
-      pipeline->process(reprmode.timestep,reprmode.timestep+1);
+      pipeline->process(reprmode.timestep,reprmode.timestep+2);
       reprmode.name = "blobs";
       reprmode.geom = "graph";
       // printf("hello!\n");

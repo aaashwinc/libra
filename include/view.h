@@ -61,6 +61,9 @@ private:
   int beat;
   int unstable;
 
+  float gamma;
+  float render_scale;
+
   struct{
     Nrrd *n;
     NrrdAxisInfo *a;
@@ -84,6 +87,9 @@ public:
   Colormap colormap;
   float position;
 
+  // colormap
+  void step_gamma(float factor);
+
   // render
   void touch();
   int  render();
@@ -91,6 +97,7 @@ public:
   // input
   void setvolume(Nrrd *nrrd);
   void setgeometry(ArGeometry3D*);
+  vec3 pixel_to_ray(vec2);
 
   // movement
   void move3D(vec3 v);

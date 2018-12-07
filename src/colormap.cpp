@@ -1,7 +1,7 @@
 #include "view.h"
 #include "colormap.h"
 
-Colormap::Colormap(){
+Colormap::Colormap(float gamma) : gamma(gamma){
   nsamples = 512;
   domain = new float[nsamples];
   range  = new vec4[nsamples];
@@ -23,11 +23,11 @@ static float sq(float x){
 vec4 Colormap::computecolor(float x){
   vec4 color(0,0,0,0);
   if(x<=1.f){
-    color.x = sqrt(x);
+    color.x = x*x;
     color.y = x;
-    color.z = 1.f-x;
+    color.z = 1.f - sqrt(x);
     float w = x;
-    color.w = pow(w,2.5);
+    color.w = pow(w,gamma);
   }
   else{
     x -= 1.f;
@@ -38,4 +38,10 @@ vec4 Colormap::computecolor(float x){
     // color=vec4(1,1,1,1);
   }
   return color;
+}
+void Colormap::destroy(){
+  delete[] domain;
+  delete[] range;
+  domain=0;
+  range=0;
 }

@@ -26,6 +26,10 @@ public:
   struct{
     int scale;
   }blob;
+  struct{
+    std::vector<ScaleBlob*>blobs;
+    std::vector<vec3> lines;
+  }highlight;
   bool operator==(ReprMode &r);
 };
 struct ArFrameData{
@@ -56,7 +60,7 @@ private:
 public:
   int low();
   int high();
-  ArFrameData get(int frame);
+  ArFrameData &get(int frame);
 
   ArPipeline(ArExperiment *exp);
   void process(int low, int high);
@@ -65,6 +69,7 @@ public:
 
   ReprMode repr_coarser(ReprMode);
   ReprMode repr_finer(ReprMode);
+  void repr_highlight(ReprMode *rm, vec3 p, vec3 ray, bool add=false);
 };
 
 #endif

@@ -20,6 +20,9 @@ ScaleBlob::ScaleBlob(){
   // volume = 0;
   n      = 0;
   npass  = 0;
+
+  pred = std::vector<ScaleBlob*>();
+  succ = std::vector<ScaleBlob*>();
 }
 void ScaleBlob::pass(vec3 point, float value){
   if(npass == 0){  // calculate mean, min, max.
@@ -43,7 +46,7 @@ void ScaleBlob::pass(vec3 point, float value){
     shape[2][2] += v.z*v.z*value/(n-1);
 
     invCov    = glm::inverse(mat3(shape));
-    detCov    = glm::determinant(shape);
+    detCov    = fabs(glm::determinant(shape));
     pdfCoef   = pow(glm::determinant(shape*pi*2.0),-0.5);
   }
 }
@@ -87,23 +90,31 @@ void ScaleBlob::printtree(int depth){
     c->printtree(depth+1);
   }
   printf(")");
-}
+} 
 
 // compute Wasserstein distance: https://en.wikipedia.org/wiki/Wasserstein_metric
 float ScaleBlob::distance(ScaleBlob *blob){
-  using namespace Eigen;
-  SelfAdjointEigenSolver<Eigen::Matrix3f> solver(covariance);
-  
-  Matrix3f sqc2 = solver.operatorSqrt();
-  Matrix3f c2c1c2 = sqc2 * blob->covariance * sqc2;
-  
-  solver = SelfAdjointEigenSolver<Matrix3f>(c2c1c2);
-  Matrix3f sqrtc2c1c2 = solver.operatorSqrt();
-  Matrix3f whole = blob->covariance + covariance - (2.f * sqrtc2c1c2);
 
-  float trace = whole.trace();
-  vec3  delta = blob->position - position;
-  return (dot(delta, delta)) + trace;
+  /*** My distance: ***/
+  return (glm::length(blob->position - position)) + fabs(cbrt(detCov) - cbrt(blob->detCov));
 
+  /*** Wasserstein metric:  ***/
+
+  // using namespace Eigen;
+  // SelfAdjointEigenSolver<Eigen::Matrix3f> solver(covariance);
+  
+  // Matrix3f sqc2 = solver.operatorSqrt();
+  // Matrix3f c2c1c2 = sqc2 * blob->covariance * sqc2;
+  
+  // solver = SelfAdjointEigenSolver<Matrix3f>(c2c1c2);
+  // Matrix3f sqrtc2c1c2 = solver.operatorSqrt();
+  // Matrix3f whole = blob->covariance + covariance - (2.f * sqrtc2c1c2);
+
+  // float trace = whole.trace();
+  // vec3  delta = blob->position - position;
+  // return (dot(delta, delta)) + trace;
+
+
+  /*** simple distance ***/
   // return length(blob->position - position);
 }

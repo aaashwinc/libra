@@ -30,13 +30,20 @@ static inline void put_color(float x, Colormap &colormap, sf::Uint8 *color){
 
 }
 
-View::View(int w, int h) : w(w), h(h){
+View::View(int w, int h) : w(w), h(h), colormap(4.5f), gamma(4.5f){
   texture.create(w,h);
   texdata  = new sf::Uint8[w*h*4];
   camera   = Camera();
-  colormap = Colormap();
   unstable = 1;
   beat     = 0;
+  
+}
+
+void View::step_gamma(float factor){
+  if(factor<=0)return;
+  colormap.destroy();
+  gamma *= factor;
+  colormap = Colormap(gamma);
 }
 
 void View::setvolume(Nrrd *n){
@@ -136,6 +143,26 @@ void View::drawflat(){
   }
   texture.update(texdata);
 }
+vec3 View::pixel_to_ray(vec2 v){
+  
+  float square = min(win.width, win.height);
+  float px = (win.width-square)/2.f;
+  float py = (win.height-square)/2.f;
+
+  vec2 screen((v.x-px)/square, (v.y-py)/square);
+
+  screen.x = (screen.x-0.5f)*2.f;
+  screen.y = (screen.y-0.5f)*2.f;
+
+  // vec3 left = -camera.right*camera.lhorz;
+  // vec3 up   = camera.up*camera.lvert;
+
+  // vec3 topleft = forward - (right*camera.lhorz) + (up*camera.lvert);
+
+  printf("clicked %.2f %.2f\n",screen.x, screen.y);
+  return vec3(camera.look + camera.right*screen.x*camera.lhorz - camera.up*screen.y*camera.lvert);
+  // return camera.look;
+}
 void View::raytrace(){
   vec3 forward = camera.look;
   vec3 right   = camera.right;
@@ -188,8 +215,10 @@ void View::raytrace(){
             color_z += probe.z*probe.w*color_w;
             color_w += -color_w*probe.w;
           }
+
+          color_w -= 0.001; // some light is absorbed or refracted away.
           
-          color_w *= 0.995f;           // some light is absorbed or refracted away.
+          // color_w *= 0.995f;           
         }
         texdata[i+0] = int(color_x*255.999999);
         texdata[i+1] = int(color_y*255.999999);

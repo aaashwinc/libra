@@ -312,7 +312,7 @@ void ArFilter::max1(){
   float *in  = self.buff[self.curr];
   float *out = self.buff[itempbuf()];
 
-  printf("max1 %p -> %p\n", in, out);
+  // printf("max1 %p -> %p\n", in, out);
   int xi,xm;
 
   // for(int x=0;x<self.a1;++x){
@@ -422,7 +422,7 @@ void ArFilter::max1(){
   }
 
   self.curr = itempbuf();
-  printf("max1 -> %p\n", self.buff[self.curr]);
+  // printf("max1 -> %p\n", self.buff[self.curr]);
 }
 
 void ArFilter::threshold(int min, int max){
@@ -555,7 +555,7 @@ Nrrd* ArFilter::commit(Nrrd *nout){
   return nout;
 }
 void ArFilter::destroy(){
-  printf("Destroy.\n");
+  // printf("Destroy.\n");
   for(int i=1;i<self.nbuf;++i){
     nrrdNuke(self.nrrd[i]);
   }
@@ -676,8 +676,7 @@ std::vector<ScaleBlob*> ArFilter::find_blobs(){
 
   // hill-climb to determine labels.
   for(int z=0;z<self.a3; z++){
-    if(z%50 == 0)
-      printf("find_blobs progress %d/%d\n",z,self.a3);
+    // if(z%50 == 0)printf("find_blobs progress %d/%d\n",z,self.a3);
     for(int y=0; y<self.a2; y++){
       for(int x=0; x<self.a1; x++){
         int i = x*self.w1 + y*self.w2 + z*self.w3;
@@ -789,7 +788,7 @@ std::vector<ScaleBlob*> ArFilter::find_blobs(){
     }
   }
 
-  printf("compute blob statistics.\n");
+  // printf("compute blob statistics.\n");
   // now construct the scaleblobs with data in 2 passes.
   for(int pass=0;pass<2;++pass){
     for(int i=0;i<self.w4;i+=2){
@@ -811,12 +810,15 @@ std::vector<ScaleBlob*> ArFilter::find_blobs(){
   //   blob.second->print();
   // }
 
-  std::vector<ivec3>       positions;
+  // std::vector<ivec3>       positions;
   std::vector<ScaleBlob*> output;
 
   for (std::pair<int, ScaleBlob*> blob : blobs){
-    output.push_back(blob.second);
-    positions.push_back(ivec3(blob.second->position));
+    // another optimization: only add blobs with volume > 4.
+    if(blob.second->detCov > 4.f){
+      output.push_back(blob.second);
+    }
+    // positions.push_back(ivec3(blob.second->position));
   }
 
   // construct a sorted list of unique labels from this set.
@@ -830,9 +832,9 @@ std::vector<ScaleBlob*> ArFilter::find_blobs(){
   // std::vector<ivec3>
   // normalize(0.1);
   // highlight(positions);
-  printf("number of blobs: %lu\n",output.size());
+  printf("%lu blobs.\n",output.size());
   delete[] labelled;
-  printf("done.\n");
+  // printf("done.\n");
   return output;
 }
 
@@ -972,7 +974,7 @@ ScaleBlob* ArFilter::compute_blob_tree(){
   BSPTree<ScaleBlob> bspblobs(0,10,vec3(-1.f,-1.f,-1.f),vec3(self.a1+1.f,self.a2+1.f,self.a3+1.f)); // safe against any rounding errors.
   // bspblobs.print();
   DiscreteKernel kernel; 
-  float sigma = 2.f;
+  float sigma = 1.5f;
   float scale = 0.f;
 
   
@@ -1039,7 +1041,7 @@ ScaleBlob* ArFilter::compute_blob_tree(){
 
     blobs = bigblobs;
 
-    sigma += 2.f;
+    sigma += 1.f;
     kernel.destroy();
 
     temp = self.buff[self.curr];
