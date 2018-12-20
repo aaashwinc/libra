@@ -106,6 +106,7 @@ public:
 
   // output
   void render_to(sf::RenderWindow *window);
+  float get_gamma();
 };
 
 #endif

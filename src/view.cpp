@@ -39,6 +39,10 @@ View::View(int w, int h) : w(w), h(h), colormap(4.5f), gamma(4.5f){
   
 }
 
+float View::get_gamma(){
+  return gamma;
+}
+
 void View::step_gamma(float factor){
   if(factor<=0)return;
   colormap.destroy();

@@ -96,10 +96,10 @@ void ArPipeline::repr_highlight(ReprMode *rm, vec3 p, vec3 ray, bool add){
     BSPTree<ScaleBlob> *bsptree = &(frame.bspblobs);
     for(int i=0;i<100 && found.size()==0;++i){
       bsptree->find_within_distance(found, p, i+1);
-      // if(found.size()>0){
-      //   found = std::vector<ScaleBlob*>();
-      //   bsptree->find_within_distance(found, p, 100);
-      // }
+      if(found.size()>0){
+        found = std::vector<ScaleBlob*>();
+        bsptree->find_within_distance(found, p, 400);
+      }
       p+=ray;
     }
     if(!add)rm->highlight.blobs.clear();
@@ -107,6 +107,7 @@ void ArPipeline::repr_highlight(ReprMode *rm, vec3 p, vec3 ray, bool add){
     for(ScaleBlob *b : found){
       printf("found det=%.3f\n", b->detCov);
     }
+    rm->highlight.paths = longest_paths(rm->highlight.blobs);
     // printf("highlight %d\n",found.size());
   }
   // rm->highlight.lines.push_back(p+ray*1.f);
@@ -204,7 +205,7 @@ ArGeometry3D* ArPipeline::reprgeometry(ReprMode &mode){
   geometry.lines = std::vector<vec3>();
   geometry.lines_c = std::vector<sf::Color>();
   // printf("mode %s\n", mode.geom);
-  if(!strcmp(mode.geom, "graph")){
+  if(!strcmp(mode.geom, "graph") || !strcmp(mode.geom, "paths") || !strcmp(mode.geom, "succs")){
     if(get(mode.timestep).complete){
       ArFrameData frame = get(mode.timestep);
       float scalemin = frame.scales[mode.blob.scale] - frame.scale_eps;
@@ -217,26 +218,46 @@ ArGeometry3D* ArPipeline::reprgeometry(ReprMode &mode){
       //   blobs = collect_blobs(frame.blob, scalemin, scalemax);
       // }
 
-      // draw scale hierarchy:
-      blobs = collect_blobs(frame.blob, 0, std::numeric_limits<float>::infinity());
-      for(ScaleBlob *sb : blobs){
-        // for(ScaleBlob *succ : sb->succ){
-        //   geometry.lines.push_back(sb->position);
-        //   geometry.lines.push_back(succ->position);
-        //   geometry.lines_c.push_back(sf::Color(255,255,255,120));
-        //   geometry.lines_c.push_back(sf::Color(255,255,255,120));
-        // }
-        // for(ScaleBlob *pred : sb->pred){
-        //   geometry.lines.push_back(sb->position);
-        //   geometry.lines.push_back(pred->position);
-        //   geometry.lines_c.push_back(sf::Color(80,80,80,80));
-        //   geometry.lines_c.push_back(sf::Color(80,80,80,80));
-        // }
-        if(sb->parent){
-          geometry.lines.push_back(sb->position);
-          geometry.lines.push_back(sb->parent->position);
-          geometry.lines_c.push_back(sf::Color(0,0,255,80));
-          geometry.lines_c.push_back(sf::Color(0,0,255,80));
+      if(!strcmp(mode.geom, "graph")){
+        // draw scale hierarchy:
+        blobs = collect_blobs(frame.blob, 0, std::numeric_limits<float>::infinity());
+        for(ScaleBlob *sb : mode.highlight.blobs){
+          // for(ScaleBlob *succ : sb->succ){
+          //   geometry.lines.push_back(sb->position);
+          //   geometry.lines.push_back(succ->position);
+          //   geometry.lines_c.push_back(sf::Color(255,255,255,120));
+          //   geometry.lines_c.push_back(sf::Color(255,255,255,120));
+          // }
+          // for(ScaleBlob *pred : sb->pred){
+          //   geometry.lines.push_back(sb->position);
+          //   geometry.lines.push_back(pred->position);
+          //   geometry.lines_c.push_back(sf::Color(80,80,80,80));
+          //   geometry.lines_c.push_back(sf::Color(80,80,80,80));
+          // }
+          if(sb->parent){
+            geometry.lines.push_back(sb->position);
+            geometry.lines.push_back(sb->parent->position);
+            geometry.lines_c.push_back(sf::Color(0,0,255,150));
+            geometry.lines_c.push_back(sf::Color(0,0,255,150));
+          }
+        }
+      }
+      // draw successors and predecessors:
+      if(!strcmp(mode.geom, "succs")){
+        blobs = collect_blobs(frame.blob, 0, std::numeric_limits<float>::infinity());
+        for(ScaleBlob *sb : mode.highlight.blobs){
+          for(ScaleBlob *succ : sb->succ){
+            geometry.lines.push_back(sb->position);
+            geometry.lines.push_back(succ->position);
+            geometry.lines_c.push_back(sf::Color(255,255,255,120));
+            geometry.lines_c.push_back(sf::Color(255,255,255,120));
+          }
+          for(ScaleBlob *pred : sb->pred){
+            geometry.lines.push_back(sb->position);
+            geometry.lines.push_back(pred->position);
+            geometry.lines_c.push_back(sf::Color(80,80,80,80));
+            geometry.lines_c.push_back(sf::Color(80,80,80,80));
+          }
         }
       }
 
@@ -258,22 +279,33 @@ ArGeometry3D* ArPipeline::reprgeometry(ReprMode &mode){
         //   }
         // }
 
-        // draw longest trajectory
-        for(int i=0;i<mode.highlight.blobs.size();++i){
-          std::vector<ScaleBlob*> path = longest_path(mode.highlight.blobs[i]);
+        // // draw all branches in white.
+        // for(std::vector<ScaleBlob*> path : paths){
+        //   for(int j=0;j<path.size()-1;j++){
+        //     for(int k=0;k<path[j]->succ.size();k++){
+        //       geometry.lines.push_back(path[j]->position);
+        //       geometry.lines.push_back(path[j]->succ[k]->position);
+        //       geometry.lines_c.push_back(sf::Color::White);
+        //       geometry.lines_c.push_back(sf::Color::White);
+        //     }
+        //   }
+        // }
+
+        // draw the longest trajectories.
+        for(std::vector<ScaleBlob*> path : mode.highlight.paths){
+          float len  = float(path.size());
+          float step = 1.f/len;
           for(int j=0;j<path.size()-1;j++){
-            // draw all branches in white.
-            for(int k=0;k<path[j]->succ.size();k++){
-              geometry.lines.push_back(path[j]->position);
-              geometry.lines.push_back(path[j]->succ[k]->position);
-              geometry.lines_c.push_back(sf::Color::White);
-              geometry.lines_c.push_back(sf::Color::White);
-            }
-            // draw the best branch in green.
             geometry.lines.push_back(path[j]->position);
             geometry.lines.push_back(path[j+1]->position);
-            geometry.lines_c.push_back(sf::Color::Green);
-            geometry.lines_c.push_back(sf::Color::Green);
+            int r0 = 0   + int(200.f * step * j    );
+            int g0 = 155 + int(100.f * step * j    );
+            int b0 = 255 - int(250.f * step * j    );
+            int r1 = 0   + int(200.f * step * (j+1));
+            int g1 = 155 + int(100.f * step * (j+1));
+            int b1 = 255 - int(250.f * step * j    );
+            geometry.lines_c.push_back(sf::Color(r0,g0,b0,255));
+            geometry.lines_c.push_back(sf::Color(r1,g1,b1,255));
           }
         }
       }

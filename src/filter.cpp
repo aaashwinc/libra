@@ -280,13 +280,13 @@ void ArFilter::laplacian3d(int boundary){
 
         double l1=0,l2=0,l3=0;
 
-        l1 = in[xi] - 0.5*in[p1] - 0.5*in[p2];
-        l2 = in[xi] - 0.5*in[p3] - 0.5*in[p4];
-        l3 = in[xi] - 0.5*in[p5] - 0.5*in[p6];
+        l1 = 2*in[xi] - in[p1] - in[p2];
+        l2 = 2*in[xi] - in[p3] - in[p4];
+        l3 = 2*in[xi] - in[p5] - in[p6];
         // double mx = fmax(l1,fmax(l2,l3));
         // double mn = fmin(l1,fmin(l2,l3));
         // printf("%f %f %f -> %f %f\n",l1,l2,l3,mx,mn);
-        v = (l1+l2+l3)/3.0;
+        v = (l1+l2+l3);
         // v *= 30000.0/max_laplacian;
         // v = fabs(in[p5]);
         if(v<0)v=0;
@@ -893,6 +893,9 @@ void ArFilter::rasterlineadd(vec3 a, vec3 b, float va, float vb){
 void ArFilter::draw_blobs(std::vector<ScaleBlob*> blobs, bool highlight){
   using namespace glm;
   float *data = self.buff[self.curr];
+  for(int i=0;i<self.w4;++i){
+    data[i]=0;
+  }
   for(auto blob = blobs.begin(); blob != blobs.end(); ++blob){
     ScaleBlob *sb = *blob;
     float minx = sb->min.x;
@@ -908,7 +911,7 @@ void ArFilter::draw_blobs(std::vector<ScaleBlob*> blobs, bool highlight){
           int i = int(x)*self.w1 + int(y)*self.w2 + int(z)*self.w3;
           float v = sb->cellpdf(vec3(x,y,z));
           if(std::isfinite(v)){
-            data[i] += v;
+            data[i] = max(data[i],v);
             // printf("(%.2f %.2f %.2f) -> %.f", x,y,z,v);
           }
         }

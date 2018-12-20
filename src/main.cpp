@@ -10,6 +10,7 @@
 #include "view.h"
 #include "pipeline.h"
 #include "synth.h"
+#include <LBFGS.h>
 
 class Game{
 public:
@@ -30,6 +31,21 @@ public:
 
   float scale  = 0;
   Game() : reprmode("plain"){
+    ScaleBlob b1;
+    ScaleBlob b2;
+    b1.position = vec3(0,0,0);
+    b1.covariance << 1, 0, 0,
+                     0, 3, 0,
+                     0, 0, 0.25;
+    
+    b2.position = vec3(4,0,0);
+    b2.covariance << 2, 0, 0,
+                     0, 1, 0,
+                     0, 0, 1;
+    printf("init\n");
+    b1.distance(&b2);
+
+    exit(0);
 
   }
   void asserts(bool b, const char *message){
@@ -62,6 +78,13 @@ public:
     view->setvolume(pipeline->repr(reprmode));
     for(int i=0;i<1024;i++)keys[i]=false;
     for(int i=0;i<3;i++)clicked[i]=false;
+
+    pipeline->process(reprmode.timestep,reprmode.timestep+6);
+    reprmode.name = "blobs";
+    reprmode.geom = "graph";
+    view->setvolume(pipeline->repr(reprmode));
+    view->setgeometry(pipeline->reprgeometry(reprmode));
+    view->touch();
   }
 
   void handle_events(){
@@ -240,10 +263,12 @@ public:
       view->touch();
     }
     if(keys[sf::Keyboard::G]){
-      if(!strcmp(reprmode.geom, "graph")){
-        reprmode.geom = "none";
-      }else if(!strcmp(reprmode.geom, "none")){
+      if(!strcmp(reprmode.geom, "none")){
+        reprmode.geom = "paths";
+      }else if(!strcmp(reprmode.geom, "paths")){
         reprmode.geom = "graph";
+      }else if(!strcmp(reprmode.geom, "graph")){
+        reprmode.geom = "succs";
       }else{
         reprmode.geom = "none";
       }
@@ -260,15 +285,12 @@ public:
       clicked[0] = false;
     }
     if(keys[sf::Keyboard::U]){
-      pipeline->process(reprmode.timestep,reprmode.timestep+2);
+      pipeline->process(reprmode.timestep,reprmode.timestep+7);
       reprmode.name = "blobs";
       reprmode.geom = "graph";
-      // printf("hello!\n");
       view->setvolume(pipeline->repr(reprmode));
       view->setgeometry(pipeline->reprgeometry(reprmode));
-      // printf("bello!\n");
       view->touch();
-      // printf("mello!\n");
     }
   }
   void renderall(){
@@ -287,6 +309,7 @@ public:
         "timestep "+to_string(reprmode.timestep)+"\n"+
         "render mode: " + std::string(reprmode.name) + "\n" + 
         "scale: " + to_string(reprmode.blob.scale) + "\n" + 
+        "gamma: " + to_string(view->get_gamma()) + "\n" + 
         ((pipeline->get(reprmode.timestep).complete)?"processed":"")
       );
 

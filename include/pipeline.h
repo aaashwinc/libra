@@ -29,6 +29,7 @@ public:
   struct{
     std::vector<ScaleBlob*>blobs;
     std::vector<vec3> lines;
+    std::vector<std::vector<ScaleBlob*>> paths;
   }highlight;
   bool operator==(ReprMode &r);
 };

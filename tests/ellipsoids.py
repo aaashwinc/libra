@@ -4,9 +4,7 @@ import scipy.optimize
 import matplotlib.pyplot as plt
 
 def ell(A,x):
-  # print('A', A)
-  # print('x', x)
-  # print('ell', x.T @ A @ x)
+  # print('ell', A, x)
   return x.T @ A @ x
 
 def g(A, x):
@@ -15,7 +13,9 @@ def g(A, x):
 # objective(x) for ellipsoid (A, 0) DISTANCE p
 def f(A, x, p):
   # return (g(A,x)-p).T @ (g(A,x)-p)
-  return (1.0/(x.T@A@x) * (x.T@x)) - (1.0/np.sqrt(x.T@A@x))*2.0*x.T@p
+  v = (1.0/(x.T@A@x) * (x.T@x)) - (1.0/np.sqrt(x.T@A@x))*2.0*x.T@p
+  # print('f', v)
+  return v
 
 def df(A, x, p):
   xAx = np.asscalar(ell(A, x))
@@ -24,17 +24,9 @@ def df(A, x, p):
   xp  = np.asscalar(x.T@p)
   xTx = np.asscalar(x.T.dot(x))
   xTAAT = (x.T @ (A + A.T)).T
-  # print('hi', x.T, (A+A.T), xTAAT)
-  # print('hi', VxAx);
-  # print('hi', xTx, xTx/(2.0*VxAx), Ax)
-  # return 0
-  return (2.0*x/(xAx)) + (-xTx/(xAx**2.0) * xTAAT) - (((1.0/VxAx)*2*p) + (2*xp)*(-xTAAT/(2.0*(VxAx**3.0))))
-  # return (x/(xAx)) + (x.T@x/(2.0*VxAx) * Ax) - (((1.0/VxAx)*2*p) + (2*xp)*(-Ax/(VxAx**3.0)))
-  # return (x/(xAx)) + (x.T@x/(2.0*VxAx) * Ax) - (((1.0/VxAx)*2*p) + (2*xp)*(-Ax/(VxAx**3.0)))
-
-def df2(A,x,p):
-  pass
-
+  df =  (2.0*x/(xAx)) + (-xTx/(xAx**2.0) * xTAAT) - (((1.0/VxAx)*2*p) + (2*xp)*(-xTAAT/(2.0*(VxAx**3.0))))
+  # print('df', df)
+  return df
 def gradient_descent(A, x, p):
   itr = 0
   while True:
@@ -57,115 +49,94 @@ def quad_to_linear(A):
 def linear_to_quad(A):
   return np.linalg.inv(A@A)
 
-def distance(p0, A0, p1, A1):
-  p0 = np.array([p0]).T
-  p1 = np.array([p1]).T
-  # print(p0)
+def distance(ap0, aA0, ap1, aA1):
+  p0 = ap0
+  A0 = aA0
+  p1 = ap1
+  A1 = aA1
+
   # distance between ellipsoids.
-  p1 -= p0;
-  p0 -= p0;
-  inv_A0 = np.linalg.inv(A0)
-  A0 = inv_A0 @ A0
-  A1 = inv_A0 @ A1
-  p1 = inv_A0 @ p1
+
+  VA0 = scipy.linalg.sqrtm(aA0)
+  VA1 = scipy.linalg.sqrtm(aA1)
+
+  VA0i = np.linalg.inv(VA0)
+  VA1i = np.linalg.inv(VA1)
+
+  VA0A1i  = VA0 @ VA1i
+  VA1A0iv = VA1 @ VA0i
+
+  print('VA0 = \n'     , VA0);
+  print('VA1 = \n'     , VA1);
+  print('VA0i = \n'    , VA0i);
+  print('VA1i = \n'    , VA1i);
+  print('VA0A1i = \n'  , VA0A1i);
+  print('VA1A0iv = \n' , VA1A0iv);
   
-  # now, p0 = 0, A0 = I.
-  # A = np.linalg.inv(A1)
-  A = A1
-  Aq = linear_to_quad(A)
-  x = g(A, -p1)
-  p = -p1
+  p1 =  VA0 @ (p0 - p1)
+  x = g(VA0A1i, p1)
+  Aq = VA1A0iv @ VA1A0iv
+
+  print('p1 =\n', p1)
+  print('x  =\n', x)
+  print('Aq =\n', Aq)
+
   x = scipy.optimize.minimize(
-        fun=lambda x: np.asscalar(f(Aq,x,-p1)),
+        fun=lambda x: (f(Aq,x,p1)),
         x0=x,
         method='BFGS',
-        jac=lambda x: np.array(df(Aq,x,p).T.tolist()[0]),
-        options={'gtol':0.0001, 'disp':True})
+        jac=lambda x: (df(Aq,x,p1)),
+        options={'gtol':0.0001, 'disp':False})
   x = x.x
+  
   # print(x)
   x = g(Aq, x)
-  # print(A)
   # print(x)
-  # print(x@A@x.T)
-  distance = np.linalg.norm(x.T - (-p1))
+  # print(p1)
+  # print(x.T - (-p1))
+  distance = np.linalg.norm(x.T - (p1))
   print('distance', distance)
-  # print('closest points', x, -p1)
-  return (A1, Aq, -p1, x)
-
-# A0 = np.matrix('0.0025 0; 0 1')
-# A0 = np.matrix('0.0025 0; 0 1')
-
-# print(ell(A, np.array([[1,3]]).T))
-
-# x = np.array([[0,30]]).T
-# x = g(A,x)
-# p = np.array([[40,0]]).T
-
-# print('find closest point to', p.T, 'on ellipsoid:\n')
-# print(A)
-# print()
-
-# # print(gradient_descent(A,x,p)
-# print('min', x.x)
-
+  return (A1, Aq, p1, x)
 
 # Fixing random state for reproducibility
 np.random.seed(19680801)
 
 
 def ellipse(p, A, c=None, mode='linear'):
-  # print('A', A)
   xs = []
   ys = []
   for theta in np.arange(0, 2*3.14159265, 0.1):
     pp = np.array([np.cos(theta), np.sin(theta)]).reshape(2,1)
-    # print('shape', pp)
     if mode == 'quadratic':
       pp  =g(A, pp)
     else:
       pp = A @ pp
-    # pp = pp.flatten()
-    # print('list', np.concatenate(pp).flatten())
-    # print('pp', pp.shape, pp, pp.reshape(2,1).flatten().shape)
     xs += [p[0] + pp[0,0]]
     ys += [p[1] + pp[1,0]]
   plt.scatter(xs, ys, c=c, alpha=0.3)
 
-A0 = np.matrix('2 1; 1 2')
-p0 = np.array([-1,0])
-A1 = np.matrix('1 0; 0 1')
-p1 = np.array([-2.8,0.1])
+A0 = np.matrix('1 0 0; 0 3 0; 0 0 0.25')
+p0 = np.array([0,0,0])
+A1 = np.matrix('2 0 0; 0 1 0; 0 0 1')
+p1 = np.array([4,0,0])
 plt.gca().set_aspect('equal', adjustable='box')
 
-A0L = quad_to_linear(A0)
-# print('AAA\n', A0L, '\n', A0)
 
-ellipse(p0, A0, c='red',   mode='linear')
-# ellipse(p0, linear_to_quad((A0)), c='blue',   mode='quadratic')
+# print(A1, quad_to_linear(linear_to_quad(A1)))
 
+(A, Aq, p, x) = distance(
+  p0,
+  ((A0)),
+  p1,
+  ((A1)))
 
-ellipse(p1, A1, c='red',  mode='linear')
+# (A, Aq, p, x) = distance(p0, A0, p1, A1)
 
-(A, Aq, p, x) = distance(p0, A0, p1, A1)
+# ellipse(p0, A0, c='red', mode='linear')
+# ellipse(p1, A1, c='red', mode='linear')
+# ellipse(np.array([0,0]), A, c='blue')
+# ellipse(p, np.matrix('1 0; 0 1'), c='blue')
 
-ellipse(np.array([0,0]), A, c='blue')
-# ellipse(np.array([0,0]), Aq, c='green', mode='quadratic')
-ellipse(p, np.matrix('1 0; 0 1'), c='blue')
+# plt.scatter([p[0,0], x[0,0]], [p[1,0], x[0,1]], c='green')
 
-plt.scatter([p[0,0], x[0,0]], [p[1,0], x[0,1]], c='green')
-
-
-if False:
-
-  ellipse(p0,A0, c='red')
-  ellipse(p1,A1, c='red')
-
-  (A, p, x) = distance(p0, A0, p1, A1)
-
-  # print(x[0,0], x[0,1])
-  ellipse(np.array([0,0]), A, c='blue')
-  ellipse(p, np.matrix('1 0; 0 1'), c='blue')
-  # print(p[0,0], p[1,0])
-  plt.scatter([p[0,0], x[0,0]], [p[1,0], x[0,1]])
-# plt.scatter(x, y)
 # plt.show()

@@ -2,6 +2,8 @@
 #include <cstdio>
 #include <cmath>
 #include <limits>
+#include <LBFGS.h>
+#include <iostream>
 
 #define pi (3.14159265358979323846264338)
 
@@ -57,7 +59,10 @@ float ScaleBlob::pdf(vec3 p){
 float ScaleBlob::cellpdf(vec3 p){
   p = p - vec3(position);
   float mag = glm::dot(p,(invCov*p));
-  return 1.f/(0.1f + 0.05f*mag*mag);
+  if(mag<1.f) return 1.f;
+  else        return float(erf(2-mag)*0.5+0.5);
+  // float mag = glm::dot(p,(invCov*p));
+  // return 1.f/(0.1f + 0.05f*mag*mag);
 }
 void ScaleBlob::commit(){
   if(npass == 0){  // compute mean.
@@ -91,12 +96,115 @@ void ScaleBlob::printtree(int depth){
   }
   printf(")");
 } 
+// float ScaleBlob::distance(vec3 p){
+//   // = distance between (p, shape) and position
+//   // = distance between (c, shape) and origin.
+//   // vec3 c  = vec3(position) - p;
+//   // vec3 x  = c + shape*vec3(0,0,1); // inital point x on ellipsoid.
+//   // vec3 a(1,0,0);
+//   return 0
+// }
 
-// compute Wasserstein distance: https://en.wikipedia.org/wiki/Wasserstein_metric
+using namespace Eigen;
+static inline float ell(const Matrix3f &A, const Vector3f &x){
+  float c00 = x[0]*x[0]*A(0,0);
+  float c01 = x[0]*x[1]*A(0,1);
+  float c02 = x[0]*x[2]*A(0,2);
+  float c11 = x[1]*x[1]*A(1,1);
+  float c12 = x[1]*x[2]*A(1,2);
+  float c22 = x[2]*x[2]*A(2,2);
+
+  return c00 + c11 + c22 + 2*c01 + 2*c02 + 2*c12;
+}
 float ScaleBlob::distance(ScaleBlob *blob){
+  /*** intersection distance between ellipsoids ***/
+  using namespace Eigen;
+
+  // define objective function.
+  class EllipsoidDistanceObjective{
+  public:
+    EllipsoidDistanceObjective(const Matrix3f &A): A(A), p(p) {}
+    Matrix3f A;
+    Vector3f p;
+    float operator()(const VectorXf &x, VectorXf &grad){
+      float xTAx = ell(A, x);
+      float xAx = ell(A, x);
+      float xTx  = x.dot(x);
+      float xp  = x.dot(p);
+      float VxAx = sqrt(xAx);
+      Vector3f Ax  = A*x;
+      Vector3f xTAAT = (x.transpose() * (A + A.transpose())).transpose();
+
+      grad = (2.f*x/(xAx)) + (-xTx/(xAx*xAx) * xTAAT) - (((1.f/VxAx)*2*p) + (2*xp)*(-xTAAT/(2.f*(VxAx*VxAx*VxAx))));
+      
+      return (1.f/xAx * xTx) - (1.f/sqrt(xAx))*2.f*xp;
+    }
+    // map R^3 -> surface of ellipsoid.
+    static inline Vector3f g(Matrix3f &A, const VectorXf &x){
+      return x*(1.f/sqrt(ell(A,x)));
+    }
+  };
+
+  // perform precomputation.
+  typedef SelfAdjointEigenSolver<Eigen::Matrix3f> Solver3f;
+  Vector3f p0(0, 0, 0);
+
+
+  Solver3f s_A0(covariance);
+  Solver3f s_A1(blob->covariance);
+
+  Matrix3f VA0 = s_A0.operatorSqrt();
+  Matrix3f VA1 = s_A1.operatorSqrt();
+
+  Matrix3f VA0i = VA0.inverse();
+  Matrix3f VA1i = VA1.inverse();
+
+  Matrix3f VA0A1i  = VA0 * VA1i;
+  Matrix3f VA1A0iv = VA1 * VA0i;
+  
+  std::cout << "VA0 = \n" << VA0 << "\n\n";
+  std::cout << "VA1 = \n" << VA1 << "\n\n";
+
+  std::cout << "VA0i = \n" << VA0i << "\n\n";
+  std::cout << "VA1i = \n" << VA1i << "\n\n";
+
+  std::cout << "VA0A1i = \n" << VA0A1i  << "\n\n";
+  std::cout << "VA1A0i = \n" << VA1A0iv << "\n\n";
+
+  Vector3f p1 = VA0 * Vector3f( position[0]-blob->position[0],
+                                position[1]-blob->position[1],
+                                position[2]-blob->position[2]) ;
+
+  VectorXf x  = EllipsoidDistanceObjective::g(VA0A1i, p1);
+  
+  Matrix3f Aq = VA1A0iv * VA1A0iv;
+
+  std::cout << "p1   = \n" << p1 << "\n\n";
+  std::cout << "x    = \n" << x  << "\n\n";
+  std::cout << "Aq   = \n" << Aq  << "\n\n";
+
+  LBFGSpp::LBFGSParam<float> param;
+  LBFGSpp::LBFGSSolver<float> solver(param);
+
+  float fx;
+
+  printf("minimizing.\n");
+  EllipsoidDistanceObjective obj(Aq);
+  int nitr = solver.minimize(obj, x, fx);
+
+  x = EllipsoidDistanceObjective::g(Aq, x);
+  float distance = (x - p1).norm();
+  printf("distance %.2f\n", distance);
+  return distance;  
+
+
+  // compute distance between ellipsoids using newton's method.
+
+  // vec3 p;
+
 
   /*** My distance: ***/
-  return (glm::length(blob->position - position)) + fabs(cbrt(detCov) - cbrt(blob->detCov));
+  // return (glm::length(blob->position - position)) + fabs(cbrt(detCov) - cbrt(blob->detCov));
 
   /*** Wasserstein metric:  ***/
 
