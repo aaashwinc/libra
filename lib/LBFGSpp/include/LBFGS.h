@@ -4,6 +4,7 @@
 #ifndef LBFGS_H
 #define LBFGS_H
 
+#include <iostream>
 #include <Eigen/Core>
 #include "LBFGS/Param.h"
 #include "LBFGS/LineSearch.h"
@@ -84,6 +85,8 @@ public:
 
         // Evaluate function and compute gradient
         fx = f(x, m_grad);
+        // printf("f(x) = %.30f\n", fx);
+        // std::cout<<"min x =\n" <<x<< "\n\n";
         Scalar xnorm = x.norm();
         Scalar gnorm = m_grad.norm();
         if(fpast > 0)
@@ -108,13 +111,34 @@ public:
             m_xp.noalias() = x;
             m_gradp.noalias() = m_grad;
 
+            // printf("backtracking with step=%.3f\n", step);
+            // std::cout<<"~~~ backtacking ~~~\n";
+            // std::cout << fx << "\n\n" << x << "\n\n" << m_grad << "\n\n" << step << "\n\n" << m_drt << "\n\n" << m_xp << "\n\n";
+            // std::cout<<"x =  \n" << x << std::endl;
             // Line search to update x, fx and gradient
+            // std::cout<<"x =\n" <<x<< "\n\n";
+            // printf("x = %.3f %.3f %.3f : %.3f\n", x[0], x[1], x[2], fx);
+            // invalid search direction. probably singular due to floating precision. return.
+            if(m_drt[0] != m_drt[0] || m_drt[1] != m_drt[1] || m_drt[2] != m_drt[2]){
+                return k;
+            }
             LineSearch<Scalar>::Backtracking(f, fx, x, m_grad, step, m_drt, m_xp, m_param);
+
+            // std::cout<<"x <- \n" << x << std::endl;
 
             // New x norm and gradient norm
             xnorm = x.norm();
             gnorm = m_grad.norm();
 
+            // std::cout<<"norm = "<<xnorm<<"\n";
+            // printf("x = %.3f %.3f %.3f : %.3f; gx = %.3f %.3f %.3f\n", x[0], x[1], x[2], fx, m_grad[0], m_grad[1], m_grad[2]);
+            // std::cout<<"x =\n" <<x<< "\n\n";
+            // std::cout<<"g =\n" <<m_grad<< "\n\n";
+
+            if(xnorm != xnorm){
+                fprintf(stderr, "%s %d: xnorm = nan.\n", __FILE__, __LINE__);
+                exit(0);
+            }
             // Convergence test -- gradient
             if(gnorm <= m_param.epsilon * std::max(xnorm, Scalar(1.0)))
             {
@@ -148,22 +172,31 @@ public:
             Scalar yy = yvec.squaredNorm();
             m_ys[end] = ys;
 
+            // std::cout << "drt =\n" << m_drt << "\n\n";
             // Recursive formula to compute d = -H * g
             m_drt.noalias() = -m_grad;
+            // std::cout << "drt =\n" << m_drt << "\n\n";
             int bound = std::min(m_param.m, k);
             end = (end + 1) % m_param.m;
             int j = end;
             for(int i = 0; i < bound; i++)
             {
+                // printf("drt[%d] =\n", i);
+                // std::cout << m_drt << std::endl;
+                // printf("\n\n");
                 j = (j + m_param.m - 1) % m_param.m;
                 MapVec sj(&m_s(0, j), n);
                 MapVec yj(&m_y(0, j), n);
                 m_alpha[j] = sj.dot(m_drt) / m_ys[j];
                 m_drt.noalias() -= m_alpha[j] * yj;
+                // printf("m_ys[j] = %.3f\n", m_ys[j]);
+                // printf("drt[%d] =\n", i);
+                // std::cout << m_drt;
+                // printf("\n\n");
             }
-
+            // std::cout << "drt =\n" << m_drt << "\n\n";
             m_drt *= (ys / yy);
-
+            // std::cout << "drt =\n" << m_drt << "\n\n";
             for(int i = 0; i < bound; i++)
             {
                 MapVec sj(&m_s(0, j), n);

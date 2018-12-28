@@ -47,6 +47,8 @@ public:
         const Scalar dec = 0.5;
         const Scalar inc = 2.1;
 
+        // printf("in backtracking: step=%.3f\n", step);
+
         // Check the value of step
         if(step <= Scalar(0))
             std::invalid_argument("'step' must be positive");
@@ -63,10 +65,16 @@ public:
         Scalar width;
 
         int iter;
+        // printf("in backtracking: step=%.3f\n", step);
         for(iter = 0; iter < param.max_linesearch; iter++)
         {
             // x_{k+1} = x_k + step * d_k
+            // printf("in backtracking: step=%.3f\n", step);
+            // printf("step %.3f\n", step);
+            // std::cout << x << " = " << xp << " + " << step << " * " << drt << "\n";
+            // printf("update: %.3f = %.3f + %.3f * %.3f\n", x, xp, step, drt);
             x.noalias() = xp + step * drt;
+            // printf("update: %.3f = %.3f + %.3f * %.3f\n", x, xp, step, drt);
             // Evaluate this candidate
             fx = f(x, grad);
 

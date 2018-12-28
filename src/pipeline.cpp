@@ -98,14 +98,15 @@ void ArPipeline::repr_highlight(ReprMode *rm, vec3 p, vec3 ray, bool add){
       bsptree->find_within_distance(found, p, i+1);
       if(found.size()>0){
         found = std::vector<ScaleBlob*>();
-        bsptree->find_within_distance(found, p, 400);
+        bsptree->find_within_distance(found, p, 900);
       }
       p+=ray;
     }
     if(!add)rm->highlight.blobs.clear();
     for(int i=0;i<found.size();i++)rm->highlight.blobs.push_back(found[i]);
     for(ScaleBlob *b : found){
-      printf("found det=%.3f\n", b->detCov);
+      b->print();
+      // printf("found det=%.3f\n", b->detCov);
     }
     rm->highlight.paths = longest_paths(rm->highlight.blobs);
     // printf("highlight %d\n",found.size());
@@ -148,6 +149,32 @@ static std::vector<ScaleBlob*> collect_blobs(ScaleBlob *blob, float scalemin, fl
   return blobs;
 }
 
+/* find all paths in the part of the dataset that has been
+ * processed so far. 
+ *
+ */
+void ArPipeline::find_paths(){
+  int minlen = 0;
+  std::vector<ScaleBlob*> allblobs;
+  for(int i=0;i<frames.size();i++){
+    if(frames[i].complete){
+      std::vector<ScaleBlob*> blobsi = collect_blobs(frames[i].blob, 0, std::numeric_limits<float>::infinity());
+      allblobs.insert(allblobs.end(), blobsi.begin(), blobsi.end());
+      // minlen = int(i*0.75);
+    }
+  }
+  printf("find paths > %d.\n", minlen);
+  printf("find paths in %d blobs.\n", allblobs.size());
+  std::vector<std::vector<ScaleBlob*>> allpaths = longest_paths(allblobs);
+  paths.clear();
+  for(int i=0;i<allpaths.size();++i){
+    if(allpaths[i].size() > minlen){
+      paths.push_back(allpaths[i]);
+    }
+  }
+  printf("found %d paths.\n", paths.size());
+}
+
 /* store.buf[0] contains the output of the filter chain.
  * store.buf[1] contains the output of repr().
  */
@@ -176,21 +203,28 @@ void ArPipeline::process(int low, int high){
     }
 
     // link with previous frame.
+    // printf("linking.\n");
     if(frame-1 >= this->low() && get(frame-1).complete){
       BSPTree<ScaleBlob> *t0 = &frames[ frame - exp->low -1 ].bspblobs;
       BSPTree<ScaleBlob> *t1 = &frames[ frame - exp->low    ].bspblobs;
 
       std::vector<ScaleBlob*> v0 = t0->as_vector();
-
+      int itr = 0;
       for(ScaleBlob *sb : v0){
         std::vector<ScaleBlob*> potential;
         t1->find_within_distance(potential, sb->position, 200.f);
         for(int i=0;i<potential.size();i++){
-          if(sb->distance(potential[i]) < 14.f){
-            sb->succ.push_back(potential[i]);
-            potential[i]->pred.push_back(sb);
+          if(sb->n>1 && potential[i]->n>1 && sb->distance(potential[i]) <= 1.f){
+            if(sb->detCov/potential[i]->detCov < 2.f && potential[i]->detCov/sb->detCov < 2.f){
+              // volume cannot more than double or half.
+              sb->succ.push_back(potential[i]);
+              potential[i]->pred.push_back(sb);
+            }
           }
+          // printf("%d.", i);
         }
+        // printf("o");
+        ++itr;
         // for(ScaleBlob *sb0 : sb->succ){
         //   sb0->pred.push_back(sb);
         // }
@@ -218,10 +252,12 @@ ArGeometry3D* ArPipeline::reprgeometry(ReprMode &mode){
       //   blobs = collect_blobs(frame.blob, scalemin, scalemax);
       // }
 
+
       if(!strcmp(mode.geom, "graph")){
         // draw scale hierarchy:
         blobs = collect_blobs(frame.blob, 0, std::numeric_limits<float>::infinity());
         for(ScaleBlob *sb : mode.highlight.blobs){
+        // for(ScaleBlob *sb : blobs){
           // for(ScaleBlob *succ : sb->succ){
           //   geometry.lines.push_back(sb->position);
           //   geometry.lines.push_back(succ->position);
@@ -244,8 +280,13 @@ ArGeometry3D* ArPipeline::reprgeometry(ReprMode &mode){
       }
       // draw successors and predecessors:
       if(!strcmp(mode.geom, "succs")){
-        blobs = collect_blobs(frame.blob, 0, std::numeric_limits<float>::infinity());
+        float scalemin = frame.scales[mode.blob.scale] - frame.scale_eps;
+        float scalemax = frame.scales[mode.blob.scale] + frame.scale_eps;
+        // blobs = collect_blobs(frame.blob, 0, std::numeric_limits<float>::infinity());
+        // blobs = collect_blobs(frame.blob, scalemin, scalemax);
         for(ScaleBlob *sb : mode.highlight.blobs){
+        // for(ScaleBlob *sb : blobs){
+          if(sb->scale < scalemin || sb->scale > scalemax)continue;
           for(ScaleBlob *succ : sb->succ){
             geometry.lines.push_back(sb->position);
             geometry.lines.push_back(succ->position);
@@ -292,7 +333,7 @@ ArGeometry3D* ArPipeline::reprgeometry(ReprMode &mode){
         // }
 
         // draw the longest trajectories.
-        for(std::vector<ScaleBlob*> path : mode.highlight.paths){
+        for(std::vector<ScaleBlob*> path : paths){
           float len  = float(path.size());
           float step = 1.f/len;
           for(int j=0;j<path.size()-1;j++){
@@ -361,6 +402,16 @@ Nrrd *ArPipeline::repr(ReprMode &mode){
     float scalemax = frame.scales[mode.blob.scale] + frame.scale_eps;
     // printf("mode %s. view scale %d with %.2f %.2f\n", mode.name, scalemin, scalemax);
     std::vector<ScaleBlob*> blobs = collect_blobs(frame.blob, scalemin, scalemax);
+    
+    // draw the blobs in paths at the current timestep.
+    // if(!strcmp(mode.geom, "paths")){
+    //   for(std::vector<ScaleBlob*> path : mode.highlight.paths){
+    //     if(mode.timestep < path.size()){
+    //       blobs.push_back(path[mode.timestep]);
+    //     }
+    //   }
+    // }
+
     // printf("\n");
     filter.clear();
     filter.draw_blobs(blobs, true);

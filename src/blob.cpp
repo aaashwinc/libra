@@ -4,7 +4,9 @@
 #include <limits>
 #include <LBFGS.h>
 #include <iostream>
-
+extern "C"{
+  #include <lbfgs.h>
+}
 #define pi (3.14159265358979323846264338)
 
 ScaleBlob::ScaleBlob(){
@@ -25,6 +27,8 @@ ScaleBlob::ScaleBlob(){
 
   pred = std::vector<ScaleBlob*>();
   succ = std::vector<ScaleBlob*>();
+
+  children = std::vector<ScaleBlob*>();
 }
 void ScaleBlob::pass(vec3 point, float value){
   if(npass == 0){  // calculate mean, min, max.
@@ -47,9 +51,7 @@ void ScaleBlob::pass(vec3 point, float value){
     shape[1][2] += v.y*v.z*value/(n-1);
     shape[2][2] += v.z*v.z*value/(n-1);
 
-    invCov    = glm::inverse(mat3(shape));
-    detCov    = fabs(glm::determinant(shape));
-    pdfCoef   = pow(glm::determinant(shape*pi*2.0),-0.5);
+
   }
 }
 float ScaleBlob::pdf(vec3 p){
@@ -76,13 +78,19 @@ void ScaleBlob::commit(){
     shape[2][1] = shape[1][2];
     npass = 2;
 
-    covariance << shape[0][0], shape[0][1], shape[0][2],
-                  shape[1][0], shape[1][1], shape[1][2],
-                  shape[2][0], shape[2][1], shape[2][2];
+    invCov    = glm::inverse(mat3(shape));
+    detCov    = fabs(glm::determinant(shape));
+    pdfCoef   = pow(glm::determinant(shape*pi*2.0),-0.5);
+
+    fshape = shape;
+
+    covariance << invCov[0][0], invCov[0][1], invCov[0][2],
+                  invCov[1][0], invCov[1][1], invCov[1][2],
+                  invCov[2][0], invCov[2][1], invCov[2][2];
   }
 }
 void ScaleBlob::print(){
-  printf("blob at %.2f %.2f %.2f; xyz %.3f %.3f %.3f; xy/xz/yz %.3f %.3f %.3f\n",
+  printf("blob %.2f at %.2f %.2f %.2f; xyz %.3f %.3f %.3f; xy/xz/yz %.3f %.3f %.3f\n", n,
     position[0],position[1],position[2],
     shape[0][0],shape[1][1],shape[2][2],
     shape[0][1],shape[0][2],shape[1][2]);
@@ -117,13 +125,15 @@ static inline float ell(const Matrix3f &A, const Vector3f &x){
   return c00 + c11 + c22 + 2*c01 + 2*c02 + 2*c12;
 }
 float ScaleBlob::distance(ScaleBlob *blob){
+  // printf("d");
+  // printf("d...");
   /*** intersection distance between ellipsoids ***/
   using namespace Eigen;
 
   // define objective function.
   class EllipsoidDistanceObjective{
   public:
-    EllipsoidDistanceObjective(const Matrix3f &A): A(A), p(p) {}
+    EllipsoidDistanceObjective(const Matrix3f &A, const Vector3f p): A(A), p(p) {}
     Matrix3f A;
     Vector3f p;
     float operator()(const VectorXf &x, VectorXf &grad){
@@ -136,7 +146,14 @@ float ScaleBlob::distance(ScaleBlob *blob){
       Vector3f xTAAT = (x.transpose() * (A + A.transpose())).transpose();
 
       grad = (2.f*x/(xAx)) + (-xTx/(xAx*xAx) * xTAAT) - (((1.f/VxAx)*2*p) + (2*xp)*(-xTAAT/(2.f*(VxAx*VxAx*VxAx))));
-      
+      // printf("] VxAx   = %.30f\n", VxAx);
+      // printf("] p      = %.30f %.30f %.30f\n", p[0], p[1], p[2]);
+      // printf("] 2/VxAx = %.30f\n", (1.f/VxAx)*2.f);
+      // std::cout << "compute:\n"
+      //   << (2.f*x/(xAx)) << "\n"
+      //   << (-xTx/(xAx*xAx) * xTAAT) << "\n"
+      //   << ((1.f/VxAx)*2.f*p) << "\n"
+      //   << ((2.f*xp)*(-xTAAT/(2.f*(VxAx*VxAx*VxAx)))) << "\n";
       return (1.f/xAx * xTx) - (1.f/sqrt(xAx))*2.f*xp;
     }
     // map R^3 -> surface of ellipsoid.
@@ -162,14 +179,14 @@ float ScaleBlob::distance(ScaleBlob *blob){
   Matrix3f VA0A1i  = VA0 * VA1i;
   Matrix3f VA1A0iv = VA1 * VA0i;
   
-  std::cout << "VA0 = \n" << VA0 << "\n\n";
-  std::cout << "VA1 = \n" << VA1 << "\n\n";
+  // std::cout << "VA0 = \n" << VA0 << "\n\n";
+  // std::cout << "VA1 = \n" << VA1 << "\n\n";
 
-  std::cout << "VA0i = \n" << VA0i << "\n\n";
-  std::cout << "VA1i = \n" << VA1i << "\n\n";
+  // std::cout << "VA0i = \n" << VA0i << "\n\n";
+  // std::cout << "VA1i = \n" << VA1i << "\n\n";
 
-  std::cout << "VA0A1i = \n" << VA0A1i  << "\n\n";
-  std::cout << "VA1A0i = \n" << VA1A0iv << "\n\n";
+  // std::cout << "VA0A1i = \n" << VA0A1i  << "\n\n";
+  // std::cout << "VA1A0i = \n" << VA1A0iv << "\n\n";
 
   Vector3f p1 = VA0 * Vector3f( position[0]-blob->position[0],
                                 position[1]-blob->position[1],
@@ -178,23 +195,41 @@ float ScaleBlob::distance(ScaleBlob *blob){
   VectorXf x  = EllipsoidDistanceObjective::g(VA0A1i, p1);
   
   Matrix3f Aq = VA1A0iv * VA1A0iv;
+  Matrix3f As;
+  As <<   Aq(0,0),               (Aq(1,0)+Aq(0,1))/2.f, (Aq(2,0)+Aq(0,2))/2.f,
+          (Aq(1,0)+Aq(0,1))/2.f, Aq(1,1),               (Aq(2,1)+Aq(1,2))/2.f,
+          (Aq(2,0)+Aq(0,2))/2.f, (Aq(2,1)+Aq(1,2))/2.f, Aq(2,2);
 
-  std::cout << "p1   = \n" << p1 << "\n\n";
-  std::cout << "x    = \n" << x  << "\n\n";
-  std::cout << "Aq   = \n" << Aq  << "\n\n";
+  // printf("\n");
+  // printf("p0 = %.3f, %.3f, %.3f\n", position.x, position.y, position.z);
+  // printf("p1 = %.3f, %.3f, %.3f\n", blob->position.x, blob->position.y, blob->position.z);
+  // std::cout << "A0   = \n" << covariance       << "\n\n";
+  // std::cout << "A1   = \n" << blob->covariance << "\n\n";
+
+
+  // std::cout << "p1   = \n" << p1 << "\n\n";
+  // std::cout << "x    = \n" << x  << "\n\n";
+  // std::cout << "Aq   = \n" << Aq  << "\n\n";
+  // std::cout << "As   = \n" << As  << "\n\n";
 
   LBFGSpp::LBFGSParam<float> param;
+  param.past  = 2;
+  param.delta = 0.00001f;
   LBFGSpp::LBFGSSolver<float> solver(param);
 
   float fx;
 
-  printf("minimizing.\n");
-  EllipsoidDistanceObjective obj(Aq);
+  // printf("minimizing %f %f.\n", n, blob->n);
+  EllipsoidDistanceObjective obj(As, p1);
+  // printf("v");
   int nitr = solver.minimize(obj, x, fx);
 
-  x = EllipsoidDistanceObjective::g(Aq, x);
+  x = EllipsoidDistanceObjective::g(As, x);
   float distance = (x - p1).norm();
-  printf("distance %.2f\n", distance);
+  // if(distance < 1.f){
+  //   // printf("(%.3f %.3f %.3f) - (%.3f %.3f %.3f)\nd=%.2f\n", position[0], position[1], position[2], blob->position[0], blob->position[1], blob->position[2], distance);    
+  // }
+  // printf(".../d\n");
   return distance;  
 
 

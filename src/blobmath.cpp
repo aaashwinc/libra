@@ -98,14 +98,14 @@ std::vector<std::vector<ScaleBlob*>> longest_paths(std::vector<ScaleBlob*> input
 
   int loopn = 0;
   while(1){
-    printf("loop %d\n", ++loopn);
+    // printf("loop %d\n", ++loopn);
     float nblobs = 0;
     float nalive = 0;
     for(std::pair<ScaleBlob *, pathinfo> info : paths){
       nblobs += 1;
       if(info.second.alive)nalive+=1;
     }
-    printf("alive: %.1f / %.1f = %.2f\n", nalive, nblobs, nalive/nblobs);
+    // printf("alive: %.1f / %.1f = %.2f\n", nalive, nblobs, nalive/nblobs);
     // initialize with blobs in input.
     for(int i=0;i<input.size();i++){
       traverse.push_front(input[i]);
@@ -140,9 +140,14 @@ std::vector<std::vector<ScaleBlob*>> longest_paths(std::vector<ScaleBlob*> input
         pathinfo longestnext;
         for(ScaleBlob *succ : curr->succ){
           pathinfo child = paths[succ];
-          if(child.alive && child.length >= longestnext.length){
-            longestnext.next   = succ;
-            longestnext.length = child.length;
+          if(child.alive){
+            bool child_longer  = (child.length >  longestnext.length);
+            bool child_equal   = (child.length == longestnext.length);
+            bool child_smaller = !longestnext.next || (succ->scale   < longestnext.next->scale);
+            if(child_longer || (child_equal && child_smaller)) {
+              longestnext.next   = succ;
+              longestnext.length = child.length;
+            }
           }
         }
 
@@ -154,7 +159,8 @@ std::vector<std::vector<ScaleBlob*>> longest_paths(std::vector<ScaleBlob*> input
         traverse.pop_front();
 
         // keep track of the longest path.
-        if(!longest || paths[curr].length > paths[longest].length){
+        if(!longest || paths[curr].length > paths[longest].length
+           || ((paths[curr].length == paths[longest].length) && (curr->scale < longest->scale))){
           longest = curr;
         }
         // printf("path %p -> %p (%d)\n", curr, pi.next, pi.length);
@@ -181,7 +187,7 @@ std::vector<std::vector<ScaleBlob*>> longest_paths(std::vector<ScaleBlob*> input
     std::deque<ScaleBlob*> invalidate;
     std::deque<ScaleBlob*> kill;
 
-    printf("kill parents.\n");
+    // printf("kill parents.\n");
     // kill grand-parents of all points in path (but not grand-uncles)
     for(ScaleBlob *sb : fullpath){
       while(sb){
@@ -190,20 +196,38 @@ std::vector<std::vector<ScaleBlob*>> longest_paths(std::vector<ScaleBlob*> input
         sb = sb->parent;
       }
     }
+    for(ScaleBlob *sb : fullpath){
+      kill.push_back(sb);
+    }
+    // printf("kill: \n");
+    // for(ScaleBlob *sb : kill){
+    //   printf("%p ", sb);
+    // }
+    // printf("\n");
 
-    printf("kill children.\n");
+    // printf("kill children.\n");
     // kill children all points in path.
+    int nk = 0;
     while(!kill.empty()){
+      // printf("s %d\n", kill.size());
       ScaleBlob *curr = kill.front();
+      // printf("c %p\n", curr);
       kill.pop_front();
+      // printf("alive = false\n");
       paths[curr].alive = false;
+      ++nk;
+      // printf("invalidate += curr\n");
       invalidate.push_back(curr);
+      // printf("~~~\n");
+      // printf("cs: %d\n", curr->children.size());
       for(ScaleBlob *child : curr->children){
+        // printf("kill.push_back(%p)\n", child);
         kill.push_back(child);
       }
     }
+    printf("killed children %d\n", nk);
 
-    printf("invalidate.\n");
+    // printf("invalidate.\n");
     // invalidate all predecessors of all points killed.
     while(!invalidate.empty()){
       ScaleBlob *curr = invalidate.front();
@@ -218,6 +242,7 @@ std::vector<std::vector<ScaleBlob*>> longest_paths(std::vector<ScaleBlob*> input
       }
     }
     return_paths.push_back(fullpath);
+    // return return_paths;
   }
 
   return return_paths;

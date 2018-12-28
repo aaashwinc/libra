@@ -58,6 +58,8 @@ private:
   std::vector<ArFrameData> frames;
   ArGeometry3D geometry;
 
+  std::vector<std::vector<ScaleBlob*>> paths;
+
 public:
   int low();
   int high();
@@ -65,6 +67,7 @@ public:
 
   ArPipeline(ArExperiment *exp);
   void process(int low, int high);
+  void find_paths();
   Nrrd *repr(ReprMode &mode);
   ArGeometry3D *reprgeometry(ReprMode &mode);
 

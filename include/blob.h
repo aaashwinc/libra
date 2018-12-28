@@ -7,6 +7,7 @@
 #include <vector>
 using namespace glm;
 
+
 class ScaleBlob{
 public:
   ScaleBlob *parent;                // scale-tree parent
@@ -18,6 +19,7 @@ public:
   vec3   mode;      // the local maxima which seeded this blob.
   dvec3  position;  // mean of this blob in space.
   dmat3x3 shape;    // covariance matrix of blob.
+  mat3x3 fshape;    // covariance matrix of blob.
 
   Eigen::Matrix3f covariance;
 

@@ -31,27 +31,27 @@ public:
 
   float scale  = 0;
   Game() : reprmode("plain"){
-    ScaleBlob b1;
-    ScaleBlob b2;
-    b1.position = vec3(0,0,0);
-    b1.covariance << 1, 0, 0,
-                     0, 3, 0,
-                     0, 0, 0.25;
+    // ScaleBlob b1;
+    // ScaleBlob b2;
+    // b1.position = vec3(0,0,0);
+    // b1.covariance << 1, 0, 0,
+    //                  0, 3, 0,
+    //                  0, 0, 0.25;
     
-    b2.position = vec3(4,0,0);
-    b2.covariance << 2, 0, 0,
-                     0, 1, 0,
-                     0, 0, 1;
-    printf("init\n");
-    b1.distance(&b2);
+    // b2.position = vec3(4,0,0);
+    // b2.covariance << 2, 0, 0,
+    //                  0, 1, 0,
+    //                  0, 0, 1;
+    // printf("init\n");
+    // b1.distance(&b2);
 
-    exit(0);
+    // exit(0);
 
   }
   void asserts(bool b, const char *message){
     if(!b){
       fprintf(stderr,"ASSERT: %s\n", message);
-      exit(0);
+      ::exit(0);
     }
   }
   void initUI(){
@@ -67,31 +67,47 @@ public:
 
     sfview = window->getDefaultView();
   }
+  void save(){
+    FILE *file = fopen("../rsc/save.artemis","wb");
+    fwrite(&(view->camera),sizeof(view->camera),1,file);
+    fclose(file);
+  }
+  void load(){
+    FILE *file = fopen("../rsc/save.artemis","rb");
+    fread(&(view->camera),sizeof(view->camera),1,file);
+    fclose(file);
+  }
+  void exit(){
+    save();
+    window->close();
+  }
   void init(){
     view->camera.set(vec3(-4,3,6), vec3(1,0,-0.33), vec3(0,0,1));
 
     // printf("camera: %.2f %.2f %.2f\n",view->camera.right.x,view->camera.right.y,view->camera.right.z);
 
-    experiment = new ArExperiment("/home/ashwin/data/mini/???.nrrd",0,20,4);
+    experiment = new ArExperiment("/home/ashwin/data/miniclear/???.nrrd",0,10,4);
 
     pipeline = new ArPipeline(experiment);
     view->setvolume(pipeline->repr(reprmode));
     for(int i=0;i<1024;i++)keys[i]=false;
     for(int i=0;i<3;i++)clicked[i]=false;
 
-    pipeline->process(reprmode.timestep,reprmode.timestep+6);
+    // pipeline->process(reprmode.timestep,reprmode.timestep+8);
     reprmode.name = "blobs";
     reprmode.geom = "graph";
     view->setvolume(pipeline->repr(reprmode));
     view->setgeometry(pipeline->reprgeometry(reprmode));
     view->touch();
+
+    load();
   }
 
   void handle_events(){
     sf::Event event;
     while (window->pollEvent(event)){
       if (event.type == sf::Event::Closed){
-        window->close();
+        exit();
       }
       if (event.type == sf::Event::KeyPressed){
         if(event.key.code >= 0){
@@ -133,6 +149,9 @@ public:
     using glm::vec3;
     float speed = 0.1f;
 
+    if(keys[sf::Keyboard::F2]){
+      exit();
+    }
     if(keys[sf::Keyboard::LShift]){
       speed *= 10.f;
     }
@@ -285,11 +304,20 @@ public:
       clicked[0] = false;
     }
     if(keys[sf::Keyboard::U]){
-      pipeline->process(reprmode.timestep,reprmode.timestep+7);
+      pipeline->process(reprmode.timestep,reprmode.timestep+2);
       reprmode.name = "blobs";
       reprmode.geom = "graph";
       view->setvolume(pipeline->repr(reprmode));
       view->setgeometry(pipeline->reprgeometry(reprmode));
+      view->touch();
+    }
+    if(keys[sf::Keyboard::L]){
+      pipeline->find_paths();
+      // pipeline->process(reprmode.timestep,reprmode.timestep+2);
+      // // reprmode.name = "blobs";
+      // reprmode.geom = "graph";
+      // view->setvolume(pipeline->repr(reprmode));
+      // view->setgeometry(pipeline->reprgeometry(reprmode));
       view->touch();
     }
   }
@@ -307,7 +335,7 @@ public:
     text.setString(
         "(rendered " + to_string(renderframenum) +" frames, " + to_string(ms) + "ms)\n" + 
         "timestep "+to_string(reprmode.timestep)+"\n"+
-        "render mode: " + std::string(reprmode.name) + "\n" + 
+        "render mode: " + std::string(reprmode.name) + " - " + std::string(reprmode.geom) + "\n" + 
         "scale: " + to_string(reprmode.blob.scale) + "\n" + 
         "gamma: " + to_string(view->get_gamma()) + "\n" + 
         ((pipeline->get(reprmode.timestep).complete)?"processed":"")
@@ -333,7 +361,8 @@ public:
     }  
   }
 };
-int main(){  
+int main(){
+  setvbuf(stdout, NULL, _IONBF, 0);  
   Game game;
   return game.run();
 }

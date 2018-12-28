@@ -1044,6 +1044,16 @@ ScaleBlob* ArFilter::compute_blob_tree(){
 
     blobs = bigblobs;
 
+    // prune the tree so that blobs never only have one child.
+    // for(int i=0;i<blobs.size();++i){
+    //   if(blobs[i]->children.size() == 1){
+    //     ScaleBlob *only_child = blobs[i]->children[0];
+    //     blobs[i] = only_child;
+    //     only_child->parent = 0;
+    //     // delete *blobs[i];
+    //   }
+    // }
+
     sigma += 1.f;
     kernel.destroy();
 

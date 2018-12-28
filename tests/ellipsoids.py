@@ -28,13 +28,16 @@ def df(A, x, p):
   # print('df', df)
   return df
 def gradient_descent(A, x, p):
+  print('gradient descent')
+  print(x)
+  print(p)
   itr = 0
   while True:
     ++itr
     fx  = f(A,x,p)
     dfx = -df(A,x,p)
     x = x + 0.5*dfx
-    # print(g(A,x).T, np.asscalar(fx), np.linalg.norm(dfx))
+    print('itr', itr, g(A,x), np.asscalar(fx), np.linalg.norm(dfx))
     if(np.asscalar(dfx.T @ dfx) < 0.1):
       break
   # print('iterations ',itr)
@@ -77,9 +80,21 @@ def distance(ap0, aA0, ap1, aA1):
   x = g(VA0A1i, p1)
   Aq = VA1A0iv @ VA1A0iv
 
-  print('p1 =\n', p1)
-  print('x  =\n', x)
-  print('Aq =\n', Aq)
+
+  print('p1 = \n', p1);
+  print('x  = \n', x);
+  print('Aq = \n', Aq);
+
+  # p1 = np.array([-4.82686, -4.9731, 0.161859])
+  # x  = np.array([0.863359, -0.889517, 0.028951])
+  # Aq = np.matrix('1.23411 0.834364 0.297033; 0.61754 2.0786 0.380122; 0.154424 0.261383 0.931259')
+  # Aq = np.matrix('1.23411 0.834364 0.297033; 0.61754 2.0786 0.380122; 0.154424 0.261383 0.931259')
+  # print('p1 =\n', p1)
+  # print('x  =\n', x)
+  # print('Aq =\n', Aq)
+
+  print('g = ', g(Aq,x))
+  # gradient_descent(Aq, x, p1)
 
   x = scipy.optimize.minimize(
         fun=lambda x: (f(Aq,x,p1)),
@@ -88,7 +103,12 @@ def distance(ap0, aA0, ap1, aA1):
         jac=lambda x: (df(Aq,x,p1)),
         options={'gtol':0.0001, 'disp':False})
   x = x.x
-  
+  print('x = ', x)
+
+  print('c++ solution', g(Aq, np.array([-6.176, -3.018, 2.833])))
+  print('python solution', g(Aq, x))
+  print("f(x') = ", f(Aq, np.array([-6.176, -3.018, 2.833]), p1))   
+  print("f(x) = ", f(Aq, x, p1))   
   # print(x)
   x = g(Aq, x)
   # print(x)
@@ -119,6 +139,12 @@ A0 = np.matrix('1 0 0; 0 3 0; 0 0 0.25')
 p0 = np.array([0,0,0])
 A1 = np.matrix('2 0 0; 0 1 0; 0 0 1')
 p1 = np.array([4,0,0])
+
+p0 = np.array([46.251, 3.784, 2.895])
+p1 = np.array([48.919, 7.445, 2.841])
+A0 = np.matrix('3.12201  0.0960595  -0.051745; 0.0960595 1.78576 -0.0372085; -0.051745 -0.0372085 1.01729')
+A1 = np.matrix(' 3.83764  1.80666 0.339901; 1.80666  3.79705 0.396492; 0.339901 0.396492 0.943025')
+
 plt.gca().set_aspect('equal', adjustable='box')
 
 
