@@ -31,6 +31,9 @@ ReprMode::ReprMode(const char *name){
   timestep   = 0;
   highlight.blobs = std::vector<ScaleBlob*>();
   highlight.lines = std::vector<vec3>();
+  highlight.paths = std::vector<std::vector<ScaleBlob*>>();
+  highlight.timestep = -1;
+  highlight.locus    = vec3(0,0,0);
 }
 bool ReprMode::operator==(ReprMode &r){
   return (name == r.name) && (timestep == r.timestep)
@@ -94,21 +97,31 @@ void ArPipeline::repr_highlight(ReprMode *rm, vec3 p, vec3 ray, bool add){
     std::vector<ScaleBlob*> found;
     ArFrameData frame = get(rm->timestep);
     BSPTree<ScaleBlob> *bsptree = &(frame.bspblobs);
+
+    // shoot ray out until it hits a blob.
     for(int i=0;i<100 && found.size()==0;++i){
+      p+=ray;
       bsptree->find_within_distance(found, p, i+1);
       if(found.size()>0){
         found = std::vector<ScaleBlob*>();
-        bsptree->find_within_distance(found, p, 900);
+        bsptree->find_within_distance(found, p, 2500);
       }
-      p+=ray;
     }
     if(!add)rm->highlight.blobs.clear();
     for(int i=0;i<found.size();i++)rm->highlight.blobs.push_back(found[i]);
-    for(ScaleBlob *b : found){
-      b->print();
-      // printf("found det=%.3f\n", b->detCov);
+
+    rm->highlight.paths.clear();
+    for(std::vector<ScaleBlob*> path : paths){
+      for(ScaleBlob *blob : path){
+        if(glm::distance(vec3(blob->position), p) < 50){
+          rm->highlight.paths.push_back(path);
+          break;
+        }
+      }
     }
-    rm->highlight.paths = longest_paths(rm->highlight.blobs);
+    rm->highlight.locus = p;
+    rm->highlight.timestep = rm->timestep;
+    // rm->highlight.paths = longest_paths(rm->highlight.blobs);
     // printf("highlight %d\n",found.size());
   }
   // rm->highlight.lines.push_back(p+ray*1.f);
@@ -187,8 +200,10 @@ void ArPipeline::process(int low, int high){
     filter.capture(exp->get(frame));
 
     ScaleBlob *blob             = filter.compute_blob_tree();
-    std::vector<float> scales   = collect_scales(blob);
 
+    tick("compute blob tree.\n");
+
+    std::vector<float> scales   = collect_scales(blob);
     frames[frame - exp->low].blob      = blob;
     frames[frame - exp->low].scales    = scales;
     frames[frame - exp->low].scale_eps = compute_epsilon(scales);
@@ -290,14 +305,14 @@ ArGeometry3D* ArPipeline::reprgeometry(ReprMode &mode){
           for(ScaleBlob *succ : sb->succ){
             geometry.lines.push_back(sb->position);
             geometry.lines.push_back(succ->position);
-            geometry.lines_c.push_back(sf::Color(255,255,255,120));
-            geometry.lines_c.push_back(sf::Color(255,255,255,120));
+            geometry.lines_c.push_back(sf::Color(255,255,255,200));
+            geometry.lines_c.push_back(sf::Color(255,255,255,200));
           }
           for(ScaleBlob *pred : sb->pred){
             geometry.lines.push_back(sb->position);
             geometry.lines.push_back(pred->position);
-            geometry.lines_c.push_back(sf::Color(80,80,80,80));
-            geometry.lines_c.push_back(sf::Color(80,80,80,80));
+            geometry.lines_c.push_back(sf::Color(0,40,0,200));
+            geometry.lines_c.push_back(sf::Color(0,40,0,200));
           }
         }
       }
@@ -333,7 +348,7 @@ ArGeometry3D* ArPipeline::reprgeometry(ReprMode &mode){
         // }
 
         // draw the longest trajectories.
-        for(std::vector<ScaleBlob*> path : paths){
+        for(std::vector<ScaleBlob*> path : mode.highlight.paths){
           float len  = float(path.size());
           float step = 1.f/len;
           for(int j=0;j<path.size()-1;j++){
@@ -446,4 +461,213 @@ Nrrd *ArPipeline::repr(ReprMode &mode){
     kernel.destroy();
     return (last_nrrd = store.buf[1]);
   }
+}
+
+
+  /* Save/Load processed pipeline. format:
+   * filename as [filepath_0].pipeline
+   * [int] number of frames processed sequentially from 0.
+   * <list of blobs:
+   *    [int] address of blob
+   *    ... data ...
+   * 
+   * >
+   */
+
+void ArPipeline::save(){
+
+#define WRITET(T, x) {T xx = (T)x; fwrite(&(xx), sizeof(T), 1, file);}
+#define WRITE(x)    {fwrite(&(x), sizeof(x), 1, file);}
+
+  std::string path0 = exp->getfilepath(exp->low);
+  std::replace(path0.begin(), path0.end(), '/', '-');
+  path0 = "../rsc/store/s" + path0 + ".pipeline";
+  
+
+  FILE *file = fopen(path0.c_str(),"wb");
+  // fwrite("hello!",sizeof(char),6,file);
+
+  // count number of frames that are processed.
+  int nframes = 0;
+  for(int i=0;i<frames.size();i++){
+    if(!frames[i].complete){
+      break;
+    }else{
+      nframes = i+1;
+    }
+  }
+
+  WRITET(int, nframes);
+
+  for(int i=0;i<nframes;++i){
+    // fwrite("ff", sizeof(char), 2, file);
+    // write address of root scaleblob.
+    WRITET(ScaleBlob*, frames[i].blob);
+    // fwrite(&frames[i].blob, sizeof(ScaleBlob*), 1, file);
+    std::vector<ScaleBlob*> allblobs = frames[i].bspblobs.as_vector();
+    
+    // write total number of blobs in this frame.
+    WRITET(int, allblobs.size());
+    // fwrite(&nblobs, sizeof(int), 1, file);
+
+    for(ScaleBlob *sb : allblobs){
+      // write each blob
+      WRITET(ScaleBlob*, sb);
+
+      WRITET(int, sb->children.size());
+      for(ScaleBlob *s : sb->children){
+        WRITE(s);
+      }
+
+      WRITET(int, sb->pred.size());
+      for(ScaleBlob *s : sb->pred){
+        WRITE(s);
+      }
+
+      WRITET(int, sb->succ.size());
+      for(ScaleBlob *s : sb->succ){
+        WRITE(s);
+      }
+      WRITE(sb->parent);
+      WRITE(sb->mode);
+      WRITE(sb->position);
+      WRITE(sb->shape);
+      WRITE(sb->fshape);
+      WRITE(sb->covariance);
+      WRITE(sb->invCov);
+      WRITE(sb->detCov);
+      WRITE(sb->pdfCoef);
+      WRITE(sb->min);
+      WRITE(sb->max);
+      WRITE(sb->scale);
+      WRITE(sb->n);
+      WRITE(sb->npass);
+#undef WRITE
+    }
+  }
+
+  fclose(file);
+
+  printf("path0: %s\n", path0.c_str());
+}
+void ArPipeline::load(){
+//   printf("loading...\n");
+  std::string path0 = exp->getfilepath(exp->low);
+  std::replace(path0.begin(), path0.end(), '/', '-');
+  path0 = "../rsc/store/s" + path0 + ".pipeline";
+
+  if( access( path0.c_str(), F_OK ) == -1 ) {
+    return;
+  }
+
+  FILE *file = fopen(path0.c_str(),"rb");
+  char buf[2];
+  int good=1;
+#define READ(x) (good&=!!(fread(&(x), sizeof(x), 1, file)));
+  int nframes;
+  READ(nframes);
+  printf("nframes = %d\n", nframes);
+  std::vector<ScaleBlob*> frameroots;
+  std::unordered_map<ScaleBlob*, ScaleBlob*> allblobs;
+  std::vector<std::vector<ScaleBlob*>> frameblobs;
+  for(int i=0;i<nframes;++i){
+    ScaleBlob *rootaddr;
+    int   nblobs;
+    READ(rootaddr);
+    READ(nblobs);
+    frameroots.push_back(rootaddr);
+    // printf("root %p has %d blobs.\n", rootaddr, nblobs);
+    std::vector<ScaleBlob*> blobs;
+    for(int i=0;i<nblobs;++i){
+      ScaleBlob* p0;
+      ScaleBlob* label;
+      int nchildren, npred, nsucc;
+      READ(label);
+      if(!label)continue;
+      ScaleBlob *blob = new ScaleBlob();
+      READ(nchildren);
+      for(int i=0;i<nchildren;++i){
+        READ(p0);
+        blob->children.push_back((ScaleBlob*)p0);
+      }
+      READ(npred);
+      for(int i=0;i<npred;++i){
+        READ(p0);
+        blob->pred.push_back((ScaleBlob*)p0);
+      }
+      READ(nsucc);
+      for(int i=0;i<nsucc;++i){
+        READ(p0);
+        blob->succ.push_back((ScaleBlob*)p0);
+      }
+      READ(blob->parent);
+      READ(blob->mode);
+      READ(blob->position);
+      READ(blob->shape);
+      READ(blob->fshape);
+      READ(blob->covariance);
+      READ(blob->invCov);
+      READ(blob->detCov);
+      READ(blob->pdfCoef);
+      READ(blob->min);
+      READ(blob->max);
+      READ(blob->scale);
+      READ(blob->n);
+      READ(blob->npass);
+
+      allblobs[label] = blob;
+      blobs.push_back(blob);
+    }
+    frameblobs.push_back(blobs);
+  }
+  if(!good){
+    fprintf(stderr, "read error.\n");
+    exit(0);
+  }
+  // printf("fixing...\n");
+  for(std::pair<ScaleBlob*, ScaleBlob*> elt : allblobs){
+    if(!elt.second)continue;
+    // printf("parents...");
+    // printf("%p; ", elt.second->parent);
+    elt.second->parent = allblobs[elt.second->parent];
+    // printf("children...");
+    for(int i=0;i<elt.second->children.size(); ++i){
+      // printf("%d/%d; ", i, elt.second->children.size());
+      elt.second->children[i] = allblobs[elt.second->children[i]];
+    }
+    // printf("preds...");
+    for(int i=0;i<elt.second->pred.size(); ++i){
+      // printf("%d/%d; ", i, elt.second->pred.size());
+      elt.second->pred[i] = allblobs[elt.second->pred[i]];
+    }
+    // printf("succs...");
+    for(int i=0;i<elt.second->succ.size(); ++i){
+      // printf("%d/%d; ", i, elt.second->succ.size());
+      elt.second->succ[i] = allblobs[elt.second->succ[i]];
+    }
+  }
+  // printf("\nread......\n");
+  // printf("all blobs:");
+  int i=0;
+  for(std::pair<ScaleBlob*, ScaleBlob*> elt : allblobs){
+    // printf("%d: %p\n", i, elt.second);
+    ++i;
+  }
+  // printf("pushing\n");
+  // printf("frames %d %d\n", nframes, frames.size());
+  for(int i=0;i<nframes;i++){
+    ArFrameData fd;
+    fd.blob      = allblobs[frameroots[i]];
+    fd.scales    = collect_scales(fd.blob);
+    fd.scale_eps = compute_epsilon(fd.scales);
+    fd.complete  = true;
+    fd.bspblobs = filter.get_bsp(10);
+    
+    BSPTree<ScaleBlob> *bsptree = &fd.bspblobs;
+    for(ScaleBlob *sb : frameblobs[i]){
+      bsptree->insert(sb, sb->position);
+    }
+    frames[i] = fd;
+  }
+#undef READ
 }

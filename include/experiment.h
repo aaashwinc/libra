@@ -21,6 +21,7 @@ public:
   NrrdFrame* frames;
   Nrrd* get(int n);
   Nrrd* copy(int n);
+  std::string getfilepath(int n);
   int low;
   int high;
 private:

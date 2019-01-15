@@ -2,6 +2,7 @@
 
 #include <unordered_map>
 #include <deque>
+#include <set>
 
 std::vector<ScaleBlob*> longest_path(ScaleBlob* sb){
   // printf("longest path %p\n", sb);
@@ -246,4 +247,47 @@ std::vector<std::vector<ScaleBlob*>> longest_paths(std::vector<ScaleBlob*> input
   }
 
   return return_paths;
+}
+
+
+void serialize(std::vector<ScaleBlob*> blobs, FILE *file){
+  std::deque<ScaleBlob*> traverse;
+  std::set<ScaleBlob*> allblobs;
+
+  for(ScaleBlob *sb : blobs){
+    traverse.push_back(sb);
+  }
+  while(!traverse.empty()){
+    ScaleBlob *curr = traverse.front();
+    if(allblobs.find(curr) != allblobs.end()){
+      // not already collected. collect blob and all of its relatives.
+      for(ScaleBlob *sb : curr->children){
+        traverse.push_back(sb);
+      }
+      for(ScaleBlob *sb : curr->pred){
+        traverse.push_back(sb);
+      }
+      for(ScaleBlob *sb : curr->succ){
+        traverse.push_back(sb);
+      }
+      traverse.push_back(curr->parent);
+    }
+    traverse.pop_front();
+  }
+
+
+
+  // allblobs contains all blobs.
+  // the format we use is:
+  // [addr1] [data1] [addr2] [data2] ...
+
+  for(ScaleBlob *sb : allblobs){
+
+  }
+
+} 
+
+
+std::vector<ScaleBlob*> deserialize(FILE *file){
+  return std::vector<ScaleBlob*>();
 }

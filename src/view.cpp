@@ -167,6 +167,17 @@ vec3 View::pixel_to_ray(vec2 v){
   return vec3(camera.look + camera.right*screen.x*camera.lhorz - camera.up*screen.y*camera.lvert);
   // return camera.look;
 }
+struct thread_raytrace_info{
+  vec3 topleft;
+  vec3 dx;
+  vec3 dy;
+  int px;
+  int py;
+
+};
+static void* thread_raytrace(void* vinfo){
+  thread_raytrace_info *info = (thread_raytrace_info*)vinfo;
+}
 void View::raytrace(){
   vec3 forward = camera.look;
   vec3 right   = camera.right;

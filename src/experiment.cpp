@@ -39,7 +39,7 @@ static Nrrd* load_nrrd(const char *filename){
 
 
 /** Returns length of first sequence of 'c' in str.
-  * Eg. f("abcccdefccccc", 'c') = 3.
+  * Eg. f("aabbcccdefccccc", 'c') = 3.
   */ 
 static int length_first_repeated_sequence(const char *str, const char c){
   int digits = 0;
@@ -118,6 +118,10 @@ Nrrd* ArExperiment::get(int n){
 
   // printf("loaded frame %d: %u, %s, %p\n", n, time, paths[n-low].c_str(), frames[i].nrrd);
   return frames[i].nrrd;
+}
+
+std::string ArExperiment::getfilepath(int n){
+  return paths[n-low];
 }
 
 Nrrd* ArExperiment::copy(int n){

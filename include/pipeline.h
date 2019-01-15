@@ -4,6 +4,8 @@
 #include <teem/meet.h>
 #include <vector>
 #include <glm/glm.hpp>
+#include <algorithm>
+#include <unordered_map>
 #include "experiment.h"
 
 #include "shapes.h"
@@ -27,6 +29,8 @@ public:
     int scale;
   }blob;
   struct{
+    int timestep;
+    vec3 locus;
     std::vector<ScaleBlob*>blobs;
     std::vector<vec3> lines;
     std::vector<std::vector<ScaleBlob*>> paths;
@@ -34,6 +38,7 @@ public:
   bool operator==(ReprMode &r);
 };
 struct ArFrameData{
+  std::string savepath;
   BSPTree<ScaleBlob> bspblobs;
   ScaleBlob *blob;
   std::vector<float> scales;
@@ -74,6 +79,9 @@ public:
   ReprMode repr_coarser(ReprMode);
   ReprMode repr_finer(ReprMode);
   void repr_highlight(ReprMode *rm, vec3 p, vec3 ray, bool add=false);
+
+  void save();
+  void load();
 };
 
 #endif

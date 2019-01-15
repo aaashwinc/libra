@@ -71,36 +71,50 @@ public:
     FILE *file = fopen("../rsc/save.artemis","wb");
     fwrite(&(view->camera),sizeof(view->camera),1,file);
     fclose(file);
+
+    pipeline->save();
   }
   void load(){
     FILE *file = fopen("../rsc/save.artemis","rb");
     fread(&(view->camera),sizeof(view->camera),1,file);
     fclose(file);
+
+    pipeline->load();
   }
   void exit(){
     save();
     window->close();
   }
   void init(){
+    // synth();
     view->camera.set(vec3(-4,3,6), vec3(1,0,-0.33), vec3(0,0,1));
 
     // printf("camera: %.2f %.2f %.2f\n",view->camera.right.x,view->camera.right.y,view->camera.right.z);
 
-    experiment = new ArExperiment("/home/ashwin/data/miniclear/???.nrrd",0,10,4);
+    experiment = new ArExperiment("/home/ashwin/data/miniclear/???.nrrd",0,20,4);
 
     pipeline = new ArPipeline(experiment);
     view->setvolume(pipeline->repr(reprmode));
     for(int i=0;i<1024;i++)keys[i]=false;
     for(int i=0;i<3;i++)clicked[i]=false;
 
-    // pipeline->process(reprmode.timestep,reprmode.timestep+8);
+    // pipeline->process(reprmode.timestep,reprmode.timestep+3);
+
+    load();
+
     reprmode.name = "blobs";
     reprmode.geom = "graph";
     view->setvolume(pipeline->repr(reprmode));
     view->setgeometry(pipeline->reprgeometry(reprmode));
     view->touch();
 
-    load();
+    // todo: remove
+
+    // pipeline->process(reprmode.timestep,reprmode.timestep+1);
+    
+    // pipeline->load();
+    // ::exit(0);
+    ///////////////
   }
 
   void handle_events(){
@@ -304,7 +318,7 @@ public:
       clicked[0] = false;
     }
     if(keys[sf::Keyboard::U]){
-      pipeline->process(reprmode.timestep,reprmode.timestep+2);
+      pipeline->process(reprmode.timestep,reprmode.timestep+1);
       reprmode.name = "blobs";
       reprmode.geom = "graph";
       view->setvolume(pipeline->repr(reprmode));

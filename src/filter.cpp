@@ -975,12 +975,11 @@ static inline float sq(float x){
 
 ScaleBlob* ArFilter::compute_blob_tree(){
   BSPTree<ScaleBlob> bspblobs(0,10,vec3(-1.f,-1.f,-1.f),vec3(self.a1+1.f,self.a2+1.f,self.a3+1.f)); // safe against any rounding errors.
-  // bspblobs.print();
+
   DiscreteKernel kernel; 
   float sigma = 1.5f;
   float scale = 0.f;
 
-  
   float *const iscalec = new float[self.w4];   // data for scaled image.
   float *iscale = iscalec;                     // so we can manipulate this pointer.
 
@@ -996,7 +995,7 @@ ScaleBlob* ArFilter::compute_blob_tree(){
   while(scale < 9.f){
 
     // printf("filter stack: %p %p. curr=%d.\n", self.buff[0], self.buff[1], self.curr);
-    printf("gaussian %.2f\n",sigma);
+    printf("gaussian %.2f",sigma);
     kernel = gaussian(sigma, int(sigma*4));   // create gaussian kernel with new sigma.
     set_kernel(kernel);                       //
     filter();                                 // compute gaussian blur, store in self.buff[curr].
@@ -1019,6 +1018,7 @@ ScaleBlob* ArFilter::compute_blob_tree(){
     // printf("filter stack: %p %p. curr=%d.\n", self.buff[0], self.buff[1], self.curr);
     // printf("  normalize.. ");
     normalize();
+    printf(". find blobs.\n");
     std::vector<ScaleBlob*> bigblobs = find_blobs();
     for(ScaleBlob *sb : bigblobs){
       sb->scale = scale;

@@ -68,6 +68,9 @@ void synth(){
   
   nrrdWrap_va(nval, data, nrrdTypeShort, 4, 2, DIM, DIM, DIM);
   nrrdSave("/home/ashwin/data/synth/000.nrrd", nval, NULL);
+  nrrdSave("/home/ashwin/data/synth/001.nrrd", nval, NULL);
+  nrrdSave("/home/ashwin/data/synth/002.nrrd", nval, NULL);
+  nrrdSave("/home/ashwin/data/synth/003.nrrd", nval, NULL);
   nrrdNix(nval);
   delete[] data;
 }
