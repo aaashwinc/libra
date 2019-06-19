@@ -62,6 +62,7 @@ private:
   int unstable;
 
   float gamma;
+  float falloff;
   float render_scale;
 
   struct{
@@ -91,8 +92,12 @@ public:
   void step_gamma(float factor);
 
   // render
+  void step_falloff(float factor);
   void touch();
   int  render();
+
+  // multithreading
+  static void *t_raytrace(void*);
 
   // input
   void setvolume(Nrrd *nrrd);
@@ -107,6 +112,7 @@ public:
   // output
   void render_to(sf::RenderWindow *window);
   float get_gamma();
+  float get_falloff();
 };
 
 #endif

@@ -20,6 +20,7 @@ public:
   dvec3  position;  // mean of this blob in space.
   dmat3x3 shape;    // covariance matrix of blob.
   mat3x3 fshape;    // covariance matrix of blob.
+  int timestep;     // the timestep in which this blob exists.
 
   Eigen::Matrix3f covariance;
 
@@ -35,6 +36,7 @@ public:
   // double volume;
   float n;
   int npass;
+
   ScaleBlob();
   float pdf(vec3 p);
   float cellpdf(vec3 p);

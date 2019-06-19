@@ -6,6 +6,9 @@
 #include <cstdio>
 #include <cmath>
 
+#include <pthread.h>
+#include <stdio.h>
+
 
 #include "view.h"
 #include "colormap.h"
@@ -30,7 +33,7 @@ static inline void put_color(float x, Colormap &colormap, sf::Uint8 *color){
 
 }
 
-View::View(int w, int h) : w(w), h(h), colormap(4.5f), gamma(4.5f){
+View::View(int w, int h) : w(w), h(h), colormap(4.5f), gamma(4.5f), falloff(0.001f){
   texture.create(w,h);
   texdata  = new sf::Uint8[w*h*4];
   camera   = Camera();
@@ -48,6 +51,15 @@ void View::step_gamma(float factor){
   colormap.destroy();
   gamma *= factor;
   colormap = Colormap(gamma);
+}
+
+float View::get_falloff(){
+  return falloff;
+}
+
+void View::step_falloff(float factor){
+  if(factor<=0)return;
+  falloff *= factor;
 }
 
 void View::setvolume(Nrrd *n){
@@ -167,16 +179,85 @@ vec3 View::pixel_to_ray(vec2 v){
   return vec3(camera.look + camera.right*screen.x*camera.lhorz - camera.up*screen.y*camera.lvert);
   // return camera.look;
 }
-struct thread_raytrace_info{
+struct render_frame_info{
+  View *view;
+  vec3 startp;
   vec3 topleft;
   vec3 dx;
   vec3 dy;
-  int px;
-  int py;
-
 };
-static void* thread_raytrace(void* vinfo){
+struct thread_raytrace_info{
+  render_frame_info *fi;
+  int py_min;   // render window min y value.
+  int py_max;   // render window max y value.
+};
+void* View::t_raytrace(void* vinfo){
   thread_raytrace_info *info = (thread_raytrace_info*)vinfo;
+
+  vec3 ray;
+  vec3 &topleft = info->fi->topleft;
+  vec3 &dx      = info->fi->dx;
+  vec3 &dy      = info->fi->dy;
+  vec3 &startp  = info->fi->startp;
+
+  vec3 p;
+  float color_x,color_y,color_z,color_w;
+  vec4 probe;
+
+  int w = info->fi->view->w;
+  int h = info->fi->view->h;
+  int i = 4*w*info->py_min;
+  for(int py=info->py_min;py<info->py_max;++py){
+    for(int px=0;px<w;++px){
+      ray = topleft + float(px)*dx + float(py)*dy;
+
+      ray = ray * 0.033f * 33.f * 0.5f;
+      p   = startp;
+
+      color_x = 0;
+      color_y = 0;
+      color_z = 0;
+      color_w = 1;
+
+      if(p.x < 0)p = p + ray*(-p.x/ray.x);
+      if(p.y < 0)p = p + ray*(-p.y/ray.y);
+      if(p.z < 0)p = p + ray*(-p.z/ray.z);
+
+      if(p.x > info->fi->view->vcache.a1)p = p - ray*(p.x - info->fi->view->vcache.a1)/ray.x;
+      if(p.y > info->fi->view->vcache.a2)p = p - ray*(p.y - info->fi->view->vcache.a2)/ray.y;
+      if(p.z > info->fi->view->vcache.a3)p = p - ray*(p.z - info->fi->view->vcache.a3)/ray.z;
+
+      while(color_w > 0.01f){
+        p += ray;
+  
+        float v = info->fi->view->qsample(0, p.x, p.y, p.z);
+        if(v<0)break;
+        // if(v>0)printf("v=%.2f\n",v);
+        probe = info->fi->view->colormap.colorof(v);
+        if(probe.w > 0.01f){
+          color_x += probe.x*probe.w*color_w;
+          color_y += probe.y*probe.w*color_w;
+          color_z += probe.z*probe.w*color_w;
+          color_w += -color_w*probe.w;
+        }
+
+        color_w -= info->fi->view->falloff; // some light is absorbed or refracted away.
+        
+        // color_w *= 0.995f;           
+      }
+      info->fi->view->texdata[i+0] = int(color_x*255.999999);
+      info->fi->view->texdata[i+1] = int(color_y*255.999999);
+      info->fi->view->texdata[i+2] = int(color_z*255.999999);
+      info->fi->view->texdata[i+3] = 255;
+
+      // info->view->texdata[i+0] = 255;
+      // info->view->texdata[i+1] = 128;
+      // info->view->texdata[i+2] = 0;
+      // info->view->texdata[i+3] = 255;
+      i+=4;
+    }
+  }
+  return 0;
 }
 void View::raytrace(){
   vec3 forward = camera.look;
@@ -196,61 +277,40 @@ void View::raytrace(){
   float color_x,color_y,color_z,color_w;
   vec4 probe;
   vec3 startp = camera.pos * 33.f;
-  for(int py=0;py<h;++py){
-    for(int px=0;px<w;++px){
-      if(beat < 1){
-        ray = topleft + float(px)*dx + float(py)*dy;
 
-        ray = ray * 0.033f * 33.f * 0.5f;
-        p   = startp;
-
-        color_x = 0;
-        color_y = 0;
-        color_z = 0;
-        color_w = 1;
-
-        if(p.x < 0)p = p + ray*(-p.x/ray.x);
-        if(p.y < 0)p = p + ray*(-p.y/ray.y);
-        if(p.z < 0)p = p + ray*(-p.z/ray.z);
-
-        if(p.x > vcache.a1)p = p - ray*(p.x - vcache.a1)/ray.x;
-        if(p.y > vcache.a2)p = p - ray*(p.y - vcache.a2)/ray.y;
-        if(p.z > vcache.a3)p = p - ray*(p.z - vcache.a3)/ray.z;
-
-        while(color_w > 0.01f){
-          p += ray;
-    
-          float v = qsample(0, p.x, p.y, p.z);
-          if(v<0)break;
-
-          probe = colormap.colorof(v);
-          if(probe.w > 0.01f){
-            color_x += probe.x*probe.w*color_w;
-            color_y += probe.y*probe.w*color_w;
-            color_z += probe.z*probe.w*color_w;
-            color_w += -color_w*probe.w;
-          }
-
-          color_w -= 0.001; // some light is absorbed or refracted away.
-          
-          // color_w *= 0.995f;           
-        }
-        texdata[i+0] = int(color_x*255.999999);
-        texdata[i+1] = int(color_y*255.999999);
-        texdata[i+2] = int(color_z*255.999999);
-        texdata[i+3] = 255;
-      }else{
-        // texdata[i+0] /= 2;
-        // texdata[i+1] /= 2;
-        // texdata[i+2] /= 2;
-      }
-      ++beat;
-      if(beat==3)beat = 0;
-      i+=4;
+  // multithreaded code.
+  const int nthreads = 24;
+  pthread_t threads[nthreads];
+  thread_raytrace_info info[nthreads];
+  render_frame_info fi;
+  fi.view = this;
+  fi.startp = startp;
+  fi.topleft = topleft;
+  fi.dx = dx;
+  fi.dy = dy;
+  for(int i=0;i<nthreads;++i){
+//     struct render_frame_info{
+//   View *view;
+//   vec3 startp;
+//   vec3 topleft;
+//   vec3 dx;
+//   vec3 dy;
+// };
+    info[i].fi = &fi;
+    info[i].py_min = (h*i)/nthreads;
+    info[i].py_max = (h*(i+1))/nthreads;
+    if(pthread_create(threads+i, NULL, t_raytrace, info+i)){
+      fprintf(stderr, "error creating render thread.\n");
+      exit(0);
     }
   }
-  beat += 1;
-  beat %= 3;
+  for(int i=0;i<nthreads;++i){
+    if(int err = pthread_join(threads[i], 0)){
+      fprintf(stderr, "error joining render thread. %d\n", err);
+      exit(0);
+    }
+  }
+
   texture.update(texdata);
 }
 void View::touch(){

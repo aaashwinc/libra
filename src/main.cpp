@@ -220,6 +220,14 @@ public:
       view->step_gamma(1/1.1f);
       view->touch();
     }
+    if(keys[sf::Keyboard::LBracket]){
+      view->step_falloff(1.1f);
+      view->touch();
+    }
+    if(keys[sf::Keyboard::RBracket]){
+      view->step_falloff(1/1.1f);
+      view->touch();
+    }
     if(keys[sf::Keyboard::M]){
       view->camera.flat.slice += 0.04*speed;
       view->camera.drawflat = true;
@@ -283,11 +291,20 @@ public:
       view->setvolume(pipeline->repr(reprmode));
       view->touch();
     }
+    if(keys[sf::Keyboard::Num7]){
+      reprmode.name = "blobs_succs";
+      view->setvolume(pipeline->repr(reprmode));
+      view->touch();
+    }
     if(keys[sf::Keyboard::I]){
       reprmode = pipeline->repr_coarser(reprmode);
       view->setvolume(pipeline->repr(reprmode));
       view->setgeometry(pipeline->reprgeometry(reprmode));
       view->touch();
+    }
+    if(keys[sf::Keyboard::B]){
+      printf("pos: %.3f %.3f %.3f\n", view->camera.pos.x, view->camera.pos.y, view->camera.pos.z);
+      keys[sf::Keyboard::B] = false;
     }
     if(keys[sf::Keyboard::K]){
       reprmode = pipeline->repr_finer(reprmode);
@@ -311,7 +328,7 @@ public:
     }
     if(clicked[0]){
       printf("clicked %d %d\n", mousepos.x, mousepos.y);
-      pipeline->repr_highlight(&reprmode, view->camera.pos*33.f, view->pixel_to_ray(vec2(mousepos)), keys[sf::Keyboard::LShift]);
+      pipeline->repr_highlight(&reprmode, view->camera.pos*33.f, view->pixel_to_ray(vec2(mousepos)), keys[sf::Keyboard::LControl], keys[sf::Keyboard::LShift]);
       view->setvolume(pipeline->repr(reprmode));
       view->setgeometry(pipeline->reprgeometry(reprmode));
       view->touch();
@@ -350,8 +367,9 @@ public:
         "(rendered " + to_string(renderframenum) +" frames, " + to_string(ms) + "ms)\n" + 
         "timestep "+to_string(reprmode.timestep)+"\n"+
         "render mode: " + std::string(reprmode.name) + " - " + std::string(reprmode.geom) + "\n" + 
-        "scale: " + to_string(reprmode.blob.scale) + "\n" + 
-        "gamma: " + to_string(view->get_gamma()) + "\n" + 
+        "scale:   " + to_string(reprmode.blob.scale) + "\n" + 
+        "gamma:   " + to_string(view->get_gamma()) + "\n" + 
+        "falloff: " + to_string(view->get_falloff()) + "\n" + 
         ((pipeline->get(reprmode.timestep).complete)?"processed":"")
       );
 

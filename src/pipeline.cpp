@@ -90,7 +90,7 @@ static float compute_epsilon(std::vector<float> &v){
   return eps/2.f;
 }
 
-void ArPipeline::repr_highlight(ReprMode *rm, vec3 p, vec3 ray, bool add){
+void ArPipeline::repr_highlight(ReprMode *rm, vec3 p, vec3 ray, bool diagnose, bool add){
   if(get(rm->timestep).complete){
     // printf("highlight along (%.2f %.2f %.2f) + (%.2f %.2f %.2f)\n",p.x,p.y,p.z, ray.x,ray.y,ray.z);
     ray = normalize(ray)*3.f;
@@ -102,18 +102,27 @@ void ArPipeline::repr_highlight(ReprMode *rm, vec3 p, vec3 ray, bool add){
     for(int i=0;i<100 && found.size()==0;++i){
       p+=ray;
       bsptree->find_within_distance(found, p, i+1);
-      if(found.size()>0){
+      if(found.size()>0 && !diagnose){
         found = std::vector<ScaleBlob*>();
-        bsptree->find_within_distance(found, p, 2500);
+        bsptree->find_within_distance(found, p, 625);
+      }
+      if(diagnose){
+        printf("highlight blob %p:\n", found[0]);
+        found[0]->print();
       }
     }
+
+    if(diagnose){
+      // lots of various diagnostic information...
+    }
+
     if(!add)rm->highlight.blobs.clear();
     for(int i=0;i<found.size();i++)rm->highlight.blobs.push_back(found[i]);
 
     rm->highlight.paths.clear();
     for(std::vector<ScaleBlob*> path : paths){
       for(ScaleBlob *blob : path){
-        if(glm::distance(vec3(blob->position), p) < 50){
+        if(glm::distance(vec3(blob->position), p) < 25){
           rm->highlight.paths.push_back(path);
           break;
         }
@@ -227,14 +236,14 @@ void ArPipeline::process(int low, int high){
       int itr = 0;
       for(ScaleBlob *sb : v0){
         std::vector<ScaleBlob*> potential;
-        t1->find_within_distance(potential, sb->position, 200.f);
+        t1->find_within_distance(potential, sb->position, 1000.f);
         for(int i=0;i<potential.size();i++){
           if(sb->n>1 && potential[i]->n>1 && sb->distance(potential[i]) <= 1.f){
-            if(sb->detCov/potential[i]->detCov < 2.f && potential[i]->detCov/sb->detCov < 2.f){
+            // if(sb->detCov/potential[i]->detCov < 2.f && potential[i]->detCov/sb->detCov < 2.f){
               // volume cannot more than double or half.
               sb->succ.push_back(potential[i]);
               potential[i]->pred.push_back(sb);
-            }
+            // }
           }
           // printf("%d.", i);
         }
@@ -293,29 +302,7 @@ ArGeometry3D* ArPipeline::reprgeometry(ReprMode &mode){
           }
         }
       }
-      // draw successors and predecessors:
-      if(!strcmp(mode.geom, "succs")){
-        float scalemin = frame.scales[mode.blob.scale] - frame.scale_eps;
-        float scalemax = frame.scales[mode.blob.scale] + frame.scale_eps;
-        // blobs = collect_blobs(frame.blob, 0, std::numeric_limits<float>::infinity());
-        // blobs = collect_blobs(frame.blob, scalemin, scalemax);
-        for(ScaleBlob *sb : mode.highlight.blobs){
-        // for(ScaleBlob *sb : blobs){
-          if(sb->scale < scalemin || sb->scale > scalemax)continue;
-          for(ScaleBlob *succ : sb->succ){
-            geometry.lines.push_back(sb->position);
-            geometry.lines.push_back(succ->position);
-            geometry.lines_c.push_back(sf::Color(255,255,255,200));
-            geometry.lines_c.push_back(sf::Color(255,255,255,200));
-          }
-          for(ScaleBlob *pred : sb->pred){
-            geometry.lines.push_back(sb->position);
-            geometry.lines.push_back(pred->position);
-            geometry.lines_c.push_back(sf::Color(0,40,0,200));
-            geometry.lines_c.push_back(sf::Color(0,40,0,200));
-          }
-        }
-      }
+
 
       // draw trajectory of highlighted blobs
       if(!mode.highlight.blobs.empty()){
@@ -365,6 +352,29 @@ ArGeometry3D* ArPipeline::reprgeometry(ReprMode &mode){
           }
         }
       }
+      // draw successors and predecessors:
+      if(!strcmp(mode.geom, "succs")){
+        float scalemin = frame.scales[mode.blob.scale] - frame.scale_eps;
+        float scalemax = frame.scales[mode.blob.scale] + frame.scale_eps;
+        // blobs = collect_blobs(frame.blob, 0, std::numeric_limits<float>::infinity());
+        // blobs = collect_blobs(frame.blob, scalemin, scalemax);
+        for(ScaleBlob *sb : mode.highlight.blobs){
+        // for(ScaleBlob *sb : blobs){
+          // if(sb->scale < scalemin || sb->scale > scalemax)continue;
+          for(ScaleBlob *succ : sb->succ){
+            geometry.lines.push_back(sb->position);
+            geometry.lines.push_back(succ->position);
+            geometry.lines_c.push_back(sf::Color(255,255,255,200));
+            geometry.lines_c.push_back(sf::Color(255,255,255,200));
+          }
+          for(ScaleBlob *pred : sb->pred){
+            geometry.lines.push_back(sb->position);
+            geometry.lines.push_back(pred->position);
+            geometry.lines_c.push_back(sf::Color(0,40,0,200));
+            geometry.lines_c.push_back(sf::Color(0,40,0,200));
+          }
+        }
+      }
     }
   }
 
@@ -411,7 +421,7 @@ Nrrd *ArPipeline::repr(ReprMode &mode){
   }
   last_repr  = mode;
   // printf("repr %s\n",mode.name);
-  if(!strcmp(mode.name, "blobs")){
+  if(!strcmp(mode.name, "blobs") || !strcmp(mode.name, "blobs_succs")){
     ArFrameData frame = get(mode.timestep);
     float scalemin = frame.scales[mode.blob.scale] - frame.scale_eps;
     float scalemax = frame.scales[mode.blob.scale] + frame.scale_eps;
@@ -430,6 +440,27 @@ Nrrd *ArPipeline::repr(ReprMode &mode){
     // printf("\n");
     filter.clear();
     filter.draw_blobs(blobs, true);
+
+    // show all successors of  blob.
+    if(!strcmp(mode.name, "blobs_succs")){
+      BSPTree<ScaleBlob> *t1 = &frames[ mode.highlight.timestep - exp->low    ].bspblobs;
+      std::vector<ScaleBlob*> succs;
+      for(ScaleBlob *sb : mode.highlight.blobs){
+        std::vector<ScaleBlob*> potential;
+        t1->find_within_distance(potential, sb->position, 1000.f);
+        for(int i=0;i<potential.size();i++){
+          if(sb->n>1 && potential[i]->n>1 && sb->distance(potential[i]) <= 1.f){
+            // if(sb->detCov/potential[i]->detCov < 2.f && potential[i]->detCov/sb->detCov < 2.f){
+              // volume cannot more than double or half.
+              succs.push_back(potential[i]);
+              potential[i]->pred.push_back(sb);
+            // }
+          }
+          // printf("%d.", i);
+        }
+      }
+      filter.color_blobs(succs, 4.f);
+    }
     filter.commit(store.buf[1]);
     return (last_nrrd = store.buf[1]);
   }
@@ -533,6 +564,7 @@ void ArPipeline::save(){
       WRITE(sb->position);
       WRITE(sb->shape);
       WRITE(sb->fshape);
+      WRITE(sb->timestep);
       WRITE(sb->covariance);
       WRITE(sb->invCov);
       WRITE(sb->detCov);
@@ -605,6 +637,7 @@ void ArPipeline::load(){
       READ(blob->position);
       READ(blob->shape);
       READ(blob->fshape);
+      READ(blob->timestep);
       READ(blob->covariance);
       READ(blob->invCov);
       READ(blob->detCov);

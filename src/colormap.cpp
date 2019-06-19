@@ -12,10 +12,30 @@ Colormap::Colormap(float gamma) : gamma(gamma){
   }
 }
 vec4 Colormap::colorof(double x){
-  int n = int(x/step);
-  if(n<0)n=0;
-  if(n>=nsamples)n=nsamples-1;
-  return range[n];
+  if(x>=6.f){
+    x -= 6.f;
+    int n = int(x/step);
+    if(n>=nsamples)n=nsamples-1;
+    return vec4(range[n].x, range[n].z, range[n].y, range[n].w);
+  }
+  else if(x>=4.f){
+    x -= 4.f;
+    int n = int(x/step);
+    if(n>=nsamples)n=nsamples-1;
+    return vec4(range[n].z, range[n].y, range[n].x, range[n].w);
+  }
+  else if(x>=2.f){
+    x -= 2.f;
+    int n = int(x/step);
+    if(n>=nsamples)n=nsamples-1;
+    return vec4(range[n].y, range[n].x, range[n].z, range[n].w);
+  }
+  else{
+    int n = int(x/step);
+    if(n<0)n=0;
+    if(n>=nsamples)n=nsamples-1;
+    return range[n];
+  }
 }
 static float sq(float x){
   return x*x;

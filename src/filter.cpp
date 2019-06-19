@@ -890,6 +890,35 @@ void ArFilter::rasterlineadd(vec3 a, vec3 b, float va, float vb){
     data[i] = va + (float(j)/len)*(vb-va);
   }
 }
+void ArFilter::color_blobs(std::vector<ScaleBlob*> blobs, float color){
+  using namespace glm;
+  float *data = self.buff[self.curr];
+
+  // iterate through blobs.
+  for(auto blob = blobs.begin(); blob != blobs.end(); ++blob){
+    ScaleBlob *sb = *blob;
+    float minx = sb->min.x;
+    float miny = sb->min.y;
+    float minz = sb->min.z;
+    float maxx = sb->max.x;
+    float maxy = sb->max.y;
+    float maxz = sb->max.z;
+
+    // iterate through pixels for each blob.
+    for(float x=minx; x<=maxx; ++x){
+      for(float y=miny; y<=maxy; ++y){
+        for(float z=minz; z<=maxz; ++z){
+          int i = int(x)*self.w1 + int(y)*self.w2 + int(z)*self.w3;
+          float v = sb->cellpdf(vec3(x,y,z));
+          if(std::isfinite(v)){
+            float orig = data[i] - 2.f*int(data[i]/2.f);
+            data[i] = color + max(orig,v);
+          }
+        }
+      }
+    }
+  }
+}
 void ArFilter::draw_blobs(std::vector<ScaleBlob*> blobs, bool highlight){
   using namespace glm;
   float *data = self.buff[self.curr];
@@ -918,7 +947,17 @@ void ArFilter::draw_blobs(std::vector<ScaleBlob*> blobs, bool highlight){
       }
     }
   }
-  normalize(1);
+
+  // get max value.
+  float max = 0;
+  for(int i=0;i<self.w4;i+=2){
+    if(data[i] > max)max=data[i];
+  }
+
+  // divide by max value.
+  for(int i=0;i<self.w4;i+=2){
+    data[i] = (data[i])/(max);
+  }
   // scale(0.2f);
   // for(auto blob = blobs.begin(); blob != blobs.end(); ++blob){
   //   ScaleBlob *sb = *blob;

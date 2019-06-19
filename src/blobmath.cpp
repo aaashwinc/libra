@@ -226,7 +226,7 @@ std::vector<std::vector<ScaleBlob*>> longest_paths(std::vector<ScaleBlob*> input
         kill.push_back(child);
       }
     }
-    printf("killed children %d\n", nk);
+    printf("path len %d; killed children %d\n", fullpath.size(), nk);
 
     // printf("invalidate.\n");
     // invalidate all predecessors of all points killed.

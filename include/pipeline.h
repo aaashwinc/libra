@@ -78,7 +78,7 @@ public:
 
   ReprMode repr_coarser(ReprMode);
   ReprMode repr_finer(ReprMode);
-  void repr_highlight(ReprMode *rm, vec3 p, vec3 ray, bool add=false);
+  void repr_highlight(ReprMode *rm, vec3 p, vec3 ray, bool diagnose=false, bool add=false);
 
   void save();
   void load();
