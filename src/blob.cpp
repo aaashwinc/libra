@@ -114,6 +114,10 @@ void ScaleBlob::printtree(int depth){
 // }
 
 using namespace Eigen;
+
+/** 
+ * return xTAx
+ */
 static inline float ell(const Matrix3f &A, const Vector3f &x){
   float c00 = x[0]*x[0]*A(0,0);
   float c01 = x[0]*x[1]*A(0,1);

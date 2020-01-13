@@ -103,12 +103,17 @@ void ArPipeline::repr_highlight(ReprMode *rm, vec3 p, vec3 ray, bool diagnose, b
       p+=ray;
       bsptree->find_within_distance(found, p, i+1);
       if(found.size()>0 && !diagnose){
+        if(diagnose){
+          printf("highlight blob %p:\n", found[0]);
+          found[0]->print();
+        }
+        if(!add){
+          rm->highlight.highlight_loci.clear();
+        }
+        rm->highlight.highlight_loci.push_back(found[0]);
+
         found = std::vector<ScaleBlob*>();
         bsptree->find_within_distance(found, p, 625);
-      }
-      if(diagnose){
-        printf("highlight blob %p:\n", found[0]);
-        found[0]->print();
       }
     }
 
@@ -172,14 +177,15 @@ static std::vector<ScaleBlob*> collect_blobs(ScaleBlob *blob, float scalemin, fl
 }
 
 /* find all paths in the part of the dataset that has been
- * processed so far. 
+ * processed so far, so long as the path is greater than
+ * minlen in length.
  *
  */
-void ArPipeline::find_paths(){
-  int minlen = 0;
+void ArPipeline::find_paths(int minlen){
   std::vector<ScaleBlob*> allblobs;
-  for(int i=0;i<frames.size();i++){
-    if(frames[i].complete){
+  for(int i=0;i<frames.size();i++){   // for each frame
+    if(frames[i].complete){           // if it is processed
+                                      // collect blobs
       std::vector<ScaleBlob*> blobsi = collect_blobs(frames[i].blob, 0, std::numeric_limits<float>::infinity());
       allblobs.insert(allblobs.end(), blobsi.begin(), blobsi.end());
       // minlen = int(i*0.75);
@@ -187,7 +193,7 @@ void ArPipeline::find_paths(){
   }
   printf("find paths > %d.\n", minlen);
   printf("find paths in %d blobs.\n", allblobs.size());
-  std::vector<std::vector<ScaleBlob*>> allpaths = longest_paths(allblobs);
+  std::vector<std::vector<ScaleBlob*>> allpaths = longest_paths(allblobs, minlen);
   paths.clear();
   for(int i=0;i<allpaths.size();++i){
     if(allpaths[i].size() > minlen){
@@ -201,13 +207,16 @@ void ArPipeline::find_paths(){
  * store.buf[1] contains the output of repr().
  */
 void ArPipeline::process(int low, int high){
-
+  if(high > exp->high){
+    high = exp->high;
+    printf("pipeline.process, low=%d, high=%d\n", low, high);
+  }
   for(int frame=low;frame<=high;frame++){
     printf("pipeline.process %d\n",frame);
     tick("");
 
     filter.capture(exp->get(frame));
-
+    // printf("process %d\n", frame)
     ScaleBlob *blob             = filter.compute_blob_tree();
 
     tick("compute blob tree.\n");
@@ -238,7 +247,16 @@ void ArPipeline::process(int low, int high){
         std::vector<ScaleBlob*> potential;
         t1->find_within_distance(potential, sb->position, 1000.f);
         for(int i=0;i<potential.size();i++){
-          if(sb->n>1 && potential[i]->n>1 && sb->distance(potential[i]) <= 1.f){
+
+          //  *** NOTE ***
+          // 1.0 means touching. I don't know what 2.0 means. This is somewhat
+          // arbitrary, but we notice that in the data, sometimes successor
+          // blobs aren't touching predecessor blobs, so we need a small margin.
+          // In any case, we next want to choose the potential successor with
+          // the smallest distance and closest scale.
+          //  *** **** ***
+
+          if(sb->n>1 && potential[i]->n>1 && sb->distance(potential[i]) <= 2.f){
             // if(sb->detCov/potential[i]->detCov < 2.f && potential[i]->detCov/sb->detCov < 2.f){
               // volume cannot more than double or half.
               sb->succ.push_back(potential[i]);
@@ -385,7 +403,15 @@ ArGeometry3D* ArPipeline::reprgeometry(ReprMode &mode){
 
   return &geometry;
 }
-Nrrd *ArPipeline::repr(ReprMode &mode){
+/**
+ * Chooses how to represent the volume-rendered data.
+ * Eg. we may represent the data as:
+ *   - "plain"     : raw data
+ *   - "blobs"     : depicting the blobs recovered from the data
+ *   - "gaussian"  : rendering a blurred version of the data at some sigma
+ *   - "laplacian" : laplacian of gaussian filter at some sigma
+*/
+Nrrd *ArPipeline::repr(ReprMode &mode, bool force){
   if(mode.timestep < exp->low)mode.timestep = exp->low;
   if(mode.timestep > exp->high)mode.timestep = exp->high;
   if(!strcmp(mode.name, "plain")){
@@ -404,8 +430,17 @@ Nrrd *ArPipeline::repr(ReprMode &mode){
   }
   if(!strcmp(mode.name, "sandbox")){
     filter.capture(exp->get(mode.timestep));
+    // filter.clear();
+    // std::vector<ScaleBlob*> blobs;
+    // ScaleBlob *a = new ScaleBlob();
+    // a->pass(vec3(10,10,10), 10);
+    // a->pass(vec3(15,15,15), 30);
+    // a->pass(vec3(10,20,20), 10);
+    // a->commit();
+    // blobs.push_back(a);
+    // filter.draw_blobs(blobs, false);
     filter.max1();
-    // filter.normalize(3.f);
+    filter.normalize(3.f);
     filter.commit(store.buf[1]);
     return store.buf[1];
   }
@@ -415,7 +450,7 @@ Nrrd *ArPipeline::repr(ReprMode &mode){
 
   static ReprMode last_repr("");
   static Nrrd *last_nrrd;
-  if(mode == last_repr){
+  if(mode == last_repr && !force){
     // printf("repr %s unchanged.\n",mode.name);
     return last_nrrd;
   }
@@ -439,7 +474,32 @@ Nrrd *ArPipeline::repr(ReprMode &mode){
 
     // printf("\n");
     filter.clear();
+    for(int i=0;i<mode.highlight.highlight_loci.size();i++){
+      blobs.push_back(mode.highlight.highlight_loci[i]);
+    }
+    // blobs.push_back(mode.highlight.highlight_loci);
+    // blobs.insert(blobs.end(), mode.highlight.highlight_loci.begin(), mode.highlight.highlight_loci.end());
     filter.draw_blobs(blobs, true);
+
+    // for(ScaleBlob *sb : mode.highlight.blobs){
+    if(mode.highlight.highlight_loci.size() > 0){
+      printf("highlight %d; scale = %.2f \n", mode.highlight.highlight_loci.size(), mode.highlight.highlight_loci[0]->scale);
+      filter.color_blobs(mode.highlight.highlight_loci, 2.f);
+    }
+    if(mode.highlight.highlight_loci.size() > 1){
+      int i=0;
+      int j=0;
+      for(int i=0;i<mode.highlight.highlight_loci.size();++i){
+        for(int j=0;j<mode.highlight.highlight_loci.size();++j){
+          printf("  distance %d %d -- %.4f\n", i, j, 
+            mode.highlight.highlight_loci[i]
+              ->distance(
+            mode.highlight.highlight_loci[j])
+            );
+        }
+      }
+    }
+    // }
 
     // show all successors of  blob.
     if(!strcmp(mode.name, "blobs_succs")){
@@ -512,10 +572,12 @@ void ArPipeline::save(){
 
   std::string path0 = exp->getfilepath(exp->low);
   std::replace(path0.begin(), path0.end(), '/', '-');
-  path0 = "../rsc/store/s" + path0 + ".pipeline";
-  
+  path0 = "../rsc/store/s" + path0;
 
-  FILE *file = fopen(path0.c_str(),"wb");
+  printf("writing to : %s\n", path0.c_str());
+
+  FILE *file = fopen((path0 + ".pipeline").c_str(),"wb");
+
   // fwrite("hello!",sizeof(char),6,file);
 
   // count number of frames that are processed.
@@ -574,25 +636,46 @@ void ArPipeline::save(){
       WRITE(sb->scale);
       WRITE(sb->n);
       WRITE(sb->npass);
-#undef WRITE
     }
   }
 
   fclose(file);
 
-  printf("path0: %s\n", path0.c_str());
+  file = fopen((path0 + ".paths").c_str(),"wb");
+  printf("write %d\n", paths.size());
+  WRITET(int, paths.size());
+  for(std::vector<ScaleBlob*> path : paths){
+    WRITET(int, path.size());
+    for(ScaleBlob* s : path){
+      WRITE(s);
+    }
+  }
+
+  fclose(file);
+
+  file = fopen((path0 + ".paths.txt").c_str(), "w");
+  for(std::vector<ScaleBlob*> path : paths){
+    for(ScaleBlob* blob : path){
+      fprintf(file, "%.2f %.2f %.2f; ", blob->position.x, blob->position.y, blob->position.z);
+    }
+    fprintf(file, "\n");
+  }
+
 }
+#undef WRITE
+#undef WRITET
 void ArPipeline::load(){
 //   printf("loading...\n");
   std::string path0 = exp->getfilepath(exp->low);
   std::replace(path0.begin(), path0.end(), '/', '-');
-  path0 = "../rsc/store/s" + path0 + ".pipeline";
+  path0 = "../rsc/store/s" + path0;
 
-  if( access( path0.c_str(), F_OK ) == -1 ) {
-    return;
-  }
+  std::string path0pipeline = path0 + ".pipeline";
+  std::string path0paths    = path0 + ".paths";
 
-  FILE *file = fopen(path0.c_str(),"rb");
+  if(access(path0pipeline.c_str(), F_OK) == -1)return;
+  FILE *file = fopen(path0pipeline.c_str(),"rb");
+
   char buf[2];
   int good=1;
 #define READ(x) (good&=!!(fread(&(x), sizeof(x), 1, file)));
@@ -700,7 +783,36 @@ void ArPipeline::load(){
     for(ScaleBlob *sb : frameblobs[i]){
       bsptree->insert(sb, sb->position);
     }
+
+    // DEBUG
+
+    // for(float f : fd.scales){
+    //   printf("scale %.2f;\n", f);
+    // }
+    // /////
     frames[i] = fd;
   }
+
+  // load paths...
+
+  if(access(path0paths.c_str(), F_OK) == -1)return;
+  file = fopen(path0paths.c_str(),"rb");
+
+  int n;
+  READ(n);
+  printf("read %d paths.\n", n);
+  for(int i=0;i<n;++i){
+    std::vector<ScaleBlob*> path;
+    int pathlen;
+    ScaleBlob *blob;
+    READ(pathlen);
+    for(int i=0;i<pathlen;++i){
+      READ(blob);
+      path.push_back(allblobs[blob]);
+    }
+    paths.push_back(path);
+  }
+
+  // done.
 #undef READ
 }

@@ -910,7 +910,7 @@ void ArFilter::color_blobs(std::vector<ScaleBlob*> blobs, float color){
         for(float z=minz; z<=maxz; ++z){
           int i = int(x)*self.w1 + int(y)*self.w2 + int(z)*self.w3;
           float v = sb->cellpdf(vec3(x,y,z));
-          if(std::isfinite(v)){
+          if(std::isfinite(v) && v > 0.0001f){
             float orig = data[i] - 2.f*int(data[i]/2.f);
             data[i] = color + max(orig,v);
           }
@@ -948,16 +948,22 @@ void ArFilter::draw_blobs(std::vector<ScaleBlob*> blobs, bool highlight){
     }
   }
 
-  // get max value.
-  float max = 0;
-  for(int i=0;i<self.w4;i+=2){
-    if(data[i] > max)max=data[i];
-  }
+  /////////////////////////////////////////////////////////////////////
 
-  // divide by max value.
-  for(int i=0;i<self.w4;i+=2){
-    data[i] = (data[i])/(max);
-  }
+  // ** Normalizing shouldn't be necessary, because cellpdf < 1 ** .
+  // // get max value.
+  // float max = 0;
+  // for(int i=0;i<self.w4;i+=2){
+  //   if(data[i] > max)max=data[i];
+  // }
+
+  // // divide by max value.
+  // for(int i=0;i<self.w4;i+=2){
+  //   data[i] = (data[i])/(max);
+  // }
+
+  ////////////////////////////////////////////////////////////////////
+
   // scale(0.2f);
   // for(auto blob = blobs.begin(); blob != blobs.end(); ++blob){
   //   ScaleBlob *sb = *blob;
@@ -1016,7 +1022,7 @@ ScaleBlob* ArFilter::compute_blob_tree(){
   BSPTree<ScaleBlob> bspblobs(0,10,vec3(-1.f,-1.f,-1.f),vec3(self.a1+1.f,self.a2+1.f,self.a3+1.f)); // safe against any rounding errors.
 
   DiscreteKernel kernel; 
-  float sigma = 1.5f;
+  float sigma = 3.f;
   float scale = 0.f;
 
   float *const iscalec = new float[self.w4];   // data for scaled image.

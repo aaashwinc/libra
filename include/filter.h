@@ -70,6 +70,7 @@ public:
   void highlight(std::vector<glm::ivec3> points);
   std::vector<ScaleBlob*> find_blobs();
   void draw_blobs(std::vector<ScaleBlob*>, bool highlight=false);
+  void add_blobs(std::vector<ScaleBlob*>);
   void color_blobs(std::vector<ScaleBlob*>, float color);
   ScaleBlob* compute_blob_tree();
   BSPTree<ScaleBlob> get_bsp(int depth);

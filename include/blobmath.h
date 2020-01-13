@@ -5,7 +5,7 @@
 #include <vector>
 
 std::vector<ScaleBlob*> longest_path(ScaleBlob* sb);
-std::vector<std::vector<ScaleBlob*>> longest_paths(std::vector<ScaleBlob*> sb);
+std::vector<std::vector<ScaleBlob*>> longest_paths(std::vector<ScaleBlob*> sb, int minlength);
 
 void serialize(std::vector<ScaleBlob*> blobs);
 std::vector<ScaleBlob*> deserialize();

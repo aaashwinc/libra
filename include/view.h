@@ -44,6 +44,10 @@ public:
 };
 
 /* Describes a View into a particular ArPipeline.
+ * We can view a volume either as
+    -  a volume-rendered mesh (with a floating camera); or 
+    -  a series of 2D slices that can be traversed along the 3rd dimension.
+   We can also render planar geometry, as arbitrary line segments in the ArGeometry class.
  */
 class View{
 public:
@@ -100,8 +104,8 @@ public:
   static void *t_raytrace(void*);
 
   // input
-  void setvolume(Nrrd *nrrd);
-  void setgeometry(ArGeometry3D*);
+  void setvolume(Nrrd *nrrd);           // set the volume to be rendered
+  void setgeometry(ArGeometry3D*);      // set the planar geometry to be rendered
   vec3 pixel_to_ray(vec2);
 
   // movement

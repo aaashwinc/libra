@@ -12,6 +12,10 @@
 #include "synth.h"
 #include <LBFGS.h>
 
+
+/**
+ * Main class which creates and encapsulates the platform
+**/
 class Game{
 public:
   View *view;
@@ -48,12 +52,16 @@ public:
     // exit(0);
 
   }
+
+  // "assert" a boolean with a char* message
   void asserts(bool b, const char *message){
     if(!b){
       fprintf(stderr,"ASSERT: %s\n", message);
       ::exit(0);
     }
   }
+
+  // Load font, create and initialize window.
   void initUI(){
     asserts(font.loadFromFile("../rsc/CallingCode-Regular.ttf"), "loading font");
     text.setFont(font);
@@ -67,6 +75,8 @@ public:
 
     sfview = window->getDefaultView();
   }
+
+  // save the state of the CAMERA
   void save(){
     FILE *file = fopen("../rsc/save.artemis","wb");
     fwrite(&(view->camera),sizeof(view->camera),1,file);
@@ -74,6 +84,8 @@ public:
 
     pipeline->save();
   }
+
+  // load the state of the CAMERA
   void load(){
     FILE *file = fopen("../rsc/save.artemis","rb");
     fread(&(view->camera),sizeof(view->camera),1,file);
@@ -81,17 +93,23 @@ public:
 
     pipeline->load();
   }
+
+  // save the state of the CAMERA and then close the window.
   void exit(){
     save();
     window->close();
   }
+
+  // init camera, create new experiment, init keypresses
+  // initialize VIEW (renderer) for a particular EXPERIMENT and computation PIPELINE.
+
   void init(){
     // synth();
     view->camera.set(vec3(-4,3,6), vec3(1,0,-0.33), vec3(0,0,1));
 
     // printf("camera: %.2f %.2f %.2f\n",view->camera.right.x,view->camera.right.y,view->camera.right.z);
 
-    experiment = new ArExperiment("/home/ashwin/data/miniclear/???.nrrd",0,20,4);
+    experiment = new ArExperiment("/home/ashwin/data/miniventral2/???.nrrd",0,99,4);
 
     pipeline = new ArPipeline(experiment);
     view->setvolume(pipeline->repr(reprmode));
@@ -117,6 +135,8 @@ public:
     ///////////////
   }
 
+  // low-level function to just handle events (at the window level)
+  // does not do any processing.
   void handle_events(){
     sf::Event event;
     while (window->pollEvent(event)){
@@ -159,19 +179,25 @@ public:
     }
   }
 
+  // interface between user (keyboard, mouse) and the volume computation pipeline.
   void check_keys(){
     using glm::vec3;
     float speed = 0.1f;
 
+    // exit
     if(keys[sf::Keyboard::F2]){
       exit();
     }
+    
+    // camera speed
     if(keys[sf::Keyboard::LShift]){
       speed *= 10.f;
     }
     if(keys[sf::Keyboard::LControl]){
       speed *= 0.1f;
     }
+
+    // camera movement
     if(keys[sf::Keyboard::W]){
       view->camera.drawflat = false;
       view->move3D(vec3(0,0,speed));
@@ -212,6 +238,8 @@ public:
       view->camera.drawflat = false;
       view->rotateV(0.1f);
     }
+
+    // gamma
     if(keys[sf::Keyboard::Dash]){
       view->step_gamma(1.1f);
       view->touch();
@@ -220,6 +248,8 @@ public:
       view->step_gamma(1/1.1f);
       view->touch();
     }
+
+    // light falloff
     if(keys[sf::Keyboard::LBracket]){
       view->step_falloff(1.1f);
       view->touch();
@@ -228,6 +258,8 @@ public:
       view->step_falloff(1/1.1f);
       view->touch();
     }
+
+    // 2D view
     if(keys[sf::Keyboard::M]){
       view->camera.flat.slice += 0.04*speed;
       view->camera.drawflat = true;
@@ -238,6 +270,8 @@ public:
       view->camera.drawflat = true;
       view->touch();
     }
+
+    // move timestep
     if(keys[sf::Keyboard::O]){
       if(!keys[sf::Keyboard::LShift]){
         keys[sf::Keyboard::O] = false;
@@ -256,6 +290,8 @@ public:
       view->setgeometry(pipeline->reprgeometry(reprmode));
       view->touch();
     }
+
+    // representation mode (for 3D volume rendering)
     if(keys[sf::Keyboard::Num1]){
       reprmode.name = "plain";
       view->setvolume(pipeline->repr(reprmode));
@@ -296,8 +332,16 @@ public:
       view->setvolume(pipeline->repr(reprmode));
       view->touch();
     }
+
+    // set scale of blobs to render
     if(keys[sf::Keyboard::I]){
       reprmode = pipeline->repr_coarser(reprmode);
+      view->setvolume(pipeline->repr(reprmode));
+      view->setgeometry(pipeline->reprgeometry(reprmode));
+      view->touch();
+    }
+    if(keys[sf::Keyboard::K]){
+      reprmode = pipeline->repr_finer(reprmode);
       view->setvolume(pipeline->repr(reprmode));
       view->setgeometry(pipeline->reprgeometry(reprmode));
       view->touch();
@@ -306,12 +350,8 @@ public:
       printf("pos: %.3f %.3f %.3f\n", view->camera.pos.x, view->camera.pos.y, view->camera.pos.z);
       keys[sf::Keyboard::B] = false;
     }
-    if(keys[sf::Keyboard::K]){
-      reprmode = pipeline->repr_finer(reprmode);
-      view->setvolume(pipeline->repr(reprmode));
-      view->setgeometry(pipeline->reprgeometry(reprmode));
-      view->touch();
-    }
+
+    // render geometry mode
     if(keys[sf::Keyboard::G]){
       if(!strcmp(reprmode.geom, "none")){
         reprmode.geom = "paths";
@@ -329,13 +369,15 @@ public:
     if(clicked[0]){
       printf("clicked %d %d\n", mousepos.x, mousepos.y);
       pipeline->repr_highlight(&reprmode, view->camera.pos*33.f, view->pixel_to_ray(vec2(mousepos)), keys[sf::Keyboard::LControl], keys[sf::Keyboard::LShift]);
-      view->setvolume(pipeline->repr(reprmode));
+      view->setvolume(pipeline->repr(reprmode, false)); // true = force re-render
       view->setgeometry(pipeline->reprgeometry(reprmode));
       view->touch();
       clicked[0] = false;
     }
+
+    // process timesteps {n,n+1}
     if(keys[sf::Keyboard::U]){
-      pipeline->process(reprmode.timestep,reprmode.timestep+1);
+      pipeline->process(reprmode.timestep,reprmode.timestep+30);
       reprmode.name = "blobs";
       reprmode.geom = "graph";
       view->setvolume(pipeline->repr(reprmode));
@@ -343,7 +385,7 @@ public:
       view->touch();
     }
     if(keys[sf::Keyboard::L]){
-      pipeline->find_paths();
+      pipeline->find_paths(25);
       // pipeline->process(reprmode.timestep,reprmode.timestep+2);
       // // reprmode.name = "blobs";
       // reprmode.geom = "graph";
@@ -352,6 +394,11 @@ public:
       view->touch();
     }
   }
+  /* render
+       1. debug text;
+       2. output from the View;
+     and swap buffers
+  */
   void renderall(){
     using std::to_string;
     sf::Time elapsed1 = clock.getElapsedTime();
@@ -381,7 +428,7 @@ public:
     window->display();
   }
   int run(){
-    view = new View(350,350);
+    view = new View(400,400);
     init();
     initUI();
 

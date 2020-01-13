@@ -31,6 +31,7 @@ public:
   struct{
     int timestep;
     vec3 locus;
+    std::vector<ScaleBlob*> highlight_loci;
     std::vector<ScaleBlob*>blobs;
     std::vector<vec3> lines;
     std::vector<std::vector<ScaleBlob*>> paths;
@@ -72,8 +73,8 @@ public:
 
   ArPipeline(ArExperiment *exp);
   void process(int low, int high);
-  void find_paths();
-  Nrrd *repr(ReprMode &mode);
+  void find_paths(int minlen);
+  Nrrd *repr(ReprMode &mode, bool force=false);
   ArGeometry3D *reprgeometry(ReprMode &mode);
 
   ReprMode repr_coarser(ReprMode);

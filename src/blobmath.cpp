@@ -73,7 +73,7 @@ std::vector<ScaleBlob*> longest_path(ScaleBlob* sb){
  *      for each of the children and predecessors in the path.
  *   -- EXIT when there are no more paths, or the path reaches a threshold.
 */
-std::vector<std::vector<ScaleBlob*>> longest_paths(std::vector<ScaleBlob*> input){
+std::vector<std::vector<ScaleBlob*>> longest_paths(std::vector<ScaleBlob*> input, int minlength){
   printf("compute longest paths, input size %d\n", input.size());
   struct pathinfo{
     pathinfo(){
@@ -98,21 +98,23 @@ std::vector<std::vector<ScaleBlob*>> longest_paths(std::vector<ScaleBlob*> input
   pathinfo global_longest;                            // keep track of the longest path.
 
   int loopn = 0;
-  while(1){
+  while(1){       // loop...
     // printf("loop %d\n", ++loopn);
-    float nblobs = 0;
-    float nalive = 0;
+
+    float nblobs = 0;                             // count total number of blobs
+    float nalive = 0;                             // count number of blobs alive
     for(std::pair<ScaleBlob *, pathinfo> info : paths){
       nblobs += 1;
       if(info.second.alive)nalive+=1;
     }
     // printf("alive: %.1f / %.1f = %.2f\n", nalive, nblobs, nalive/nblobs);
+    
     // initialize with blobs in input.
     for(int i=0;i<input.size();i++){
       traverse.push_front(input[i]);
     }
 
-    ScaleBlob *longest = 0;
+    ScaleBlob *longest = 0; // keep track of longest path (blob)
 
     int loop1n = 0;
     while(!traverse.empty()){
@@ -243,6 +245,11 @@ std::vector<std::vector<ScaleBlob*>> longest_paths(std::vector<ScaleBlob*> input
       }
     }
     return_paths.push_back(fullpath);
+
+    if(fullpath.size() < minlength){
+      printf("  path size < minlength = %d. done.\n", minlength);
+      break;
+    }
     // return return_paths;
   }
 
