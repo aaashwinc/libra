@@ -322,6 +322,11 @@ public:
       view->setvolume(pipeline->repr(reprmode));
       view->touch();
     }
+    if(keys[sf::Keyboard::Num7]){
+      reprmode.name = "flow";
+      view->setvolume(pipeline->repr(reprmode));
+      view->touch();
+    }
     if(keys[sf::Keyboard::Num0]){
       reprmode.name = "sandbox";
       view->setvolume(pipeline->repr(reprmode));

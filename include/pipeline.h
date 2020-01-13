@@ -35,6 +35,7 @@ public:
     std::vector<ScaleBlob*>blobs;
     std::vector<vec3> lines;
     std::vector<std::vector<ScaleBlob*>> paths;
+    double path_smooth_alpha;
   }highlight;
   bool operator==(ReprMode &r);
 };

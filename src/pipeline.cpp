@@ -34,6 +34,7 @@ ReprMode::ReprMode(const char *name){
   highlight.paths = std::vector<std::vector<ScaleBlob*>>();
   highlight.timestep = -1;
   highlight.locus    = vec3(0,0,0);
+  highlight.path_smooth_alpha = 0.7f;
 }
 bool ReprMode::operator==(ReprMode &r){
   return (name == r.name) && (timestep == r.timestep)
@@ -215,28 +216,31 @@ void ArPipeline::process(int low, int high){
     printf("pipeline.process %d\n",frame);
     tick("");
 
-    filter.capture(exp->get(frame));
-    // printf("process %d\n", frame)
-    ScaleBlob *blob             = filter.compute_blob_tree();
+    // THIS CAN BE PARALLALIZED {
+        // ARFilter filter;
+        filter.capture(exp->get(frame));
+        // printf("process %d\n", frame)
+        ScaleBlob *blob             = filter.compute_blob_tree();
 
-    tick("compute blob tree.\n");
 
-    std::vector<float> scales   = collect_scales(blob);
-    frames[frame - exp->low].blob      = blob;
-    frames[frame - exp->low].scales    = scales;
-    frames[frame - exp->low].scale_eps = compute_epsilon(scales);
-    frames[frame - exp->low].complete  = true;
-    frames[frame - exp->low].bspblobs  = filter.get_bsp(10);;
+        std::vector<float> scales   = collect_scales(blob);
+        frames[frame - exp->low].blob      = blob;
+        frames[frame - exp->low].scales    = scales;
+        frames[frame - exp->low].scale_eps = compute_epsilon(scales);
+        frames[frame - exp->low].complete  = true;
+        frames[frame - exp->low].bspblobs  = filter.get_bsp(10);
 
-    BSPTree<ScaleBlob> *bsptree = &frames[frame - exp->low].bspblobs;
-    std::vector<ScaleBlob*> allblobs = collect_blobs(blob, 0, std::numeric_limits<float>::infinity());
-    
-    for(ScaleBlob *sb : allblobs){
-      bsptree->insert(sb, sb->position);
-    }
+        BSPTree<ScaleBlob> *bsptree = &frames[frame - exp->low].bspblobs;
+        std::vector<ScaleBlob*> allblobs = collect_blobs(blob, 0, std::numeric_limits<float>::infinity());
+        
+        for(ScaleBlob *sb : allblobs){
+          bsptree->insert(sb, sb->position);
+        }
+
+    // } THIS CAN BE PARALLELIZED
 
     // link with previous frame.
-    // printf("linking.\n");
+    printf("linking.\n");
     if(frame-1 >= this->low() && get(frame-1).complete){
       BSPTree<ScaleBlob> *t0 = &frames[ frame - exp->low -1 ].bspblobs;
       BSPTree<ScaleBlob> *t1 = &frames[ frame - exp->low    ].bspblobs;
@@ -353,12 +357,20 @@ ArGeometry3D* ArPipeline::reprgeometry(ReprMode &mode){
         // }
 
         // draw the longest trajectories.
+        double path_smooth_beta = 1.f - mode.highlight.path_smooth_alpha;
         for(std::vector<ScaleBlob*> path : mode.highlight.paths){
           float len  = float(path.size());
           float step = 1.f/len;
+          glm::dvec3 weightedp = path[0]->position;
           for(int j=0;j<path.size()-1;j++){
-            geometry.lines.push_back(path[j]->position);
-            geometry.lines.push_back(path[j+1]->position);
+            // geometry.lines.push_back(path[j]->position);
+            // geometry.lines.push_back(path[j+1]->position);
+            geometry.lines.push_back(weightedp);
+            glm::dvec3 weightedq = path[j+1]->position;
+            
+            weightedp = (weightedp * mode.highlight.path_smooth_alpha) + (weightedq * path_smooth_beta);
+
+            geometry.lines.push_back(weightedp);
             int r0 = 0   + int(200.f * step * j    );
             int g0 = 155 + int(100.f * step * j    );
             int b0 = 255 - int(250.f * step * j    );
@@ -426,6 +438,11 @@ Nrrd *ArPipeline::repr(ReprMode &mode, bool force){
   }
   if(!strcmp(mode.name, "filter internal")){
     printf("repr %s\n", mode.name);
+    return store.buf[0];
+  }
+  if(!strcmp(mode.name, "flow")){
+    printf("repr %s\n", mode.name);
+    Flow flow;
     return store.buf[0];
   }
   if(!strcmp(mode.name, "sandbox")){
