@@ -34,7 +34,7 @@ ReprMode::ReprMode(const char *name){
   highlight.paths = std::vector<std::vector<ScaleBlob*>>();
   highlight.timestep = -1;
   highlight.locus    = vec3(0,0,0);
-  highlight.path_smooth_alpha = 0.7f;
+  highlight.path_smooth_alpha = 0.f;
 }
 bool ReprMode::operator==(ReprMode &r){
   return (name == r.name) && (timestep == r.timestep)
@@ -114,7 +114,7 @@ void ArPipeline::repr_highlight(ReprMode *rm, vec3 p, vec3 ray, bool diagnose, b
         rm->highlight.highlight_loci.push_back(found[0]);
 
         found = std::vector<ScaleBlob*>();
-        bsptree->find_within_distance(found, p, 625);
+        bsptree->find_within_distance(found, p, 9);
       }
     }
 
@@ -125,13 +125,16 @@ void ArPipeline::repr_highlight(ReprMode *rm, vec3 p, vec3 ray, bool diagnose, b
     if(!add)rm->highlight.blobs.clear();
     for(int i=0;i<found.size();i++)rm->highlight.blobs.push_back(found[i]);
 
-    rm->highlight.paths.clear();
+    if(!add){
+      rm->highlight.paths.clear();
+    }
     for(std::vector<ScaleBlob*> path : paths){
       for(ScaleBlob *blob : path){
-        if(glm::distance(vec3(blob->position), p) < 25){
+        if(glm::distance(vec3(blob->position), p) < 5){
           rm->highlight.paths.push_back(path);
           break;
         }
+        // break;
       }
     }
     rm->highlight.locus = p;
@@ -182,9 +185,11 @@ static std::vector<ScaleBlob*> collect_blobs(ScaleBlob *blob, float scalemin, fl
  * minlen in length.
  *
  */
-void ArPipeline::find_paths(int minlen){
+void ArPipeline::find_paths(int minlen, int maxframe){
+  if(maxframe <= 0)maxframe = frames.size();
+  if(maxframe > frames.size())maxframe = frames.size();
   std::vector<ScaleBlob*> allblobs;
-  for(int i=0;i<frames.size();i++){   // for each frame
+  for(int i=0;i<maxframe;i++){   // for each frame
     if(frames[i].complete){           // if it is processed
                                       // collect blobs
       std::vector<ScaleBlob*> blobsi = collect_blobs(frames[i].blob, 0, std::numeric_limits<float>::infinity());
@@ -193,7 +198,7 @@ void ArPipeline::find_paths(int minlen){
     }
   }
   printf("find paths > %d.\n", minlen);
-  printf("find paths in %d blobs.\n", allblobs.size());
+  printf("find paths in %lu blobs.\n", allblobs.size());
   std::vector<std::vector<ScaleBlob*>> allpaths = longest_paths(allblobs, minlen);
   paths.clear();
   for(int i=0;i<allpaths.size();++i){
@@ -201,12 +206,39 @@ void ArPipeline::find_paths(int minlen){
       paths.push_back(allpaths[i]);
     }
   }
-  printf("found %d paths.\n", paths.size());
+  printf("found %lu paths.\n", paths.size());
 }
 
+// attempt to parallelize it. doesn't work though.
+    // static void process_frame(ArExperiment *exp, ArFrameData *frame, int framen){
+    //   ArFilter filter;
+    //   filter.init(exp->get(framen));
+    //   // filter.capture(exp->get(framen));
+    //   printf("process %d\n", framen);
+    //   ScaleBlob *blob             = filter.compute_blob_tree();
+
+
+    //   std::vector<float> scales   = collect_scales(blob);
+    //   frame->blob      = blob;
+    //   frame->scales    = scales;
+    //   frame->scale_eps = compute_epsilon(scales);
+    //   frame->complete  = true;
+    //   frame->bspblobs  = filter.get_bsp(10);
+
+    //   BSPTree<ScaleBlob> *bsptree = &(frame->bspblobs);
+    //   std::vector<ScaleBlob*> allblobs = collect_blobs(blob, 0, std::numeric_limits<float>::infinity());
+      
+    //   for(ScaleBlob *sb : allblobs){
+    //     bsptree->insert(sb, sb->position);
+    //   }
+    //   filter.destroy();
+    // }
 /* store.buf[0] contains the output of the filter chain.
  * store.buf[1] contains the output of repr().
  */
+void ArPipeline::link(int low, int high){
+  
+}
 void ArPipeline::process(int low, int high){
   if(high > exp->high){
     high = exp->high;
@@ -216,7 +248,8 @@ void ArPipeline::process(int low, int high){
     printf("pipeline.process %d\n",frame);
     tick("");
 
-    // THIS CAN BE PARALLALIZED {
+    // THIS CAN BE PARALLELIZED {
+
         // ARFilter filter;
         filter.capture(exp->get(frame));
         // printf("process %d\n", frame)
@@ -260,12 +293,12 @@ void ArPipeline::process(int low, int high){
           // the smallest distance and closest scale.
           //  *** **** ***
 
-          if(sb->n>1 && potential[i]->n>1 && sb->distance(potential[i]) <= 2.f){
-            // if(sb->detCov/potential[i]->detCov < 2.f && potential[i]->detCov/sb->detCov < 2.f){
+          if(sb->n>1 && potential[i]->n>1 && sb->distance(potential[i]) <= 1.f){
+            if(sb->detCov/potential[i]->detCov < 8.f && potential[i]->detCov/sb->detCov < 8.f){
               // volume cannot more than double or half.
               sb->succ.push_back(potential[i]);
               potential[i]->pred.push_back(sb);
-            // }
+            }
           }
           // printf("%d.", i);
         }
@@ -442,7 +475,6 @@ Nrrd *ArPipeline::repr(ReprMode &mode, bool force){
   }
   if(!strcmp(mode.name, "flow")){
     printf("repr %s\n", mode.name);
-    Flow flow;
     return store.buf[0];
   }
   if(!strcmp(mode.name, "sandbox")){
@@ -500,7 +532,7 @@ Nrrd *ArPipeline::repr(ReprMode &mode, bool force){
 
     // for(ScaleBlob *sb : mode.highlight.blobs){
     if(mode.highlight.highlight_loci.size() > 0){
-      printf("highlight %d; scale = %.2f \n", mode.highlight.highlight_loci.size(), mode.highlight.highlight_loci[0]->scale);
+      printf("highlight %lu; scale = %.2f \n", mode.highlight.highlight_loci.size(), mode.highlight.highlight_loci[0]->scale);
       filter.color_blobs(mode.highlight.highlight_loci, 2.f);
     }
     if(mode.highlight.highlight_loci.size() > 1){
@@ -659,7 +691,7 @@ void ArPipeline::save(){
   fclose(file);
 
   file = fopen((path0 + ".paths").c_str(),"wb");
-  printf("write %d\n", paths.size());
+  printf("write %lu\n", paths.size());
   WRITET(int, paths.size());
   for(std::vector<ScaleBlob*> path : paths){
     WRITET(int, path.size());

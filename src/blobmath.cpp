@@ -74,7 +74,7 @@ std::vector<ScaleBlob*> longest_path(ScaleBlob* sb){
  *   -- EXIT when there are no more paths, or the path reaches a threshold.
 */
 std::vector<std::vector<ScaleBlob*>> longest_paths(std::vector<ScaleBlob*> input, int minlength){
-  printf("compute longest paths, input size %d\n", input.size());
+  printf("compute longest paths, input size %lu\n", input.size());
   struct pathinfo{
     pathinfo(){
       next = 0;
@@ -228,7 +228,7 @@ std::vector<std::vector<ScaleBlob*>> longest_paths(std::vector<ScaleBlob*> input
         kill.push_back(child);
       }
     }
-    printf("path len %d; killed children %d\n", fullpath.size(), nk);
+    printf("path len %lu; killed children %d\n", fullpath.size(), nk);
 
     // printf("invalidate.\n");
     // invalidate all predecessors of all points killed.

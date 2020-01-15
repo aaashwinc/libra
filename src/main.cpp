@@ -88,7 +88,7 @@ public:
   // load the state of the CAMERA
   void load(){
     FILE *file = fopen("../rsc/save.artemis","rb");
-    fread(&(view->camera),sizeof(view->camera),1,file);
+    int r = fread(&(view->camera),sizeof(view->camera),1,file);
     fclose(file);
 
     pipeline->load();
@@ -389,8 +389,17 @@ public:
       view->setgeometry(pipeline->reprgeometry(reprmode));
       view->touch();
     }
+    if(keys[sf::Keyboard::Y]){
+      pipeline->link(reprmode.timestep,reprmode.timestep+30);
+      reprmode.name = "blobs";
+      reprmode.geom = "graph";
+      view->setvolume(pipeline->repr(reprmode));
+      view->setgeometry(pipeline->reprgeometry(reprmode));
+      view->touch();
+    }
     if(keys[sf::Keyboard::L]){
-      pipeline->find_paths(25);
+
+      pipeline->find_paths(15, 30);
       // pipeline->process(reprmode.timestep,reprmode.timestep+2);
       // // reprmode.name = "blobs";
       // reprmode.geom = "graph";

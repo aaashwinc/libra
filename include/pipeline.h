@@ -74,7 +74,8 @@ public:
 
   ArPipeline(ArExperiment *exp);
   void process(int low, int high);
-  void find_paths(int minlen);
+  void link(int low, int high);
+  void find_paths(int minlen, int maxframe);
   Nrrd *repr(ReprMode &mode, bool force=false);
   ArGeometry3D *reprgeometry(ReprMode &mode);
 

@@ -57,7 +57,7 @@ void synth(){
     v /= (ps.size()*gaus(0,stdv));
 
     if(v >= 1){
-      printf("v %.3f\n");
+      printf("v %.3f\n", v);
     }
 
     if(v<0)v=0;
