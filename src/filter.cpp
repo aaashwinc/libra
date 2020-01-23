@@ -8,6 +8,7 @@
 #include <climits>
 #include <cmath>
 #include <limits>
+#include "util.h"
 #define pi (3.14159265358979323846264)
 #define gaus(x,stdv) (exp(-((x)*(x))/(2*(stdv)*(stdv)))/((stdv)*sqrt(2*pi)))
 #define gausd2(x,sig)(exp(-x*x/(2.0*sig*sig))*(x*x-sig*sig) /       \
@@ -577,7 +578,57 @@ ArFilter::ArFilter(){
   init(0);
 }
 
+ivec3 ArFilter::hill_climb(ivec3 p){
+  // printf("%d %d %d; ", p.x, p.y, p.z);
+  float *data = self.buff[self.curr];
 
+  if(p.x<1)p.x = 1;
+  if(p.y<1)p.y = 1;
+  if(p.z<1)p.z = 1;
+  if(p.x>self.a1-2)p.x = self.a1-2;
+  if(p.y>self.a2-2)p.y = self.a2-2;
+  if(p.z>self.a3-2)p.z = self.a3-2;
+
+  float maxv = -1;
+  ivec3 maxp;
+
+  int besti = -1;
+  int maxi = -1;
+  int ii2 = -1;
+
+  bool climbing = true;
+
+  // printf("climbing...");
+
+  while(climbing){
+    climbing = false;
+    for(int     zz=p.z-1; zz<=p.z+1; zz++){
+      for(int   yy=p.y-1; yy<=p.y+1; yy++){
+        for(int xx=p.x-1; xx<=p.x+1; xx++){
+          // printf("  %d %d %d\n",xx,yy,zz);
+          int ii = xx*self.w1 + yy*self.w2 + zz*self.w3;
+          float testv = data[ii];
+          if(testv > maxv){
+            maxv = testv;
+            maxp = ivec3(xx,yy,zz);
+            // printf("%d %d %d; ", xx, yy, zz);
+            climbing = true;
+          }
+        }
+      }
+    }
+  }
+  // printf("\n");
+  return maxp;
+}
+void ArFilter::lapofgaussian(float sigma){
+  DiscreteKernel kernel = gaussian(sigma, int(sigma*4));
+  set_kernel(kernel);
+  filter();
+  laplacian3d();
+  normalize();
+  kernel.destroy();
+}
 std::vector<glm::ivec3> ArFilter::find_maxima(){
   std::vector<glm::ivec3> maxima;
 
@@ -606,7 +657,7 @@ std::vector<glm::ivec3> ArFilter::find_maxima(){
 
         // if(v>0)printf("v: %.4f\n",v);
 
-        if(v>=p1 && v>=p2 && v>=p3 && v>=p4 && v>=p5 && v>=p6){
+        if(v>=p1 && v>=p2 && v>=p3 && v>=p4 && v>=p5 && v>=p6 && v != 0 ){
           maxima.push_back(glm::ivec3(x,y,z));
         }
       }
@@ -630,7 +681,7 @@ void ArFilter::highlight(std::vector<glm::ivec3> points){
 
 // given an input image, find all blobs.
 // a blob is a local maximum surrounded by
-// its hinderland. ie.:
+// its hinterland. ie.:
 // a pixel p is in a blob B (centered at pixel b) if 
 // p.climb.climb. .... .climb = b.
 //
@@ -919,34 +970,89 @@ void ArFilter::color_blobs(std::vector<ScaleBlob*> blobs, float color){
     }
   }
 }
-void ArFilter::draw_blobs(std::vector<ScaleBlob*> blobs, bool highlight){
-  using namespace glm;
-  float *data = self.buff[self.curr];
-  for(int i=0;i<self.w4;++i){
-    data[i]=0;
-  }
-  for(auto blob = blobs.begin(); blob != blobs.end(); ++blob){
-    ScaleBlob *sb = *blob;
-    float minx = sb->min.x;
-    float miny = sb->min.y;
-    float minz = sb->min.z;
-    float maxx = sb->max.x;
-    float maxy = sb->max.y;
-    float maxz = sb->max.z;
-    // printf("minmax %.1f %.1f %.1f %.1f %.1f %.1f\n",minx, miny, minz, maxx, maxy, maxz);
-    for(float x=minx; x<=maxx; ++x){
-      for(float y=miny; y<=maxy; ++y){
-        for(float z=minz; z<=maxz; ++z){
-          int i = int(x)*self.w1 + int(y)*self.w2 + int(z)*self.w3;
+struct thread_drawblobs_info{
+  ArFilter *filter;
+  std::vector<ScaleBlob*> *blobs;
+  float *data;
+  float *lock;
+  int blobmin;   // render window min value.
+  int blobmax;   // render window max value.
+};
+
+static void* t_draw_blobs(void* vinfo){
+  thread_drawblobs_info *info = (thread_drawblobs_info*)vinfo;
+  float *data = info->data;
+  float *lock = info->lock;
+  int blobmin = info->blobmin;
+  int blobmax = info->blobmax;
+  ArFilter *filter = info->filter;
+  std::vector<ScaleBlob*> &blobs = *info->blobs;
+
+  printf("t_draw_blobs %d - %d\n", blobmin, blobmax);
+  for(int bi=blobmin; bi<blobmax; ++bi){
+    ScaleBlob *sb = blobs[bi];
+    if(sb->n < 2)continue;
+    int minx = sb->min.x;
+    int miny = sb->min.y;
+    int minz = sb->min.z;
+    int maxx = sb->max.x;
+    int maxy = sb->max.y;
+    int maxz = sb->max.z;
+    // printf("minmax %d %d %d %d %d %d\n",minx, maxx, miny, maxy, minz, maxz);
+    for(int x=minx; x<=maxx; ++x){
+      for(int y=miny; y<=maxy; ++y){
+        for(int z=minz; z<=maxz; ++z){
+          int i = (x)*filter->self.w1 + (y)*filter->self.w2 + (z)*filter->self.w3;
           float v = sb->cellpdf(vec3(x,y,z));
-          if(std::isfinite(v)){
-            data[i] = max(data[i],v);
+          // float v = 0.5f;
+          // if(std::isfinite(v)){
+          data[i] = max(data[i],v);
             // printf("(%.2f %.2f %.2f) -> %.f", x,y,z,v);
-          }
+          // }
         }
       }
     }
   }
+}
+
+void ArFilter::draw_blobs(std::vector<ScaleBlob*> blobs, bool highlight){
+  printf("draw blobs.");
+  using namespace glm;
+
+  const int nthreads = 12;
+  float *lock  = self.buff[itempbuf()];
+  float *data  = self.buff[self.curr];
+
+  pthread_t threads[nthreads];
+  thread_drawblobs_info info[nthreads];
+
+
+  for(int i=0;i<nthreads;i++){
+    info[i].blobs = &blobs;
+    info[i].lock = lock;
+    info[i].data = data;
+    info[i].filter = this;
+
+    info[i].blobmin = (i*blobs.size())/nthreads;
+    info[i].blobmax = ((i+1)*(blobs.size()))/nthreads;
+  }
+
+  for(int i=0;i<nthreads;++i){
+    if(pthread_create(threads+i, NULL, t_draw_blobs, info+i)){
+      fprintf(stderr, "error creating render thread.\n");
+      exit(0);
+    }
+  }
+  for(int i=0;i<nthreads;++i){
+    if(int err = pthread_join(threads[i], 0)){
+      fprintf(stderr, "error joining render thread. %d\n", err);
+      exit(0);
+    }
+  }
+
+
+  // tick("draw blobs");
+  // printf("done.");
 
   /////////////////////////////////////////////////////////////////////
 
@@ -1037,10 +1143,10 @@ ScaleBlob* ArFilter::compute_blob_tree(){
   // we want to compute the gaussian of the image at various scales.
   // use the fact that the composition of gaussians is a gaussian with
   //  c^2 = a^2 + b^2.
-  while(scale < 9.f){
+  while(scale < 8.f){
 
     // printf("filter stack: %p %p. curr=%d.\n", self.buff[0], self.buff[1], self.curr);
-    printf("gaussian %.2f",sigma);
+    printf("gaussian %.2f -> scale %.2f",sigma, scale);
     kernel = gaussian(sigma, int(sigma*4));   // create gaussian kernel with new sigma.
     set_kernel(kernel);                       //
     filter();                                 // compute gaussian blur, store in self.buff[curr].
@@ -1099,7 +1205,7 @@ ScaleBlob* ArFilter::compute_blob_tree(){
     //   }
     // }
 
-    sigma += 1.f;
+    sigma += 1.5f;
     kernel.destroy();
 
     temp = self.buff[self.curr];

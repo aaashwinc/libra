@@ -1,5 +1,5 @@
 #include "pipeline.h"
-#include <chrono> 
+#include "util.h"
 #include <iostream>
 #include <glm/glm.hpp>
 #include <stdio.h>
@@ -16,14 +16,6 @@
 using namespace std::chrono; 
 using namespace std;
 
-static void tick(std::string text){
-  static auto clock = high_resolution_clock::now();
-  auto next = high_resolution_clock::now();
-  long d = duration_cast<milliseconds>(next-clock).count();
-  printf("%s",text.c_str());
-  printf(">> elapsed %lums\n\n",d);
-  clock = next;
-}
 ReprMode::ReprMode(const char *name){
   this->name = name;
   this->geom = "none";
@@ -34,7 +26,7 @@ ReprMode::ReprMode(const char *name){
   highlight.paths = std::vector<std::vector<ScaleBlob*>>();
   highlight.timestep = -1;
   highlight.locus    = vec3(0,0,0);
-  highlight.path_smooth_alpha = 0.f;
+  highlight.path_smooth_alpha = 0.9f;
 }
 bool ReprMode::operator==(ReprMode &r){
   return (name == r.name) && (timestep == r.timestep)
@@ -90,6 +82,29 @@ static float compute_epsilon(std::vector<float> &v){
   }
   return eps/2.f;
 }
+void ArPipeline::path_highlight(ReprMode *rm, vec3 p, vec3 ray, bool diagnose, bool add){
+  if(!get(rm->timestep).complete){
+    printf("timestep not yet complete. break.\n");
+  }
+  ray = normalize(ray)*3.f;
+  std::vector<ScaleBlob*> found;
+  ArFrameData frame = get(rm->timestep);
+  BSPTree<ScaleBlob> *bsptree = &(frame.bspblobs);
+
+  // shoot ray out until it hits a blob.
+  // imagine this ray as actually being a "cone" projecting outward,
+  // with higher precision near the start.
+  for(int i=0;i<100 && found.size()==0;++i){
+    p+=ray;
+    bsptree->find_within_distance(found, p, i+1);
+    if(found.size()>0){
+      break;
+    }
+  }
+  ScaleBlob *locus = found[0];
+  rm->highlight.highlight_loci.clear();
+  rm->highlight.highlight_loci.push_back(found[0]);
+}
 
 void ArPipeline::repr_highlight(ReprMode *rm, vec3 p, vec3 ray, bool diagnose, bool add){
   if(get(rm->timestep).complete){
@@ -114,7 +129,8 @@ void ArPipeline::repr_highlight(ReprMode *rm, vec3 p, vec3 ray, bool diagnose, b
         rm->highlight.highlight_loci.push_back(found[0]);
 
         found = std::vector<ScaleBlob*>();
-        bsptree->find_within_distance(found, p, 9);
+        // found = bsptree->as_vector();
+        bsptree->find_within_distance(found, p, 625);
       }
     }
 
@@ -130,13 +146,14 @@ void ArPipeline::repr_highlight(ReprMode *rm, vec3 p, vec3 ray, bool diagnose, b
     }
     for(std::vector<ScaleBlob*> path : paths){
       for(ScaleBlob *blob : path){
-        if(glm::distance(vec3(blob->position), p) < 5){
+        if(glm::distance(vec3(blob->position), p) < 15){
           rm->highlight.paths.push_back(path);
           break;
         }
         // break;
       }
     }
+    if(add)rm->highlight.paths = paths;
     rm->highlight.locus = p;
     rm->highlight.timestep = rm->timestep;
     // rm->highlight.paths = longest_paths(rm->highlight.blobs);
@@ -169,7 +186,7 @@ static std::vector<ScaleBlob*> collect_blobs(ScaleBlob *blob, float scalemin, fl
   if(blob->scale >= scalemin || blob->scale == 0){
     if(blob->scale <= scalemax || blob->scale == 0){
       // printf(".");
-      blobs.push_back(blob);      
+      blobs.push_back(blob);
     }
     for(ScaleBlob *child : blob->children){
       std::vector<ScaleBlob*> childblobs = collect_blobs(child, scalemin, scalemax);
@@ -185,7 +202,11 @@ static std::vector<ScaleBlob*> collect_blobs(ScaleBlob *blob, float scalemin, fl
  * minlen in length.
  *
  */
-void ArPipeline::find_paths(int minlen, int maxframe){
+
+static bool fun_sort_blob_by_n(ScaleBlob* a, ScaleBlob* b){
+  return a->n > b->n;
+}
+void ArPipeline::find_paths(int minlen, int maxframe, char* mode){
   if(maxframe <= 0)maxframe = frames.size();
   if(maxframe > frames.size())maxframe = frames.size();
   std::vector<ScaleBlob*> allblobs;
@@ -193,19 +214,26 @@ void ArPipeline::find_paths(int minlen, int maxframe){
     if(frames[i].complete){           // if it is processed
                                       // collect blobs
       std::vector<ScaleBlob*> blobsi = collect_blobs(frames[i].blob, 0, std::numeric_limits<float>::infinity());
+      std::sort(blobsi.begin(), blobsi.end(), fun_sort_blob_by_n);
+      // for(auto sb : blobsi){
+      //   printf("%.2f; ", sb->n);
+      // }printf("\n");
       allblobs.insert(allblobs.end(), blobsi.begin(), blobsi.end());
       // minlen = int(i*0.75);
     }
   }
   printf("find paths > %d.\n", minlen);
   printf("find paths in %lu blobs.\n", allblobs.size());
-  std::vector<std::vector<ScaleBlob*>> allpaths = longest_paths(allblobs, minlen);
+  std::vector<std::vector<ScaleBlob*>> allpaths;
+  if(!strcmp(mode, "quick"))   allpaths = longest_paths(allblobs, minlen);
+  if(!strcmp(mode, "longest")) allpaths = longest_paths2(allblobs, minlen);
   paths.clear();
   for(int i=0;i<allpaths.size();++i){
     if(allpaths[i].size() > minlen){
       paths.push_back(allpaths[i]);
     }
   }
+  paths = allpaths;
   printf("found %lu paths.\n", paths.size());
 }
 
@@ -233,12 +261,52 @@ void ArPipeline::find_paths(int minlen, int maxframe){
     //   }
     //   filter.destroy();
     // }
+
+// void ArPipeline::link_frames(int low, int high){
+//   if(high > exp->high){
+//     high = exp->high;
+//     printf("pipeline.link_frames, low=%d, high=%d\n", low, high);
+//   }
+//   for(int frame=low;frame<=high-1;frame++){
+//     if(!get(frame).complete)break;
+    
+//     BSPTree<ScaleBlob> *t0 = &frames[ frame - exp->low    ].bspblobs;
+//     BSPTree<ScaleBlob> *t1 = &frames[ frame - exp->low +1 ].bspblobs;
+
+//     std::vector<ScaleBlob*> v0 = t0->as_vector();
+//     for(ScaleBlob *sb : v0){
+//       std::vector<ScaleBlob*> potential;
+//       t1->find_within_distance(potential, sb->position, 1000.f);
+//       for(int i=0;i<potential.size();i++){
+
+//         //  *** NOTE ***
+//         // 1.0 means touching. I don't know what 2.0 means. This is somewhat
+//         // arbitrary, but we notice that in the data, sometimes successor
+//         // blobs aren't touching predecessor blobs, so we need a small margin.
+//         // In any case, we next want to choose the potential successor with
+//         // the smallest distance and closest scale.
+//         //  *** **** ***
+
+//         if(sb->n>1 && potential[i]->n>1 && sb->distance(potential[i]) <= 1.f){
+//           if(sb->detCov/potential[i]->detCov < 2.f && potential[i]->detCov/sb->detCov < 8.f){
+//             // volume cannot more than double or half.
+//             sb->succ.push_back(potential[i]);
+//             potential[i]->pred.push_back(sb);
+//           }
+//         }
+//         // printf("%d.", i);
+//       }
+//       // printf("o");
+//       ++itr;
+//       // for(ScaleBlob *sb0 : sb->succ){
+//       //   sb0->pred.push_back(sb);
+//       // }
+//     }
+//   }
+// }
 /* store.buf[0] contains the output of the filter chain.
  * store.buf[1] contains the output of repr().
  */
-void ArPipeline::link(int low, int high){
-  
-}
 void ArPipeline::process(int low, int high){
   if(high > exp->high){
     high = exp->high;
@@ -294,7 +362,7 @@ void ArPipeline::process(int low, int high){
           //  *** **** ***
 
           if(sb->n>1 && potential[i]->n>1 && sb->distance(potential[i]) <= 1.f){
-            if(sb->detCov/potential[i]->detCov < 8.f && potential[i]->detCov/sb->detCov < 8.f){
+            if(sb->n/potential[i]->n < 8.f && potential[i]->n/sb->n < 8.f){
               // volume cannot more than double or half.
               sb->succ.push_back(potential[i]);
               potential[i]->pred.push_back(sb);
@@ -302,6 +370,11 @@ void ArPipeline::process(int low, int high){
           }
           // printf("%d.", i);
         }
+        std::sort(sb->succ.begin(), sb->succ.end(), fun_sort_blob_by_n);
+
+        // for(ScaleBlob *next : sb->succ){
+        //   printf("%.2f; ", next->n);
+        // }printf("\n");
         // printf("o");
         ++itr;
         // for(ScaleBlob *sb0 : sb->succ){
@@ -359,6 +432,18 @@ ArGeometry3D* ArPipeline::reprgeometry(ReprMode &mode){
       }
 
 
+      geometry.lines.push_back(dvec3(0,0,0));
+      geometry.lines_c.push_back(sf::Color(255,0,0,255));
+      geometry.lines.push_back(dvec3(100,0,0));
+      geometry.lines_c.push_back(sf::Color(255,0,0,255));
+      geometry.lines.push_back(dvec3(0,0,0));
+      geometry.lines_c.push_back(sf::Color(0,255,0,255));
+      geometry.lines.push_back(dvec3(0,100,0));
+      geometry.lines_c.push_back(sf::Color(0,255,0,255));
+      geometry.lines.push_back(dvec3(0,0,0));
+      geometry.lines_c.push_back(sf::Color(0,0,255,255));
+      geometry.lines.push_back(dvec3(0,0,100));
+      geometry.lines_c.push_back(sf::Color(0,0,255,255));
       // draw trajectory of highlighted blobs
       if(!mode.highlight.blobs.empty()){
         // std::queue<ScaleBlob*> traverse;
@@ -390,28 +475,87 @@ ArGeometry3D* ArPipeline::reprgeometry(ReprMode &mode){
         // }
 
         // draw the longest trajectories.
-        double path_smooth_beta = 1.f - mode.highlight.path_smooth_alpha;
+        // double path_smooth_beta = 1.f - mode.highlight.path_smooth_alpha;
+        // printf("Draw %d paths.\n", mode.highlight.paths.size());
+
         for(std::vector<ScaleBlob*> path : mode.highlight.paths){
+
+          std::vector<glm::dvec3> smoothed(path.size());
+
+          // smooth path
+          int smooth_path = 40;
+          for(int i=0;i<path.size();i++){
+            int k = smooth_path;
+            if(i-k < 0){
+              k = i;
+            }
+            if(i+k >= path.size()){
+              k = path.size() - i - 1;
+            }
+            int j0 = i-k;
+            int j1 = i+k;
+            float n=k*2+1;
+            for(int j=j0;j<=j1;++j){
+              // ++n;
+              smoothed[i] += path[j]->position;
+            }
+            // if(i == 0){
+              // printf("%d %d %d %.2f\n", i, j0, j1, n);
+            // }
+            smoothed[i] /= n;
+            // smoothed[i] = path[i]->position;
+          }
+
+          smoothed = std::vector<glm::dvec3>(2);
+          smoothed[0] = path[1]->position;
+          smoothed[1] = path[path.size()-1]->position - path[1]->position;
+          smoothed[1] *= 20.f/glm::length(smoothed[1]);
+          smoothed[1] += smoothed[0];
+
           float len  = float(path.size());
+          // if(len<20)continue;
           float step = 1.f/len;
           glm::dvec3 weightedp = path[0]->position;
-          for(int j=0;j<path.size()-1;j++){
+          for(int j=0;j<smoothed.size()-1;j++){
             // geometry.lines.push_back(path[j]->position);
             // geometry.lines.push_back(path[j+1]->position);
-            geometry.lines.push_back(weightedp);
-            glm::dvec3 weightedq = path[j+1]->position;
+            // geometry.lines.push_back(weightedp);
+            // glm::dvec3 weightedq = path[j+1]->position;
             
-            weightedp = (weightedp * mode.highlight.path_smooth_alpha) + (weightedq * path_smooth_beta);
+            // weightedp = (weightedp * mode.highlight.path_smooth_alpha) + (weightedq * path_smooth_beta);
 
-            geometry.lines.push_back(weightedp);
-            int r0 = 0   + int(200.f * step * j    );
-            int g0 = 155 + int(100.f * step * j    );
-            int b0 = 255 - int(250.f * step * j    );
-            int r1 = 0   + int(200.f * step * (j+1));
-            int g1 = 155 + int(100.f * step * (j+1));
-            int b1 = 255 - int(250.f * step * j    );
-            geometry.lines_c.push_back(sf::Color(r0,g0,b0,255));
-            geometry.lines_c.push_back(sf::Color(r1,g1,b1,255));
+            // geometry.lines.push_back(weightedp);
+
+            geometry.lines.push_back(smoothed[j]);
+            geometry.lines.push_back(smoothed[j+1]);
+
+            const int SMOOTH   = 0;
+            const int GRADIENT = 1;
+            int pathcolormode = GRADIENT;
+
+            if(pathcolormode == SMOOTH){
+              int r0 = 0   + int(200.f * step * j    );
+              int g0 = 155 + int(100.f * step * j    );
+              int b0 = 255 - int(250.f * step * j    );
+              int r1 = 0   + int(200.f * step * (j+1));
+              int g1 = 155 + int(100.f * step * (j+1));
+              int b1 = 255 - int(250.f * step * j    );
+              geometry.lines_c.push_back(sf::Color(r0,g0,b0,255));
+              geometry.lines_c.push_back(sf::Color(r1,g1,b1,255));
+            }
+            else if(pathcolormode == GRADIENT){
+              glm::dvec3 direction = path[path.size()-1]->position - path[0]->position;
+              float len = glm::length(direction);
+              direction = glm::normalize(direction);
+              int alpha = len*15;
+              if(alpha>255)alpha = 255;
+              int r,g,b;
+              r = 127 + direction.x*127;
+              g = 127 + direction.y*127;
+              b = 127 + direction.z*127;
+              geometry.lines_c.push_back(sf::Color(r,g,b,alpha));
+              geometry.lines_c.push_back(sf::Color(r,g,b,alpha));
+            }
           }
         }
       }
@@ -473,10 +617,6 @@ Nrrd *ArPipeline::repr(ReprMode &mode, bool force){
     printf("repr %s\n", mode.name);
     return store.buf[0];
   }
-  if(!strcmp(mode.name, "flow")){
-    printf("repr %s\n", mode.name);
-    return store.buf[0];
-  }
   if(!strcmp(mode.name, "sandbox")){
     filter.capture(exp->get(mode.timestep));
     // filter.clear();
@@ -505,6 +645,85 @@ Nrrd *ArPipeline::repr(ReprMode &mode, bool force){
   }
   last_repr  = mode;
   // printf("repr %s\n",mode.name);
+
+  if(!strcmp(mode.name, "flow")){
+    // visualize the flow of GFP throughout the experiment.
+    
+    printf("repr %s\n", mode.name); 
+    ArFrameData frame = get(mode.timestep);   
+    filter.capture(exp->get(exp->low));
+
+    // use a gaussian kernel
+    float scale = frame.scales[mode.blob.scale];
+    DiscreteKernel kernel = filter.gaussian(scale, int(scale*4));
+    filter.set_kernel(kernel);
+
+    // perform laplacian of gaussian
+    tick("flow");
+    filter.max1();
+    filter.filter();
+    filter.laplacian3d();
+    filter.normalize();
+
+    // get maxima at t=0
+    std::vector<std::vector<glm::vec3>> paths;
+
+    std::vector<ivec3> maxima = filter.find_maxima();
+    for(ivec3 maximum : maxima){
+      std::vector<vec3> path;
+      path.push_back(vec3(maximum.x, maximum.y, maximum.z));
+      paths.push_back(path);
+    }
+
+    // highlight.push_back(filter.find_maxima());
+
+    tick("t=0");
+
+    for(int i=0;i<10;i++){
+      printf("lap of gaus\n");
+      // laplacian of gaussian of frame i
+      filter.capture(exp->get(exp->low + i));
+      filter.max1();          // max
+      filter.filter();        // gaussian
+      filter.laplacian3d();   // laplacian
+      filter.normalize();     // normalize
+      printf("hill climb\n");
+      // hill-climb into the next frame.
+      for(int p=0;p<paths.size();p++){
+        ivec3 point(paths[p][i].x, paths[p][i].y, paths[p][i].z);
+        ivec3 hill = filter.hill_climb(point);
+        paths[p].push_back(hill);
+      }
+      // tick("hill-climb");
+    }
+
+    printf("found %d paths.\n", paths.size());
+    filter.clear();
+    for(int i=0;i<paths.size();i++){
+      for(int j=0;j<paths[i].size()-1;j++){
+        // printf("  line from %.2f %.2f %.2f to %.2f %.2f %.2f\n",
+         // paths[i][j].x,   paths[i][j].y,   paths[i][j].z,
+         // paths[i][j+1].x, paths[i][j+1].y, paths[i][j+1].z);
+         filter.rasterlineadd(paths[i][j], paths[i][j+1], 1.f, 1.f);
+      }
+    }
+    printf("gaussian.\n");
+
+    DiscreteKernel kernel2 = filter.gaussian(1.f, 5);
+    filter.set_kernel(kernel2);
+    filter.filter();        // gaussian
+    filter.normalize();
+    kernel2.destroy();
+
+    kernel.destroy();
+
+    // filter.clear();
+    // filter.highlight(highlight[0]);
+    // filter.highlight(highlight[1]);
+
+    filter.commit(store.buf[1]);
+    return (last_nrrd = store.buf[1]);
+  }
   if(!strcmp(mode.name, "blobs") || !strcmp(mode.name, "blobs_succs")){
     ArFrameData frame = get(mode.timestep);
     float scalemin = frame.scales[mode.blob.scale] - frame.scale_eps;
@@ -532,8 +751,8 @@ Nrrd *ArPipeline::repr(ReprMode &mode, bool force){
 
     // for(ScaleBlob *sb : mode.highlight.blobs){
     if(mode.highlight.highlight_loci.size() > 0){
-      printf("highlight %lu; scale = %.2f \n", mode.highlight.highlight_loci.size(), mode.highlight.highlight_loci[0]->scale);
-      filter.color_blobs(mode.highlight.highlight_loci, 2.f);
+      // printf("highlight %lu; scale = %.2f \n", mode.highlight.highlight_loci.size(), mode.highlight.highlight_loci[0]->scale);
+      // filter.color_blobs(mode.highlight.highlight_loci, 2.f);
     }
     if(mode.highlight.highlight_loci.size() > 1){
       int i=0;
@@ -823,6 +1042,7 @@ void ArPipeline::load(){
   for(int i=0;i<nframes;i++){
     ArFrameData fd;
     fd.blob      = allblobs[frameroots[i]];
+    // printf("%p\n", fd.blob);
     fd.scales    = collect_scales(fd.blob);
     fd.scale_eps = compute_epsilon(fd.scales);
     fd.complete  = true;

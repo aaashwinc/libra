@@ -96,6 +96,7 @@ void View::draw_geometry(){
 
     line3 clipped = camera.to_screen(line3(geom.lines[i]/33.f, geom.lines[i+1]/33.f), ivec2(square, square));
 
+
     // vec3 ps0 = camera.to_screen(geom.lines[i+0], ivec2(square, square));
     // vec3 ps1 = camera.to_screen(geom.lines[i+1], ivec2(square, square));
 
@@ -104,6 +105,19 @@ void View::draw_geometry(){
       lines[i  ].color = sf::Color::Transparent;
       lines[i+1].color = sf::Color::Transparent;
     }
+
+    bool too_far = clipped[1].z > 15 || clipped[0].z > 15;
+    if(too_far){
+      lines[i  ].color = sf::Color::Transparent;
+      lines[i+1].color = sf::Color::Transparent;
+      lines[i+0].position.x = 0;
+      lines[i+0].position.y = 0;
+      lines[i+1].position.x = 0;
+      lines[i+1].position.y = 0;
+      continue;
+    }
+    lines[i  ].color.a = 255 - clipped[0].z*17;
+    lines[i+1].color.a = 255 - clipped[1].z*17;
     // else{
     //   if(ps0.z < 0){
     //     vec3 v = ps1 - ps0; // v.z > 0
@@ -233,12 +247,15 @@ void* View::t_raytrace(void* vinfo){
         float v = info->fi->view->qsample(0, p.x, p.y, p.z);
         if(v<0)break;
         // if(v>0)printf("v=%.2f\n",v);
-        probe = info->fi->view->colormap.colorof(v);
-        if(probe.w > 0.01f){
-          color_x += probe.x*probe.w*color_w;
-          color_y += probe.y*probe.w*color_w;
-          color_z += probe.z*probe.w*color_w;
-          color_w += -color_w*probe.w;
+
+        if(v > 0.001){
+          probe = info->fi->view->colormap.colorof(v);
+          if(probe.w > 0.01f){
+            color_x += probe.x*probe.w*color_w;
+            color_y += probe.y*probe.w*color_w;
+            color_z += probe.z*probe.w*color_w;
+            color_w += -color_w*probe.w;
+          }
         }
 
         color_w -= info->fi->view->falloff; // some light is absorbed or refracted away.

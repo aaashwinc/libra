@@ -74,14 +74,14 @@ public:
 
   ArPipeline(ArExperiment *exp);
   void process(int low, int high);
-  void link(int low, int high);
-  void find_paths(int minlen, int maxframe);
+  void find_paths(int minlen, int maxframe, char* mode);
   Nrrd *repr(ReprMode &mode, bool force=false);
   ArGeometry3D *reprgeometry(ReprMode &mode);
 
   ReprMode repr_coarser(ReprMode);
   ReprMode repr_finer(ReprMode);
   void repr_highlight(ReprMode *rm, vec3 p, vec3 ray, bool diagnose=false, bool add=false);
+  void path_highlight(ReprMode *rm, vec3 p, vec3 ray, bool diagnose=false, bool add=false);
 
   void save();
   void load();

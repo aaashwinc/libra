@@ -37,6 +37,8 @@ public:
   float n;
   int npass;
 
+  // bool initialized;
+
   ScaleBlob();
   float pdf(vec3 p);
   float cellpdf(vec3 p);

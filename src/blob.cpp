@@ -29,6 +29,8 @@ ScaleBlob::ScaleBlob(){
   succ = std::vector<ScaleBlob*>();
 
   children = std::vector<ScaleBlob*>();
+
+  // initialized = false;
 }
 void ScaleBlob::pass(vec3 point, float value){
   if(npass == 0){  // calculate mean, min, max.
@@ -61,8 +63,10 @@ float ScaleBlob::pdf(vec3 p){
 float ScaleBlob::cellpdf(vec3 p){
   p = p - vec3(position);
   float mag = glm::dot(p,(invCov*p));
-  if(mag<1.f) return 1.f;
-  else        return float(erf(2-mag)*0.5+0.5);
+  if(mag<1.f)  return 1.f;
+  if(mag>3.5f) return 0.f;
+  else         return 1 - 0.4 * (-1 + mag);
+  // else         return float(erf(2-mag)*0.5+0.5);
   // float mag = glm::dot(p,(invCov*p));
   // return 1.f/(0.1f + 0.05f*mag*mag);
 }
@@ -88,6 +92,7 @@ void ScaleBlob::commit(){
                   invCov[1][0], invCov[1][1], invCov[1][2],
                   invCov[2][0], invCov[2][1], invCov[2][2];
   }
+  // initialized = true;
 }
 void ScaleBlob::print(){
   printf("blob %.2f at %.2f %.2f %.2f; xyz %.3f %.3f %.3f; xy/xz/yz %.3f %.3f %.3f\n", n,

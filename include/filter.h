@@ -22,7 +22,7 @@ public:
 
 
 class ArFilter{
-private:
+public:
   struct{
     Nrrd  **nrrd;
     float **buff;   // transient internal buffers for computing
@@ -63,10 +63,14 @@ public:
   void print();
   void clear();
 
+  // void gaussian(float scale);
+  void lapofgaussian(float scale);
+
   // raster operations
   void rasterlineadd(vec3 a, vec3 b, float va, float vb);
 
   std::vector<glm::ivec3> find_maxima();
+  ivec3 hill_climb(ivec3 in);
   void highlight(std::vector<glm::ivec3> points);
   std::vector<ScaleBlob*> find_blobs();
   void draw_blobs(std::vector<ScaleBlob*>, bool highlight=false);

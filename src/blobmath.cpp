@@ -1,8 +1,11 @@
 #include "blobmath.h"
 
 #include <unordered_map>
+#include <map>
 #include <deque>
 #include <set>
+
+
 
 std::vector<ScaleBlob*> longest_path(ScaleBlob* sb){
   // printf("longest path %p\n", sb);
@@ -17,8 +20,13 @@ std::vector<ScaleBlob*> longest_path(ScaleBlob* sb){
   std::unordered_map<ScaleBlob*, pathinfo> paths;
   std::deque<ScaleBlob*> traverse;
   traverse.push_front(sb);
+  // printf("front=%p\n", sb);
   paths[sb] = {0, 0, false};
   while(!traverse.empty()){
+    // printf("traverse = ");
+    // for(int i=0;i<traverse.size();i++){
+    //   printf("%.2f ", traverse[i]->n);
+    // }printf("\n");
     ScaleBlob *curr = traverse.front();
     // printf("traverse (%lu): head = %p\n",traverse.size(), curr);
     pathinfo pi = paths[curr];
@@ -64,6 +72,211 @@ std::vector<ScaleBlob*> longest_path(ScaleBlob* sb){
   return result;
 }
 
+
+/**
+ * Traverse *input* in order, and successively return the longest
+ * paths. Paths may not intersect. Assume that *input* contains
+ * blobs as well as all of their children.
+*/
+std::vector<std::vector<ScaleBlob*>> compute_paths(std::vector<ScaleBlob*> input, int minlength){
+  std::vector<std::vector<ScaleBlob*>> paths;
+  struct blobinfo{
+    bool alive;
+  };
+  // std::unordered_map<ScaleBlob*, blobinfo> paths;
+  std::map<ScaleBlob*, blobinfo> info;
+  // std::unordered_map<ScaleBlob*, pathinfo> paths;
+  for(ScaleBlob *blob : input){
+    info[blob].alive = true;
+  }
+  // for each blob in input
+  for(int i=0; i<input.size(); i++){
+    // printf("loop %d...", i);
+
+    // if the blob is still alive
+    if(info[input[i]].alive){
+
+      // printf("longest path...");
+      //find longest path
+      std::vector<ScaleBlob*> path;
+
+      // this is a weird while loop.
+      ScaleBlob *curr = input[i];
+      path.push_back(curr);
+      bool foundnext = true;
+      while(foundnext){
+        foundnext = false;
+        for(ScaleBlob *next : curr->succ){
+          if(info[next].alive){
+            path.push_back(next);
+            curr = next;
+            foundnext = true;
+            break;
+          }
+        }
+      }
+      if(path.size() > minlength){
+
+        paths.push_back(path);
+        // printf("found path with size %d.\n", path.size());
+        // printf("kill...");
+        // for each blob in path
+        for(ScaleBlob *sb : path){
+
+          // kill its children
+          std::deque<ScaleBlob*> traverse;
+          // printf("kill children.\n");
+          traverse.push_back(sb);                     // push the root.
+          while(!traverse.empty()){                   // while there are more...
+            ScaleBlob* front = traverse.front();      // get the next element
+            traverse.pop_front();                     // remove from queue
+            for(ScaleBlob *child : front->children){  // add all of its children
+              traverse.push_back(child);              //   to the queue
+            }
+            info[front].alive = false;
+          }
+          // printf("kill parents.\n");
+          // kill its parents
+          ScaleBlob* t = sb;
+          while(t){
+            // printf("%p %.2f, ", t, t->n);
+            info[t].alive = false;
+            t = t->parent;
+          }
+          // kill it
+          info[sb].alive = false;
+
+        }
+      }
+    }
+  }
+  printf("found %d paths.\n", paths.size());
+  return paths;
+}
+std::vector<std::vector<ScaleBlob*>> longest_paths2(std::vector<ScaleBlob*> input, int minlength){
+  
+  std::vector<std::vector<ScaleBlob*>> paths;
+  struct blobinfo{
+    blobinfo(){
+      next = 0;
+      length = 0;
+      alive = true;
+      expanded = false;
+      mature = false;
+    }
+    ScaleBlob* self;
+    ScaleBlob* next;
+    int length;
+    bool alive;
+    bool expanded;
+    bool mature;
+    static bool fun_sort_blob_by_length(blobinfo a, blobinfo b){
+      return a.length > b.length;
+    }
+  };
+  std::map<ScaleBlob*, blobinfo> info;
+  std::deque<ScaleBlob*> traverse;
+  for(int i=0;i<input.size();i++){
+    traverse.push_front(input[i]);
+    info[input[i]] = blobinfo();
+    info[input[i]].self = input[i];
+  }
+  printf("hello\n");
+
+  // form DP map for finding longest path
+  while(!traverse.empty()){
+    ScaleBlob *front = traverse.front();
+    if(info[front].length>0){    // alrady computed this node.
+      traverse.pop_front();
+      continue;
+    }
+    if(!info[front].expanded){    // first time visiting it. make sure to visit successors first and then come back.
+      for(ScaleBlob *sb : front->succ){
+        traverse.push_front(sb);
+      }
+      info[front].expanded = true;
+    }
+    else{                   // second time visiting node. all of the successors have been computed.
+      int bestlen = 0;
+      ScaleBlob *bestsucc = 0;
+      for(ScaleBlob *sb : front->succ){
+        if(!bestsucc || 
+           info[sb].length > bestlen || 
+          (info[sb].length == bestlen && sb->scale < bestsucc->scale) ||
+          (info[sb].length == bestlen && sb->scale == bestsucc->scale && sb->n > bestsucc->n)){
+          bestsucc = sb;
+          bestlen = info[sb].length;
+        }
+      }
+      info[front].next = bestsucc;
+      info[front].length = bestlen + 1;
+      info[front].mature = true;
+    }
+  }
+  printf("goodbye\n");
+
+  int maxn = 10;
+  
+  std::vector<blobinfo> infos;
+  for(ScaleBlob *b : input){
+    infos.push_back(info[b]);
+  }
+
+  std::sort(infos.begin(), infos.end(), blobinfo::fun_sort_blob_by_length);
+
+  for(blobinfo sbinfo : infos){
+    ScaleBlob* sb = sbinfo.next;
+    if(!info[sb].alive)continue;    // continue if this is not alive.
+
+    std::vector<ScaleBlob*> path;
+    ScaleBlob* curr = sb;
+    while(curr){
+      if(!info[curr].alive)break;   // follow path so long as it is alive.
+      path.push_back(curr);
+      curr = info[curr].next;
+    }
+
+    if(path.size() < minlength){    // continue if not a long enough path.
+      // printf("; %d continuing...", path.size());
+      continue;
+    }
+    paths.push_back(path);
+
+    --maxn;
+    // if(maxn<=0)break;
+
+    for(ScaleBlob *sb : path){
+
+      // kill its children
+      std::deque<ScaleBlob*> queue;
+      // printf("kill children.\n");
+      queue.push_back(sb);                     // push the root.
+      while(!queue.empty()){                   // while there are more...
+        ScaleBlob* front = queue.front();      // get the next element
+        queue.pop_front();                     // remove from queue
+        for(ScaleBlob *child : front->children){  // add all of its children
+          queue.push_back(child);              //   to the queue
+        }
+        info[front].alive = false;
+      }
+      // printf("kill parents.\n");
+      // kill its parents
+      ScaleBlob* t = sb;
+      while(t){
+        // printf("%p %.2f, ", t, t->n);
+        info[t].alive = false;
+        t = t->parent;
+      }
+      // kill it
+      info[sb].alive = false;
+
+    }
+  }
+  printf("end.\n");
+
+  return paths;
+
+}
 /*
  * find the longest paths (in order from longest to shortest) in a given list
  * of ScaleBlobs (and their children). Do this by repeating:
@@ -88,7 +301,7 @@ std::vector<std::vector<ScaleBlob*>> longest_paths(std::vector<ScaleBlob*> input
     ScaleBlob* next;  // longest path successor.
     int length;       // length of longest path.
     bool alive;       // can we still use this blob as a node? (not been removed?)
-    bool mature;
+    bool mature;      // is this blob populated with data
   };
 
   std::unordered_map<ScaleBlob*, pathinfo> paths; // store pathinfo for each blob.
@@ -163,7 +376,7 @@ std::vector<std::vector<ScaleBlob*>> longest_paths(std::vector<ScaleBlob*> input
 
         // keep track of the longest path.
         if(!longest || paths[curr].length > paths[longest].length
-           || ((paths[curr].length == paths[longest].length) && (curr->scale < longest->scale))){
+           || ((paths[curr].length == paths[longest].length) && (curr->n > longest->n))){
           longest = curr;
         }
         // printf("path %p -> %p (%d)\n", curr, pi.next, pi.length);

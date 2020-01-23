@@ -316,4 +316,5 @@
  /usr/local/include/eigen3/Eigen/Eigenvalues \
  /home/ashwin/repo/libra/build/../include/bsptree.h \
  /home/ashwin/repo/libra/build/../include/shapes.h \
+ /home/ashwin/repo/libra/build/../include/util.h \
  /home/ashwin/repo/libra/build/../include/blobmath.h

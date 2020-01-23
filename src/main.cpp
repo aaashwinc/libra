@@ -70,7 +70,7 @@ public:
     text.setFillColor(sf::Color::White);
     text.setStyle(sf::Text::Bold);
 
-    window = new sf::RenderWindow(sf::VideoMode(800, 600), "Artemis");
+    window = new sf::RenderWindow(sf::VideoMode(800, 600), "ACellTracking");
     window->setFramerateLimit(30);
 
     sfview = window->getDefaultView();
@@ -109,7 +109,7 @@ public:
 
     // printf("camera: %.2f %.2f %.2f\n",view->camera.right.x,view->camera.right.y,view->camera.right.z);
 
-    experiment = new ArExperiment("/home/ashwin/data/miniventral2/???.nrrd",0,99,4);
+    experiment = new ArExperiment("/home/ashwin/data/16-05-05/???.nrrd",0,99,2);
 
     pipeline = new ArPipeline(experiment);
     view->setvolume(pipeline->repr(reprmode));
@@ -122,6 +122,7 @@ public:
 
     reprmode.name = "blobs";
     reprmode.geom = "graph";
+    // reprmode.timestep = 21;
     view->setvolume(pipeline->repr(reprmode));
     view->setgeometry(pipeline->reprgeometry(reprmode));
     view->touch();
@@ -273,8 +274,8 @@ public:
 
     // move timestep
     if(keys[sf::Keyboard::O]){
-      if(!keys[sf::Keyboard::LShift]){
-        keys[sf::Keyboard::O] = false;
+      if(keys[sf::Keyboard::LShift]){
+        reprmode.timestep -= 14;
       }
       --reprmode.timestep;
       view->setvolume(pipeline->repr(reprmode));
@@ -282,8 +283,8 @@ public:
       view->touch();
     }
     if(keys[sf::Keyboard::P]){
-      if(!keys[sf::Keyboard::LShift]){
-        keys[sf::Keyboard::P] = false;
+      if(keys[sf::Keyboard::LShift]){
+        reprmode.timestep += 14;
       }
       ++reprmode.timestep;
       view->setvolume(pipeline->repr(reprmode));
@@ -332,11 +333,11 @@ public:
       view->setvolume(pipeline->repr(reprmode));
       view->touch();
     }
-    if(keys[sf::Keyboard::Num7]){
-      reprmode.name = "blobs_succs";
-      view->setvolume(pipeline->repr(reprmode));
-      view->touch();
-    }
+    // if(keys[sf::Keyboard::Num7]){
+    //   reprmode.name = "blobs_succs";
+    //   view->setvolume(pipeline->repr(reprmode));
+    //   view->touch();
+    // }
 
     // set scale of blobs to render
     if(keys[sf::Keyboard::I]){
@@ -371,6 +372,20 @@ public:
       view->touch();
       keys[sf::Keyboard::G] = false;
     }
+    if(keys[sf::Keyboard::C]){
+      if(!strcmp(reprmode.geom, "none")){
+        reprmode.geom = "paths";
+      }else if(!strcmp(reprmode.geom, "paths")){
+        reprmode.geom = "graph";
+      }else if(!strcmp(reprmode.geom, "graph")){
+        reprmode.geom = "succs";
+      }else{
+        reprmode.geom = "none";
+      }
+      view->setgeometry(pipeline->reprgeometry(reprmode));
+      view->touch();
+      keys[sf::Keyboard::G] = false;
+    }
     if(clicked[0]){
       printf("clicked %d %d\n", mousepos.x, mousepos.y);
       pipeline->repr_highlight(&reprmode, view->camera.pos*33.f, view->pixel_to_ray(vec2(mousepos)), keys[sf::Keyboard::LControl], keys[sf::Keyboard::LShift]);
@@ -379,18 +394,19 @@ public:
       view->touch();
       clicked[0] = false;
     }
+    // if(clicked[1]){
+    //   printf("rtclick %d %d\n", mousepos.x, mousepos.y);
+    //   pipeline->path_highlight(&reprmode, view->camera.pos*33.f, view->pixel_to_ray(vec2(mousepos)), keys[sf::Keyboard::LControl], keys[sf::Keyboard::LShift]);
+    //   // pipeline->repr_highlight(&reprmode, view->camera.pos*33.f, view->pixel_to_ray(vec2(mousepos)), keys[sf::Keyboard::LControl], keys[sf::Keyboard::LShift]);
+    //   // view->setvolume(pipeline->repr(reprmode, false)); // true = force re-render
+    //   // view->setgeometry(pipeline->reprgeometry(reprmode));
+    //   // view->touch();
+    //   clicked[1] = false;
+    // }
 
     // process timesteps {n,n+1}
     if(keys[sf::Keyboard::U]){
-      pipeline->process(reprmode.timestep,reprmode.timestep+30);
-      reprmode.name = "blobs";
-      reprmode.geom = "graph";
-      view->setvolume(pipeline->repr(reprmode));
-      view->setgeometry(pipeline->reprgeometry(reprmode));
-      view->touch();
-    }
-    if(keys[sf::Keyboard::Y]){
-      pipeline->link(reprmode.timestep,reprmode.timestep+30);
+      pipeline->process(reprmode.timestep,reprmode.timestep+50);
       reprmode.name = "blobs";
       reprmode.geom = "graph";
       view->setvolume(pipeline->repr(reprmode));
@@ -399,7 +415,8 @@ public:
     }
     if(keys[sf::Keyboard::L]){
 
-      pipeline->find_paths(15, 30);
+      if(keys[sf::Keyboard::LShift])pipeline->find_paths(40, -1, "quick");
+      else pipeline->find_paths(40, -1, "longest");
       // pipeline->process(reprmode.timestep,reprmode.timestep+2);
       // // reprmode.name = "blobs";
       // reprmode.geom = "graph";
