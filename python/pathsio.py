@@ -59,10 +59,10 @@ def load_paths():
   # xs = np.array(xs[1:-1])
   # ys = np.array(ys[1:-1])
   # zs = np.array(zs[1:-1])
-  return np.array(output)
+  return (output)
 
 # def sphere_paths():
-  
+
 
 
 # paths = load_paths()

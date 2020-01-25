@@ -106,7 +106,7 @@ void ArPipeline::path_highlight(ReprMode *rm, vec3 p, vec3 ray, bool diagnose, b
   rm->highlight.highlight_loci.push_back(found[0]);
 }
 
-void ArPipeline::repr_highlight(ReprMode *rm, vec3 p, vec3 ray, bool diagnose, bool add){
+void ArPipeline::repr_highlight(ReprMode *rm, vec3 p, vec3 ray, bool drawpaths, bool add){
   if(get(rm->timestep).complete){
     // printf("highlight along (%.2f %.2f %.2f) + (%.2f %.2f %.2f)\n",p.x,p.y,p.z, ray.x,ray.y,ray.z);
     ray = normalize(ray)*3.f;
@@ -114,15 +114,17 @@ void ArPipeline::repr_highlight(ReprMode *rm, vec3 p, vec3 ray, bool diagnose, b
     ArFrameData frame = get(rm->timestep);
     BSPTree<ScaleBlob> *bsptree = &(frame.bspblobs);
 
+    printf("number of blobs = %d\n", bsptree->n);
+
     // shoot ray out until it hits a blob.
     for(int i=0;i<100 && found.size()==0;++i){
       p+=ray;
       bsptree->find_within_distance(found, p, i+1);
-      if(found.size()>0 && !diagnose){
-        if(diagnose){
-          printf("highlight blob %p:\n", found[0]);
-          found[0]->print();
-        }
+      if(found.size()>0){
+        // if(drawpaths){
+        //   printf("highlight blob %p:\n", found[0]);
+        //   found[0]->print();
+        // }
         if(!add){
           rm->highlight.highlight_loci.clear();
         }
@@ -134,26 +136,32 @@ void ArPipeline::repr_highlight(ReprMode *rm, vec3 p, vec3 ray, bool diagnose, b
       }
     }
 
-    if(diagnose){
-      // lots of various diagnostic information...
-    }
-
     if(!add)rm->highlight.blobs.clear();
     for(int i=0;i<found.size();i++)rm->highlight.blobs.push_back(found[i]);
 
-    if(!add){
+    if(drawpaths){
+      // printf("drawpaths.\n");
+      if(add){
+        rm->highlight.paths = paths;
+      }else{
+        rm->highlight.paths.clear();
+        for(std::vector<ScaleBlob*> path : paths){
+          // if(path[0] == found[0]){
+          //   rm->highlight.paths.push_back(path);
+          // }
+          for(ScaleBlob *blob : path){
+            // printf("blob=%p\n,", blob);
+            if(glm::distance(vec3(blob->position), p) < 5){
+              rm->highlight.paths.push_back(path);
+              break;
+            }
+            // break;
+          }
+        }
+      }
+    }else{
       rm->highlight.paths.clear();
     }
-    for(std::vector<ScaleBlob*> path : paths){
-      for(ScaleBlob *blob : path){
-        if(glm::distance(vec3(blob->position), p) < 15){
-          rm->highlight.paths.push_back(path);
-          break;
-        }
-        // break;
-      }
-    }
-    if(add)rm->highlight.paths = paths;
     rm->highlight.locus = p;
     rm->highlight.timestep = rm->timestep;
     // rm->highlight.paths = longest_paths(rm->highlight.blobs);
@@ -180,11 +188,11 @@ ReprMode ArPipeline::repr_finer(ReprMode rm){
 
 static std::vector<ScaleBlob*> collect_blobs(ScaleBlob *blob, float scalemin, float scalemax){
   // scalemin = -1000;
-  // scalemax = 10000;
+  // scalemax = 10000;collect_blobs
   // printf("(");
   std::vector<ScaleBlob*> blobs;
-  if(blob->scale >= scalemin || blob->scale == 0){
-    if(blob->scale <= scalemax || blob->scale == 0){
+  if(blob->scale >= scalemin || blob->scale == 0 || scalemin == -1){
+    if(blob->scale <= scalemax || blob->scale == 0 || scalemax == -1){
       // printf(".");
       blobs.push_back(blob);
     }
@@ -206,7 +214,7 @@ static std::vector<ScaleBlob*> collect_blobs(ScaleBlob *blob, float scalemin, fl
 static bool fun_sort_blob_by_n(ScaleBlob* a, ScaleBlob* b){
   return a->n > b->n;
 }
-void ArPipeline::find_paths(int minlen, int maxframe, char* mode){
+void ArPipeline::findpaths(int minlen, int maxframe, char* mode){
   if(maxframe <= 0)maxframe = frames.size();
   if(maxframe > frames.size())maxframe = frames.size();
   std::vector<ScaleBlob*> allblobs;
@@ -307,6 +315,41 @@ void ArPipeline::find_paths(int minlen, int maxframe, char* mode){
 /* store.buf[0] contains the output of the filter chain.
  * store.buf[1] contains the output of repr().
  */
+
+void ArPipeline::link(int low, int high){
+  printf("linking...");
+  for(int frame = this->low(); frame <= high; ++frame){
+    if(get(frame).complete && get(frame+1).complete);
+    else continue;
+    BSPTree<ScaleBlob> *t0 = &frames[ frame - exp->low    ].bspblobs;
+    BSPTree<ScaleBlob> *t1 = &frames[ frame - exp->low +1 ].bspblobs;
+
+    std::vector<ScaleBlob*> v0 = t0->as_vector();
+    std::vector<ScaleBlob*> v1 = t1->as_vector();
+    // clear predecessors so we can rewrite them.
+    for(ScaleBlob *sb : v1){
+      sb->pred.clear();
+    }
+    for(ScaleBlob *sb : v0){
+      sb->succ.clear();       // clear successors so we can rewrite them.
+      std::vector<ScaleBlob*> potential;
+      ScaleBlob* closest = t1->find_closest(sb->position);
+      potential.push_back(closest);
+      t1->find_within_distance(potential, sb->position, 1000.f);
+      for(int i=0;i<potential.size();i++){
+        if(sb->n>1 && potential[i]->n>1 && sb->distance(potential[i]) <= 1.f){
+          if(sb->detCov/potential[i]->detCov < 8.f && potential[i]->detCov/sb->detCov < 8.f){            // volume cannot more than double or half.
+            sb->succ.push_back(potential[i]);
+            potential[i]->pred.push_back(sb);
+          }
+        }
+      }
+      std::sort(sb->succ.begin(), sb->succ.end(), fun_sort_blob_by_n);
+    }
+  }
+  printf("done.\n");
+
+}
 void ArPipeline::process(int low, int high){
   if(high > exp->high){
     high = exp->high;
@@ -391,6 +434,15 @@ ArGeometry3D* ArPipeline::reprgeometry(ReprMode &mode){
   geometry.lines = std::vector<vec3>();
   geometry.lines_c = std::vector<sf::Color>();
   // printf("mode %s\n", mode.geom);
+  if(!strcmp(mode.geom, "flow")){
+
+    // blobs = collect_blobs(frame.blob, 0, std::numeric_limits<float>::infinity());
+    // int i=0;
+    // for(int x=0;x<)
+    // for(ScaleBlob *sb : blobs){
+    //   geometry.lines.push_back(sb.position)
+    // }
+  }
   if(!strcmp(mode.geom, "graph") || !strcmp(mode.geom, "paths") || !strcmp(mode.geom, "succs")){
     if(get(mode.timestep).complete){
       ArFrameData frame = get(mode.timestep);
@@ -405,7 +457,7 @@ ArGeometry3D* ArPipeline::reprgeometry(ReprMode &mode){
       // }
 
 
-      if(!strcmp(mode.geom, "graph")){
+      if(!strcmp(mode.geom, "graph") || !strcmp(mode.geom, "succs")){
         // draw scale hierarchy:
         blobs = collect_blobs(frame.blob, 0, std::numeric_limits<float>::infinity());
         for(ScaleBlob *sb : mode.highlight.blobs){
@@ -432,6 +484,7 @@ ArGeometry3D* ArPipeline::reprgeometry(ReprMode &mode){
       }
 
 
+      // draw reference x- y- z- axes 
       geometry.lines.push_back(dvec3(0,0,0));
       geometry.lines_c.push_back(sf::Color(255,0,0,255));
       geometry.lines.push_back(dvec3(100,0,0));
@@ -444,6 +497,7 @@ ArGeometry3D* ArPipeline::reprgeometry(ReprMode &mode){
       geometry.lines_c.push_back(sf::Color(0,0,255,255));
       geometry.lines.push_back(dvec3(0,0,100));
       geometry.lines_c.push_back(sf::Color(0,0,255,255));
+      
       // draw trajectory of highlighted blobs
       if(!mode.highlight.blobs.empty()){
         // std::queue<ScaleBlob*> traverse;
@@ -482,37 +536,37 @@ ArGeometry3D* ArPipeline::reprgeometry(ReprMode &mode){
 
           std::vector<glm::dvec3> smoothed(path.size());
 
-          // smooth path
-          int smooth_path = 40;
-          for(int i=0;i<path.size();i++){
-            int k = smooth_path;
-            if(i-k < 0){
-              k = i;
+          if(true){   // smooth path
+            int smooth_path = 40;
+            for(int i=0;i<path.size();i++){
+              int k = smooth_path;
+              if(i-k < 0){
+                k = i;
+              }
+              if(i+k >= path.size()){
+                k = path.size() - i - 1;
+              }
+              int j0 = i-k;
+              int j1 = i+k;
+              float n=k*2+1;
+              for(int j=j0;j<=j1;++j){
+                smoothed[i] += path[j]->position;
+              }
+              smoothed[i] /= n;
+              // smoothed[i] = path[i]->position;
             }
-            if(i+k >= path.size()){
-              k = path.size() - i - 1;
-            }
-            int j0 = i-k;
-            int j1 = i+k;
-            float n=k*2+1;
-            for(int j=j0;j<=j1;++j){
-              // ++n;
-              smoothed[i] += path[j]->position;
-            }
-            // if(i == 0){
-              // printf("%d %d %d %.2f\n", i, j0, j1, n);
-            // }
-            smoothed[i] /= n;
-            // smoothed[i] = path[i]->position;
           }
 
-          smoothed = std::vector<glm::dvec3>(2);
-          smoothed[0] = path[1]->position;
-          smoothed[1] = path[path.size()-1]->position - path[1]->position;
-          smoothed[1] *= 20.f/glm::length(smoothed[1]);
-          smoothed[1] += smoothed[0];
+          if(false){  // draw vectors
+            smoothed = std::vector<glm::dvec3>(2);
+            smoothed[0] = path[0]->position;
+            smoothed[1] = path[path.size()-1]->position;
+            // smoothed[1] = path[path.size()-1]->position - path[1]->position;
+            // smoothed[1] *= 20.f/glm::length(smoothed[1]);
+            // smoothed[1] += smoothed[0];
+          }
 
-          float len  = float(path.size());
+          float len  = float(smoothed.size());
           // if(len<20)continue;
           float step = 1.f/len;
           glm::dvec3 weightedp = path[0]->position;
@@ -730,6 +784,7 @@ Nrrd *ArPipeline::repr(ReprMode &mode, bool force){
     float scalemax = frame.scales[mode.blob.scale] + frame.scale_eps;
     // printf("mode %s. view scale %d with %.2f %.2f\n", mode.name, scalemin, scalemax);
     std::vector<ScaleBlob*> blobs = collect_blobs(frame.blob, scalemin, scalemax);
+    // std::vector<ScaleBlob*> blobs = collect_blobs(frame.blob, -1, -1);
     
     // draw the blobs in paths at the current timestep.
     // if(!strcmp(mode.geom, "paths")){
@@ -742,9 +797,9 @@ Nrrd *ArPipeline::repr(ReprMode &mode, bool force){
 
     // printf("\n");
     filter.clear();
-    for(int i=0;i<mode.highlight.highlight_loci.size();i++){
-      blobs.push_back(mode.highlight.highlight_loci[i]);
-    }
+    // for(int i=0;i<mode.highlight.highlight_loci.size();i++){
+    //   blobs.push_back(mode.highlight.highlight_loci[i]);
+    // }
     // blobs.push_back(mode.highlight.highlight_loci);
     // blobs.insert(blobs.end(), mode.highlight.highlight_loci.begin(), mode.highlight.highlight_loci.end());
     filter.draw_blobs(blobs, true);
@@ -815,7 +870,9 @@ Nrrd *ArPipeline::repr(ReprMode &mode, bool force){
     filter.max1();
     filter.filter();
     filter.laplacian3d();
-    filter.normalize();
+    filter.normalize(1.f);
+    filter.scale(5.f);
+    filter.threshold(0.f,1.f);
     filter.commit(store.buf[1]);
     kernel.destroy();
     return (last_nrrd = store.buf[1]);

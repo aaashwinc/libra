@@ -25,10 +25,10 @@ public:
     T *v;
     float d;
   };
-  BSPTree(BSPTree *parent, int depth, vec3 min, vec3 max) : parent(parent), min(min), max(max), children(0){
+  BSPTree(BSPTree *parent, int depth, vec3 min, vec3 max) : parent(parent), min(min), max(max), children(0), n(0){
     split(depth);
   }
-  BSPTree() : min(vec3(0)), max(vec3(0)), parent(0), children(0){}
+  BSPTree() : min(vec3(0)), max(vec3(0)), parent(0), children(0), n(0){}
   
   vec3 min;
   vec3 max;
@@ -131,6 +131,7 @@ public:
   std::vector<T*> as_vector(){
     std::vector<T*> ret;
     for(int i=0;i<members.size();i++){
+      // printf("i=%d\n", members.size());
       ret.push_back(members[i].v);
     }
     if(children){
@@ -187,6 +188,7 @@ public:
     }
   }
   void insert(T *v, vec3 p){
+    n += 1;
     if(!children){
       E elt;
       elt.v = v;

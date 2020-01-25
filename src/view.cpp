@@ -156,6 +156,7 @@ float View::qsample(int c, float x, float y, float z){
 }
 
 void View::drawflat(){
+  camera.flat.dims = vec3(vcache.a1, vcache.a2, vcache.a3);
   if(camera.flat.slice>=1)camera.flat.slice=1;
   if(camera.flat.slice<0)camera.flat.slice=0;
   float zz=camera.flat.slice;

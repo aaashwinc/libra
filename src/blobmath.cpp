@@ -181,7 +181,7 @@ std::vector<std::vector<ScaleBlob*>> longest_paths2(std::vector<ScaleBlob*> inpu
     info[input[i]] = blobinfo();
     info[input[i]].self = input[i];
   }
-  printf("hello\n");
+  printf("traverse\n");
 
   // form DP map for finding longest path
   while(!traverse.empty()){
@@ -213,7 +213,6 @@ std::vector<std::vector<ScaleBlob*>> longest_paths2(std::vector<ScaleBlob*> inpu
       info[front].mature = true;
     }
   }
-  printf("goodbye\n");
 
   int maxn = 10;
   
@@ -222,8 +221,11 @@ std::vector<std::vector<ScaleBlob*>> longest_paths2(std::vector<ScaleBlob*> inpu
     infos.push_back(info[b]);
   }
 
+  printf("sort..");
+
   std::sort(infos.begin(), infos.end(), blobinfo::fun_sort_blob_by_length);
 
+  printf("search..");
   for(blobinfo sbinfo : infos){
     ScaleBlob* sb = sbinfo.next;
     if(!info[sb].alive)continue;    // continue if this is not alive.

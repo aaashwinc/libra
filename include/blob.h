@@ -42,6 +42,7 @@ public:
   ScaleBlob();
   float pdf(vec3 p);
   float cellpdf(vec3 p);
+  float outlinepdf(vec3 p);
   void pass(vec3 point, float value);
   void commit();
   void print();

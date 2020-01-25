@@ -430,7 +430,7 @@ void ArFilter::threshold(int min, int max){
   float *data = self.buff[self.curr];
   for(int i=0;i<self.w4;i++){
     if(data[i]<min)data[i]=0;
-    if(data[i]>max)data[i]=0;
+    if(data[i]>max)data[i]=max;
   }
 }
 void ArFilter::normalize(double power){
@@ -1004,6 +1004,7 @@ static void* t_draw_blobs(void* vinfo){
         for(int z=minz; z<=maxz; ++z){
           int i = (x)*filter->self.w1 + (y)*filter->self.w2 + (z)*filter->self.w3;
           float v = sb->cellpdf(vec3(x,y,z));
+          // float v = sb->cellpdf(vec3(x,y,z));
           // float v = 0.5f;
           // if(std::isfinite(v)){
           data[i] = max(data[i],v);

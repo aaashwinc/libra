@@ -109,7 +109,7 @@ public:
 
     // printf("camera: %.2f %.2f %.2f\n",view->camera.right.x,view->camera.right.y,view->camera.right.z);
 
-    experiment = new ArExperiment("/home/ashwin/data/16-05-05/???.nrrd",0,99,2);
+    experiment = new ArExperiment("/home/ashwin/data/miniventral2/???.nrrd",0,99,2);
 
     pipeline = new ArPipeline(experiment);
     view->setvolume(pipeline->repr(reprmode));
@@ -304,7 +304,7 @@ public:
       view->touch();
     }
     if(keys[sf::Keyboard::Num3]){
-      reprmode.name = "filter residue";
+      reprmode.name = "blobs_geometry";
       view->setvolume(pipeline->repr(reprmode));
       view->touch();
     }
@@ -413,10 +413,17 @@ public:
       view->setgeometry(pipeline->reprgeometry(reprmode));
       view->touch();
     }
+    if(keys[sf::Keyboard::J]){
+      pipeline->link(reprmode.timestep,reprmode.timestep+100);
+      reprmode.name = "blobs";
+      reprmode.geom = "succs";
+      view->setvolume(pipeline->repr(reprmode));
+      view->setgeometry(pipeline->reprgeometry(reprmode));
+      view->touch();
+    }
     if(keys[sf::Keyboard::L]){
-
-      if(keys[sf::Keyboard::LShift])pipeline->find_paths(40, -1, "quick");
-      else pipeline->find_paths(40, -1, "longest");
+      if(keys[sf::Keyboard::LShift])pipeline->findpaths(40, -1, "quick");
+      else pipeline->findpaths(30, -1, "longest");
       // pipeline->process(reprmode.timestep,reprmode.timestep+2);
       // // reprmode.name = "blobs";
       // reprmode.geom = "graph";

@@ -70,6 +70,18 @@ float ScaleBlob::cellpdf(vec3 p){
   // float mag = glm::dot(p,(invCov*p));
   // return 1.f/(0.1f + 0.05f*mag*mag);
 }
+float ScaleBlob::outlinepdf(vec3 p){
+  p = p - vec3(position);
+  float mag = glm::dot(p,(invCov*p));
+  if(mag<2.f)  return 0.f;
+  if(mag<3.5f) return 0.5f;
+  else         return 0;
+  // if(mag>3.5f) return 0.f;
+  // else         return 1 - 0.4 * (-1 + mag);
+  // else         return float(erf(2-mag)*0.5+0.5);
+  // float mag = glm::dot(p,(invCov*p));
+  // return 1.f/(0.1f + 0.05f*mag*mag);
+}
 void ScaleBlob::commit(){
   if(npass == 0){  // compute mean.
     position /= double(n);

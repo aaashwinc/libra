@@ -9,6 +9,7 @@ from sklearn import manifold
 import sklearn
 
 from pathsio import load_paths
+from matplotlib.widgets import CheckButtons
 
 def sample_spherical(npoints, ndim=3):
   vec = np.random.randn(ndim, npoints)
@@ -33,11 +34,10 @@ def random_point(boundmax):
 def line(center, vector, length):
   print('center=', center, 'vector=', vector)
 
-  xs = center[0] + np.linspace(0, length, 2)*vector[0]
-  ys = center[1] + np.linspace(0, length, 2)*vector[1]
-  zs = center[2] + np.linspace(0, length, 2)*vector[2]
-  print(xs, ys, zs)
-  return [xs,ys,zs]
+  xs = center[0] + np.linspace(0, length, 3)*vector[0]
+  ys = center[1] + np.linspace(0, length, 3)*vector[1]
+  zs = center[2] + np.linspace(0, length, 3)*vector[2]
+  return np.array([xs,ys,zs]).T
 
 def spring(center, vector, radius, loops=1, height=0, ovalu=1, ovalv=1, nsample=100, noise=0.05, orthovector=random_vector()):
 
@@ -128,6 +128,9 @@ def normalize(path, n=100):
 def to_point_naive(path):
   return path.flatten()
 
+def to_point_naive_minus_start(path):
+  return (path - path[0]).flatten()
+
 def to_point_firstlast(path):
   return np.array([path[0][0],  path[0][1],  path[0][2],
                    path[-1][0], path[-1][1], path[-1][2]])
@@ -195,20 +198,21 @@ def to_point_fishingline_axial(path):
 
 
 def to_point_dotproduct_axial(path):
-
+  print(path)
   path = path[1:-1] - path[0:-2]
   path /= np.linalg.norm(path, ord=2, axis=1, keepdims=True)
   # np.normalized(path, axis=2)
 
   mean = path.mean(axis=0)
+  # print(mean)
   uu, dd, vv = np.linalg.svd(path - mean)
   v = vv[0]
   
   # print(mean)
   # print(v)
 
-  path0 = path[0]
-  path1 = path[-1]
+  # path0 = path[0]
+  # path1 = path[-1]
 
   
   dotproductaxial = []
@@ -221,14 +225,47 @@ def to_point_dotproduct_axial(path):
 
   return np.array(dotproductaxial)
 
+def to_point_length(path):
+  length = 0
+  for i in range(len(path)-1):
+    length += np.linalg.norm(path[i] - path[i+1])
+  return np.array([length])
+
+def to_point_norm(path):
+  length = np.linalg.norm(path[-1] - path[0])
+  return np.array([length])
+
+def to_point_gradient(path):
+  path = path[1:-1] - path[0:-2]
+  path /= np.linalg.norm(path, ord=2, axis=1, keepdims=True)
+  return path.flatten()
+
+def to_point_curvature(path):
+  curvature = 0
+  length    = 0
+  for i in range(len(path)-1):
+    length += np.linalg.norm(path[i] - path[i+1])
+
+  for i in range(len(path)-2):
+    v1 = path[i+1] - path[i]
+    v2 = path[i+2] - path[i+1]
+    dot = v1.dot(v2)/np.linalg.norm(v1)
+    curvature += dot;
+  curvature /= length
+  # print(curvature, length)
+  return [curvature]
+
 fig = plt.figure()
 ax  = fig.add_subplot(3, 3, 1, projection='3d')
 ax2 = fig.add_subplot(3, 3, 2, projection='3d')
-ax3 = fig.add_subplot(3, 3, 3)
-ax4 = fig.add_subplot(3, 3, 4)
-ax5 = fig.add_subplot(3, 3, 5)
-ax6 = fig.add_subplot(3, 3, 6)
+ax3 = fig.add_subplot(3, 3, 3, projection='3d')
+ax4 = fig.add_subplot(3, 3, 4, projection='3d')
+ax5 = fig.add_subplot(3, 3, 5, projection='3d')
+ax6 = fig.add_subplot(3, 3, 6, projection='3d')
 ax7 = fig.add_subplot(3, 3, 7, projection='3d')
+ax8 = fig.add_subplot(3, 3, 8)
+ax9 = fig.add_subplot(3, 3, 9)
+plaxes = [ax, ax2, ax3, ax4, ax5, ax6, ax7, ax8, ax9]
 
 def plot(ax, path):
   ax.plot3D(path[:,0], path[:,1], path[:,2])
@@ -237,18 +274,22 @@ def plot(ax, path):
 paths=[None]*3
 paths[0] = np.array([[10, 20], [10, 20], [10, 20]]).T
 paths[0] = normalize(paths[0])
-# print(to_point_firstlast(paths[0]))
+print(to_point_curvature(paths[0]))
 # print(to_point_lastminusfirst(paths[0]))
 # print(to_point_startpoint(paths[0]))
 # print(to_point_endpoint(paths[0]))
 # print(normalize(path0))
 
-paths[1] = spring([10,10,10], [0,0,1], radius=1.0, loops=0.5, height=10, noise=0, nsample=200)
+paths[1] = spring([10,10,10], [0,0,1], radius=1.0, loops=10, height=10, noise=10, nsample=200)
 paths[1] = smooth(paths[1])
-# print(to_point_fishingline(paths[1]))
+print(to_point_curvature(paths[1]))
 
 paths[2] = spring([15,10,10], [0,0,1], radius=2.0, loops=3, height=10, noise=0, nsample=200)
 
+# plot(ax, paths[0])
+# plot(ax, paths[1])
+# plt.show()
+# exit(0)
 # print("fishingline transformation")
 # print(to_point_fishingline_axial(paths[0]))
 # print(to_point_fishingline_axial(paths[1]))
@@ -287,12 +328,8 @@ paths[2] = spring([15,10,10], [0,0,1], radius=2.0, loops=3, height=10, noise=0, 
 # plot(ax, path1)
 ##### generate orbits on/around sphere:
 
-print('show')
 # plt.ion()
 # plt.show()
-
-circles   = []
-circlespt = []
 
 def gen_paths_longitude(center=[0,0,0], orient = 1):
   paths = []
@@ -316,12 +353,21 @@ def gen_paths_torus(center=[0,0,0], radius1=4, radius2=1):
     paths += [path]
   return paths
 
-circles += gen_paths_torus()
-print(to_point_fishingline_axial(circles[-1]))
-circles += gen_paths_longitude(orient=1)
-print(to_point_fishingline_axial(circles[-1]))
-plot(ax2, circles[-1])
-circles += gen_paths_longitude(orient=-1)
+# display helper functions
+def color_of_line(line):
+  color = line[-1] - line[0]
+  # print('norm = ', line[-1], line[0], color)
+  color /= np.linalg.norm(color)
+  color = (1.0+color)/2.0
+  return color  
+
+
+# paths += gen_paths_torus()
+# print(to_point_fishingline_axial(circles[-1]))
+# paths += gen_paths_longitude(orient=1)
+# print(to_point_fishingline_axial(circles[-1]))
+# plot(ax2, circles[-1])
+# circles += gen_paths_longitude(orient=-1)
 
   # plot(ax, path)
 
@@ -330,18 +376,42 @@ circles += gen_paths_longitude(orient=-1)
 #   circles += [path]
 #   plot(ax, path)
 
+print('show')
 
-circles = load_paths()
+paths      = load_paths()
+# print(paths)
+# print(paths[0])
+transverse = line([0,50,50], [1,0,0], 100)
+print(to_point_dotproduct_axial(transverse))
+paths += [transverse]
+# print(paths)
+# paths = np.append(paths, transverse)
+# print(paths)
+pathcolors = []
+for path in paths:
+  pathcolors += [color_of_line(path)]
+paths2     = []
+pathspt    = []
 
-for circle in circles:
-  circle = normalize(circle)
-  circle = smooth(circle, sigma=5)
-  circlespt += [to_point_naive(circle)]
-  plot(ax, circle)
-
+for path in paths:
+  # path = path[0:5]
+  # path -= path[0]
+  path = normalize(path)
+  path = smooth(path, sigma=20)
+  # print(to_point_firstlast(path))
+  # print(to_point_length(path))
+  pathspt += [to_point_naive(path)]
+  # print(pathspt)
+  color = path[-1] - path[1]
+  color /= np.linalg.norm(color)
+  color = (1.0+color)/2.0
+  paths2 += [path]
+  # print(color)
+  ax.plot3D(path[:,0], path[:,1], path[:,2], color=color)
+paths = paths2
 # print(circlespt[-1])
 
-print(np.array(circlespt).shape)
+# print(np.array(circlespt).shape)
 # print(circles)
 
 
@@ -349,14 +419,20 @@ print(np.array(circlespt).shape)
 # plt.draw()
 # plt.pause(0.001)
 
+print('statistics')
+X = np.array(pathspt)
+# print(X.shape)
+print('MDS')
+X1 = manifold.Isomap(n_components=3).fit_transform(X)
+print('Isomap')
+X2 = manifold.Isomap(n_components=3).fit_transform(X)
+print('LLE')
+X3 = manifold.LocallyLinearEmbedding(n_components=3).fit_transform(X)
+print('PCA')
+X4 = sklearn.decomposition.PCA(n_components=3).fit_transform(X)
 print('tsne')
-X = np.array(circlespt)
-print(X.shape)
-X1 = manifold.MDS(n_components=2).fit_transform(X)
-X2 = manifold.Isomap(n_components=2).fit_transform(X)
-X3 = manifold.LocallyLinearEmbedding(n_components=2).fit_transform(X)
-X4 = sklearn.decomposition.PCA(n_components=2).fit_transform(X)
-X5 = sklearn.decomposition.PCA(n_components=3).fit_transform(X)
+X5 = manifold.TSNE(n_components=3, n_jobs=-1).fit_transform(X)
+# X5 = manifold.TSNE(n_components=2).fit_transform(X)
 
 
 # def hover(event):
@@ -365,18 +441,18 @@ X5 = sklearn.decomposition.PCA(n_components=3).fit_transform(X)
 
 
 
-axes = [ax, ax2, ax3, ax4, ax5, ax6, ax7]
-
 def on_pick(event):
   # print(event)
   # print('picked!')
   # print(event.ind)
   toplot = []
   for c in event.ind:
-    toplot += [circles[c]]
+    toplot += [paths[c]]
   ax2.clear()
+  for line in paths:
+    ax2.plot3D(line[:,0], line[:,1], line[:,2], color=[0.8,0.8,0.8,0.8])
   for line in toplot:
-    plot(ax2, line)
+    ax2.plot3D(line[:,0], line[:,1], line[:,2], color=color_of_line(line))
 
   plt.ion()
   plt.draw()
@@ -392,11 +468,11 @@ def on_pick(event):
 # V = pca.components_
 # X3 = manifold.TSNE(n_components=2).fit_transform(X)
 
-ax3.scatter(X1[:,0], X1[:,1], picker=True)
-ax4.scatter(X2[:,0], X2[:,1], picker=True)
-ax5.scatter(X3[:,0], X3[:,1], picker=True)
-ax6.scatter(X4[:,0], X4[:,1], picker=True)
-ax7.scatter(X5[:,0], X5[:,1], X5[:,2], picker=True)
+# ax3.scatter(X1[:,0], X1[:,1], picker=True)
+ax4.scatter(X2[:,0], X2[:,1], picker=True, color=pathcolors)
+ax5.scatter(X3[:,0], X3[:,1], picker=True, color=pathcolors)
+ax6.scatter(X4[:,0], X4[:,1], picker=True, color=pathcolors)
+ax7.scatter(X5[:,0], X5[:,1], picker=True, color=pathcolors)
 print('done')
 # line([2,2,2],[1,-1,0], 5)
 

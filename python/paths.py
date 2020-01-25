@@ -13,7 +13,7 @@ ax = plt.axes(projection='3d')
 # Data for a three-dimensional line
 
 
-f= open("../rsc/store/s-home-ashwin-data-miniventral2-000.nrrd.paths.txt","r")
+f= open("../rsc/store/s-home-ashwin-data-16-05-05-000.nrrd.paths.txt","r")
 
 contents = f.read()
 lines = contents.split('\n')
