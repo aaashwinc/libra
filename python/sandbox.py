@@ -11,6 +11,15 @@ import sklearn
 from pathsio import load_paths
 from matplotlib.widgets import CheckButtons
 
+from scipy.spatial.transform import Rotation as R
+
+import lasso
+
+from sklearn.cluster import AgglomerativeClustering
+
+# np.random.seed(0)
+
+
 def sample_spherical(npoints, ndim=3):
   vec = np.random.randn(ndim, npoints)
   vec /= np.linalg.norm(vec, axis=0)
@@ -20,7 +29,6 @@ def random_vector():
   vec = np.random.randn(3)
   vec /= np.linalg.norm(vec, axis=0)
   return vec
-
 
 def random_point(boundmax):
   vec = np.random.randn(3)
@@ -114,7 +122,8 @@ def smooth(path, sigma=2):
 
 from scipy.interpolate import interp1d
 
-def normalize(path, n=100):
+def normalize(path, n=100, nth=1):
+  path = path[::nth]
   xs = interp1d(np.linspace(0,n,len(path[:,0])), path[:,0], kind='linear')
   ys = interp1d(np.linspace(0,n,len(path[:,1])), path[:,1], kind='linear')
   zs = interp1d(np.linspace(0,n,len(path[:,2])), path[:,2], kind='linear')
@@ -127,6 +136,9 @@ def normalize(path, n=100):
 
 def to_point_naive(path):
   return path.flatten()
+
+def transform_naive_minus_start(path):
+  return (path - path[0])
 
 def to_point_naive_minus_start(path):
   return (path - path[0]).flatten()
@@ -231,6 +243,11 @@ def to_point_length(path):
     length += np.linalg.norm(path[i] - path[i+1])
   return np.array([length])
 
+def to_point_cog(path):
+  point = np.average(path, axis=0)
+  # print(path)
+  return point
+
 def to_point_norm(path):
   length = np.linalg.norm(path[-1] - path[0])
   return np.array([length])
@@ -253,41 +270,150 @@ def to_point_curvature(path):
     curvature += dot;
   curvature /= length
   # print(curvature, length)
-  return [curvature]
+  return [curvature,0,0]
+
+
+def transform_normalized_2d_pca(linein):
+  line2 = linein.copy()
+  line = linein.copy()
+  # line[:,2] = 0
+  # line = line[:,:]
+  pca = sklearn.decomposition.PCA(n_components=2)
+  line2 = pca.fit_transform(line)
+  line2 -= line2[0]
+
+
+
+  angle = np.arctan2(line2[-1][1], line2[-1][0])
+  rotmatrix = np.array([[np.cos(angle),-np.sin(angle)],[np.sin(angle),np.cos(angle)]])
+  yavg = 0
+  for point in line2:
+    point2 = point.dot(rotmatrix)
+    point[0] = point2[0]
+    point[1] = point2[1]
+    yavg += point[1]
+  yavg /= len(line2)
+  if(yavg < 0):
+    line2[:,1] *= -1
+
+  return line2
+
+def to_point_normalized_2d_pca(line):
+  return transform_normalized_2d_pca(line).flatten()
+
+def metric_mindist(path1, path2):
+  path1 = path1.reshape(-1,3)
+  path2 = path2.reshape(-1,3)
+  # path1 = normalize(path1, 5)
+  # path2 = normalize(path2, 5)
+  # print(path1)
+  # print(path1)
+  mindistsq = np.inf
+  for x in path1[::20]:
+    for y in path2[::20]:
+      d0 = x[0]-y[0]
+      d1 = x[1]-y[1]
+      d2 = x[2]-y[2]
+
+      distsq = d0*d0 + d1*d1 + d2*d2
+
+      if distsq < mindistsq:
+        mindistsq = distsq
+  return np.sqrt(mindistsq)
+
+def metric_simple(path1, path2):
+  path1 = path1.reshape(-1,3)
+  path2 = path2.reshape(-1,3)
+  path1 -= path1[0]
+  path2 -= path2[0]
+
+  distances = np.linalg.norm(path2-path1, axis=1)
+  distance = np.sum(distances)
+  return distance
+
+def metric_simple3(path1, path2):
+  # print(path1)
+  path1 = path1.reshape(-1,3)
+  path2 = path2.reshape(-1,3)
+  path1 -= path1[0]
+  path2 -= path2[0]
+
+  distances = np.linalg.norm(path2-path1, axis=1)
+  distance = np.sum(distances)
+  return distance
+
+def metric_simple2(path1, path2):
+  # print(path1)
+  path1 = path1.reshape(-1,2)
+  path2 = path2.reshape(-1,2)
+  path1 -= path1[0]
+  path2 -= path2[0]
+
+  distances = np.linalg.norm(path2-path1, axis=1)
+  distance = np.sum(distances)
+  return distance
+
+def metric_simple_2d(path1, path2):
+  path1 = path1.reshape(-1,3)
+  path2 = path2.reshape(-1,3)
+  path1 = sklearn.decomposition.PCA(n_components=3).fit_transform(path1)
+  path2 = sklearn.decomposition.PCA(n_components=3).fit_transform(path2)
+  path1 -= path1[0]
+  path2 -= path2[0]
+
+  distances = np.linalg.norm(path2-path1, axis=1)
+  distance = np.sum(distances)
+  return distance
+
+
 
 fig = plt.figure()
-ax  = fig.add_subplot(3, 3, 1, projection='3d')
-ax2 = fig.add_subplot(3, 3, 2, projection='3d')
-ax3 = fig.add_subplot(3, 3, 3, projection='3d')
-ax4 = fig.add_subplot(3, 3, 4, projection='3d')
-ax5 = fig.add_subplot(3, 3, 5, projection='3d')
-ax6 = fig.add_subplot(3, 3, 6, projection='3d')
-ax7 = fig.add_subplot(3, 3, 7, projection='3d')
-ax8 = fig.add_subplot(3, 3, 8)
-ax9 = fig.add_subplot(3, 3, 9)
-plaxes = [ax, ax2, ax3, ax4, ax5, ax6, ax7, ax8, ax9]
+ax1 = fig.add_subplot(3, 4, 1, projection='3d')
+ax2 = fig.add_subplot(3, 4, 2, projection='3d')
+ax3 = fig.add_subplot(3, 4, 3)
+ax4 = fig.add_subplot(3, 4, 4)
+ax5 = fig.add_subplot(3, 4, 5)
+ax6 = fig.add_subplot(3, 4, 6)
+ax7 = fig.add_subplot(3, 4, 7)
+ax8 = fig.add_subplot(3, 4, 8)
+ax9 = fig.add_subplot(3, 4, 9)
+ax10 = fig.add_subplot(3, 4, 10)
+ax11 = fig.add_subplot(3, 4, 11)
+ax12 = fig.add_subplot(3, 4, 12)
+plaxes = [ax1, ax2, ax3, ax4, ax5, ax6, ax7, ax8, ax9, ax10, ax11, ax12]
 
 def plot(ax, path):
   ax.plot3D(path[:,0], path[:,1], path[:,2])
 
+
 # def to_point
 paths=[None]*3
 paths[0] = np.array([[10, 20], [10, 20], [10, 20]]).T
-paths[0] = normalize(paths[0])
-print(to_point_curvature(paths[0]))
+# paths[0] = normalize(paths[0])
+# print(to_point_curvature(paths[0]))
 # print(to_point_lastminusfirst(paths[0]))
 # print(to_point_startpoint(paths[0]))
 # print(to_point_endpoint(paths[0]))
 # print(normalize(path0))
 
-paths[1] = spring([10,10,10], [0,0,1], radius=1.0, loops=10, height=10, noise=10, nsample=200)
-paths[1] = smooth(paths[1])
-print(to_point_curvature(paths[1]))
+# paths[1] = spring([10,10,10], [0,0,1], radius=1.0, loops=10, height=10, noise=0, nsample=200)
+# paths[1] = smooth(paths[1])
+# print(to_point_curvature(paths[1]))
 
-paths[2] = spring([15,10,10], [0,0,1], radius=2.0, loops=3, height=10, noise=0, nsample=200)
+# paths[2] = spring([15,10,10], [0,0,1], radius=2.0, loops=3, height=10, noise=0, nsample=200)
 
-# plot(ax, paths[0])
-# plot(ax, paths[1])
+# print(paths[1])
+# for i in range(8000):
+#   x = metric_mindist(to_point_naive(paths[1]), to_point_naive(paths[2]))
+# print(x)
+# exit(0)
+# y = metric_simple_2d(to_point_naive(paths[1]), to_point_naive(paths[2]))
+# print(x,y)
+# print(paths[1])
+# exit()
+
+# plot(ax1, paths[1])
+# plot(ax1, paths[2])
 # plt.show()
 # exit(0)
 # print("fishingline transformation")
@@ -378,37 +504,54 @@ def color_of_line(line):
 
 print('show')
 
-paths      = load_paths()
+paths = load_paths()
+paths += [normalize(line([0,50,50], [1,0,0], 100))]
+# print(line([0,50,50], [1,0,0], 100))
+print('loaded ', len(paths), ' paths')
+paths2d     = []
+
+
+for path in paths:
+  paths2d += [path[:,0:2]]
+
+# print(paths[0])
+# print(paths2d[0])
 # print(paths)
 # print(paths[0])
-transverse = line([0,50,50], [1,0,0], 100)
-print(to_point_dotproduct_axial(transverse))
-paths += [transverse]
+# print(to_point_dotproduct_axial(transverse))
 # print(paths)
 # paths = np.append(paths, transverse)
 # print(paths)
 pathcolors = []
 for path in paths:
   pathcolors += [color_of_line(path)]
-paths2     = []
 pathspt    = []
+pathspt2d  = []
 
-for path in paths:
-  # path = path[0:5]
-  # path -= path[0]
+for i in range(len(paths)):
+  path = paths[i]
+  path2d = paths2d[i]
   path = normalize(path)
-  path = smooth(path, sigma=20)
-  # print(to_point_firstlast(path))
-  # print(to_point_length(path))
-  pathspt += [to_point_naive(path)]
-  # print(pathspt)
+  path = smooth(path, sigma=5)
+  # path = normalize(path, nth=10)
+
+  # pathspt += [to_point_length(path)+to_point_fishingline(path)]
+  pathspt += [to_point_naive_minus_start(path)]
+
   color = path[-1] - path[1]
   color /= np.linalg.norm(color)
   color = (1.0+color)/2.0
-  paths2 += [path]
   # print(color)
-  ax.plot3D(path[:,0], path[:,1], path[:,2], color=color)
-paths = paths2
+  ax1.plot3D(path[:,0], path[:,1], path[:,2], color=color)
+# for path in paths2d:
+  # ax3.plot( path[:,0], path[:,1], color=color)
+  # ax7.plot( path[:,0], path[:,2], color=color)
+  # ax11.plot(path[:,1], path[:,2], color=color)
+
+  paths[i] = path
+  paths2d[i] = path2d
+
+# paths = paths2
 # print(circlespt[-1])
 
 # print(np.array(circlespt).shape)
@@ -419,40 +562,89 @@ paths = paths2
 # plt.draw()
 # plt.pause(0.001)
 
-print('statistics')
+# def norm1(x, y):
+#   return np.sum(np.abs(x-y))
+
+# print('statistics')
 X = np.array(pathspt)
 # print(X.shape)
-print('MDS')
-X1 = manifold.Isomap(n_components=3).fit_transform(X)
-print('Isomap')
-X2 = manifold.Isomap(n_components=3).fit_transform(X)
-print('LLE')
-X3 = manifold.LocallyLinearEmbedding(n_components=3).fit_transform(X)
-print('PCA')
-X4 = sklearn.decomposition.PCA(n_components=3).fit_transform(X)
-print('tsne')
-X5 = manifold.TSNE(n_components=3, n_jobs=-1).fit_transform(X)
+# print(X)
+# print('MDS')
+# X1 = manifold.MDS(n_components=2).fit_transform(X)
+# print('Isomap')
+# X2 = manifold.Isomap(n_components=2).fit_transform(X)
+# print('LLE')
+# X3 = manifold.LocallyLinearEmbedding(n_components=2).fit_transform(X)
+# random.seed(0)
+# print('tsne perp=20')
+# print(X.reshape(-1,3))
+# X4 = manifold.TSNE(n_components=2, n_jobs=-1, n_iter=1000, perplexity=20).fit_transform(X)
+# random.seed(0)
+print('tsne perp=10')
+X5 = manifold.TSNE(n_components=2, n_jobs=-1, n_iter=1000, perplexity=10).fit_transform(X)
 # X5 = manifold.TSNE(n_components=2).fit_transform(X)
 
 
 # def hover(event):
   # if event.inaxes == ax3:
     # print(event.ind)
-
-
+linecolors = []
 
 def on_pick(event):
   # print(event)
   # print('picked!')
+  # print(event)
   # print(event.ind)
   toplot = []
+  toplot_zero = []
   for c in event.ind:
     toplot += [paths[c]]
+    toplot_zero += [transform_naive_minus_start(paths[c])]
+
+  average = None
+  if(len(toplot) > 0):
+    toplot_array = np.array(toplot_zero)
+    average = np.average(toplot_array, axis=0)
+    print(average)
+    print(average.shape)
+    print(toplot[0].shape)
+    # average = np.array(np.zeros(toplot[0].shape))
+    # for line in toplot:
+    #   average
+    toplot += [average]
+
   ax2.clear()
+  ax4.clear()
+  ax8.clear()
+  ax12.clear()
+  ax5.clear()
+  ax3.set_aspect('equal', adjustable='box')
+  ax4.set_aspect('equal', adjustable='box')
+  ax7.set_aspect('equal', adjustable='box')
+  ax8.set_aspect('equal', adjustable='box')
+  ax11.set_aspect('equal', adjustable='box')
+  ax12.set_aspect('equal', adjustable='box')
+  ax5.set_aspect('equal', adjustable='box')
   for line in paths:
     ax2.plot3D(line[:,0], line[:,1], line[:,2], color=[0.8,0.8,0.8,0.8])
+  # for line in paths:
+  #   ax4.plot(line[:,0], line[:,1], color=[0.8,0.8,0.8,0.8])
+  #   ax8.plot(line[:,0], line[:,2], color=[0.8,0.8,0.8,0.8])
+  #   ax12.plot(line[:,1], line[:,2], color=[0.8,0.8,0.8,0.8])
+  # for line in paths2d:
+  #   ax5.plot(line[:,0], )
   for line in toplot:
+    
     ax2.plot3D(line[:,0], line[:,1], line[:,2], color=color_of_line(line))
+    ax4.plot(line[:,0], line[:,1], color=color_of_line(line))
+    ax8.plot(line[:,0], line[:,2], color=color_of_line(line))
+    ax12.plot(line[:,1], line[:,2], color=color_of_line(line))
+    
+    line2 = transform_normalized_2d_pca(line)
+ 
+    
+    ax5.plot(line2[:,0], line2[:,1], color=color_of_line(line))
+  # ax8.clear()
 
   plt.ion()
   plt.draw()
@@ -468,11 +660,33 @@ def on_pick(event):
 # V = pca.components_
 # X3 = manifold.TSNE(n_components=2).fit_transform(X)
 
-# ax3.scatter(X1[:,0], X1[:,1], picker=True)
-ax4.scatter(X2[:,0], X2[:,1], picker=True, color=pathcolors)
-ax5.scatter(X3[:,0], X3[:,1], picker=True, color=pathcolors)
-ax6.scatter(X4[:,0], X4[:,1], picker=True, color=pathcolors)
-ax7.scatter(X5[:,0], X5[:,1], picker=True, color=pathcolors)
+# ax3.scatter(X1[:,0], X1[:,1], picker=True, color=pathcolors)
+# ax5.scatter(X2[:,0], X2[:,1], picker=True, color=pathcolors)
+# ax6.scatter(X3[:,0], X3[:,1], picker=True, color=pathcolors)
+# ax9.scatter(X4[:,0], X4[:,1], picker=True, color=pathcolors, s=10)
+pts = ax10.scatter(X5[:,0], X5[:,1], color=pathcolors, s=10)
+selector = lasso.SelectFromCollection(ax10, pts, on_pick)
+
+clustering = AgglomerativeClustering(distance_threshold=None, n_clusters=20).fit(X5)
+print(clustering.n_clusters, 'clusters')
+
+get_colors = lambda n: list(map(lambda i: "#" + "%06x" % random.randint(0, 0xFFFFFF),range(n)))
+hexcolors = get_colors(1000)
+
+# print(hexcolors)
+linecolors = []
+for l in clustering.labels_:
+  linecolors += [hexcolors[l]]
+
+# print(colors)
+
+# print(X5.shape, len(colors))
+
+pts = ax6.scatter(X5[:,0], X5[:,1], color=linecolors, picker=True, s=10)
+selector = lasso.SelectFromCollection(ax6, pts, on_pick)
+# selector = lasso.SelectFromCollection(ax6, pts, on_pick)
+
+ax8.label = 'tsne'
 print('done')
 # line([2,2,2],[1,-1,0], 5)
 

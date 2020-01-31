@@ -25,6 +25,8 @@ ScaleBlob::ScaleBlob(){
   n      = 0;
   npass  = 0;
 
+  peakvalue = 0;
+
   pred = std::vector<ScaleBlob*>();
   succ = std::vector<ScaleBlob*>();
 
@@ -57,8 +59,17 @@ void ScaleBlob::pass(vec3 point, float value){
   }
 }
 float ScaleBlob::pdf(vec3 p){
+  // float vcenter = exp(-0.5 * 1);
+  // float mul     = 1.f/exp(-0.5 * 1);
+  // static float pdfCoef = n*pow(2.0*pi, -1.5)*pow(glm::determinant(invCov), -0.5);
   p = p - vec3(position);
-  return pdfCoef * exp(-0.5 * glm::dot(p,(invCov*p)));
+  // float v = pdfCoef * exp(-0.5 * glm::dot(p,(invCov*p)));
+
+  // the center should be 1.
+  float v = exp(-0.5 * glm::dot(p, invCov*p));
+  // printf("%.2f ", v );
+  // if(v>1)v=1;
+  return v;
 }
 float ScaleBlob::cellpdf(vec3 p){
   p = p - vec3(position);
@@ -66,6 +77,27 @@ float ScaleBlob::cellpdf(vec3 p){
   if(mag<1.f)  return 1.f;
   if(mag>3.5f) return 0.f;
   else         return 1 - 0.4 * (-1 + mag);
+  // else         return float(erf(2-mag)*0.5+0.5);
+  // float mag = glm::dot(p,(invCov*p));
+  // return 1.f/(0.1f + 0.05f*mag*mag);
+}
+float ScaleBlob::cellerf(vec3 p){
+  p = p - vec3(position);
+  float mag = glm::dot(p,(invCov*p));
+  if(mag<1.f)  return 1.f;
+  if(mag>3.5f) return 0.f;
+  // else         return 1 - 0.4 * (-1 + mag);
+  else         return float(erf(2-mag)*0.5+0.5);
+  // float mag = glm::dot(p,(invCov*p));
+  // return 1.f/(0.1f + 0.05f*mag*mag);
+}
+float ScaleBlob::celldot(vec3 p){
+  p = p - vec3(position);
+  float mag = sqrt(glm::dot(p,p));
+  if(mag<1.f)  return 0.7f;
+  if(mag>3.5f) return 0.f;
+  else         return 0.5f;
+  // else         return 1 - 0.4 * (-1 + mag);
   // else         return float(erf(2-mag)*0.5+0.5);
   // float mag = glm::dot(p,(invCov*p));
   // return 1.f/(0.1f + 0.05f*mag*mag);
@@ -96,7 +128,8 @@ void ScaleBlob::commit(){
 
     invCov    = glm::inverse(mat3(shape));
     detCov    = fabs(glm::determinant(shape));
-    pdfCoef   = pow(glm::determinant(shape*pi*2.0),-0.5);
+    // pdfCoef   = pow(glm::determinant(invCov*pi*2.0),-0.5);
+    pdfCoef   = pow(2.0*pi, -1.5)*pow(glm::determinant(invCov), -0.5);
 
     fshape = shape;
 

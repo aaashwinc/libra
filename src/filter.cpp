@@ -27,6 +27,18 @@ void DiscreteKernel::destroy(){
   if(data) delete[] data;
   if(temp) delete[] temp;
 }
+struct thread_conv2d_info_shared{
+  float *in;
+  float *out;
+  int xbegin;
+  int xlen;
+  int ylen;
+  int zlen;
+  int xstep;
+  int ystep;
+  int zstep;
+  DiscreteKernel kernel;
+};
 void ArFilter::conv2d(float *in, float *out, int xlen, int ylen, int zlen, int xstep, int ystep, int zstep, DiscreteKernel kernel){
   // printf("conv2d %d %d\n",xlen, ylen);
   
@@ -836,6 +848,7 @@ std::vector<ScaleBlob*> ArFilter::find_blobs(){
       float y = (index/self.w2)%self.a2;
       float z = (index/self.w3)%self.a3;
       blobs[index]->mode = vec3(x,y,z);
+      blobs[index]->peakvalue = data[index];  // tell the blob the value of its center
     }
   }
 
@@ -977,6 +990,7 @@ struct thread_drawblobs_info{
   float *lock;
   int blobmin;   // render window min value.
   int blobmax;   // render window max value.
+  char mode;     // either 'q'=quick or 'g'=gaussian
 };
 
 static void* t_draw_blobs(void* vinfo){
@@ -985,26 +999,39 @@ static void* t_draw_blobs(void* vinfo){
   float *lock = info->lock;
   int blobmin = info->blobmin;
   int blobmax = info->blobmax;
+  char mode   = info->mode;
   ArFilter *filter = info->filter;
   std::vector<ScaleBlob*> &blobs = *info->blobs;
 
   printf("t_draw_blobs %d - %d\n", blobmin, blobmax);
   for(int bi=blobmin; bi<blobmax; ++bi){
     ScaleBlob *sb = blobs[bi];
-    if(sb->n < 2)continue;
+    if(sb->n < 3)continue;
     int minx = sb->min.x;
     int miny = sb->min.y;
     int minz = sb->min.z;
     int maxx = sb->max.x;
     int maxy = sb->max.y;
     int maxz = sb->max.z;
+    float v;
     // printf("minmax %d %d %d %d %d %d\n",minx, maxx, miny, maxy, minz, maxz);
     for(int x=minx; x<=maxx; ++x){
       for(int y=miny; y<=maxy; ++y){
         for(int z=minz; z<=maxz; ++z){
           int i = (x)*filter->self.w1 + (y)*filter->self.w2 + (z)*filter->self.w3;
-          float v = sb->cellpdf(vec3(x,y,z));
-          // float v = sb->cellpdf(vec3(x,y,z));
+          // float 
+          if(mode == 'g'){
+            v = sb->pdf(vec3(x,y,z));
+          }
+          else if(mode=='q'){
+            v = sb->cellpdf(vec3(x,y,z));
+          }
+          else if(mode=='e'){
+            v = sb->cellerf(vec3(x,y,z));
+          }
+          else if(mode=='c'){
+            v = sb->celldot(vec3(x,y,z));
+          }
           // float v = 0.5f;
           // if(std::isfinite(v)){
           data[i] = max(data[i],v);
@@ -1036,6 +1063,7 @@ void ArFilter::draw_blobs(std::vector<ScaleBlob*> blobs, bool highlight){
 
     info[i].blobmin = (i*blobs.size())/nthreads;
     info[i].blobmax = ((i+1)*(blobs.size()))/nthreads;
+    info[i].mode    = 'q';
   }
 
   for(int i=0;i<nthreads;++i){

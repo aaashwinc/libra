@@ -107,6 +107,7 @@ void View::draw_geometry(){
     }
 
     bool too_far = clipped[1].z > 15 || clipped[0].z > 15;
+    too_far = false;
     if(too_far){
       lines[i  ].color = sf::Color::Transparent;
       lines[i+1].color = sf::Color::Transparent;
@@ -116,8 +117,8 @@ void View::draw_geometry(){
       lines[i+1].position.y = 0;
       continue;
     }
-    lines[i  ].color.a = 255 - clipped[0].z*17;
-    lines[i+1].color.a = 255 - clipped[1].z*17;
+    lines[i  ].color.a = 100;
+    lines[i+1].color.a = 100;
     // else{
     //   if(ps0.z < 0){
     //     vec3 v = ps1 - ps0; // v.z > 0
@@ -150,8 +151,9 @@ float View::qsample(int c, float x, float y, float z){
   if(i1<0 || i2<0 || i3<0 || i1 >= vcache.a1 || i2 >= vcache.a2 || i3 >= vcache.a3){
     return -1.f;
   }
+  // printf("sample %d\n", i3*vcache.w3 + i2*vcache.w2 + i1*vcache.w1 + i0);
   return vcache.data[
-    i3*vcache.w3 + i2*vcache.w2 + i1*vcache.w1 + i0
+    i3*vcache.w3 + i2*vcache.w2 + i1*vcache.w1 + i0*vcache.w0
   ];
 }
 
@@ -167,6 +169,14 @@ void View::drawflat(){
       xx = float(x)/w * (float(vcache.a1)-0.00005f);
       yy = float(y)/h * (float(vcache.a2)-0.00005f);
       zz = camera.flat.slice * (float(vcache.a3)-0.00005f);
+      // if(MIP){
+      //   float sum = 0;
+      //   for(int i=0;i<vcache.a3;i++){
+      //     sum = max(sum, qsample(0,i,xx,yy));
+      //   }
+      //   vv = sum;
+      // }
+     // vv = sum*5.f;
       vv = qsample(0,zz,xx,yy);
       put_color(vv, colormap, texdata+i);
       i+=4;
@@ -193,6 +203,9 @@ vec3 View::pixel_to_ray(vec2 v){
   printf("clicked %.2f %.2f\n",screen.x, screen.y);
   return vec3(camera.look + camera.right*screen.x*camera.lhorz - camera.up*screen.y*camera.lvert);
   // return camera.look;
+}
+vec3 View::get_camera_pos(){
+  return camera.pos*33.f;
 }
 struct render_frame_info{
   View *view;

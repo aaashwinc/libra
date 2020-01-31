@@ -37,11 +37,15 @@ public:
   float n;
   int npass;
 
+  float peakvalue;
+
   // bool initialized;
 
   ScaleBlob();
   float pdf(vec3 p);
   float cellpdf(vec3 p);
+  float cellerf(vec3 p);
+  float celldot(vec3 p);
   float outlinepdf(vec3 p);
   void pass(vec3 point, float value);
   void commit();

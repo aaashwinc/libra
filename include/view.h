@@ -108,6 +108,7 @@ public:
   void setvolume(Nrrd *nrrd);           // set the volume to be rendered
   void setgeometry(ArGeometry3D*);      // set the planar geometry to be rendered
   vec3 pixel_to_ray(vec2);
+  vec3 get_camera_pos();
 
   // movement
   void move3D(vec3 v);

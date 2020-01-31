@@ -34,24 +34,7 @@ public:
   ivec2 mousepos;
 
   float scale  = 0;
-  Game() : reprmode("plain"){
-    // ScaleBlob b1;
-    // ScaleBlob b2;
-    // b1.position = vec3(0,0,0);
-    // b1.covariance << 1, 0, 0,
-    //                  0, 3, 0,
-    //                  0, 0, 0.25;
-    
-    // b2.position = vec3(4,0,0);
-    // b2.covariance << 2, 0, 0,
-    //                  0, 1, 0,
-    //                  0, 0, 1;
-    // printf("init\n");
-    // b1.distance(&b2);
-
-    // exit(0);
-
-  }
+  Game() : reprmode("plain"){ }
 
   // "assert" a boolean with a char* message
   void asserts(bool b, const char *message){
@@ -107,9 +90,12 @@ public:
     // synth();
     view->camera.set(vec3(-4,3,6), vec3(1,0,-0.33), vec3(0,0,1));
 
-    // printf("camera: %.2f %.2f %.2f\n",view->camera.right.x,view->camera.right.y,view->camera.right.z);
-
-    experiment = new ArExperiment("/home/ashwin/data/miniventral2/???.nrrd",0,99,2);
+    // experiment = new ArExperiment("/home/ashwin/data/17-05-01/1??.nrrd",0,9,1);
+    // experiment = new ArExperiment("/home/ashwin/data/16-05-05/???.nrrd",0,99,1);
+    experiment = new ArExperiment("/home/ashwin/data/miniventral2/???.nrrd",0,99,1);
+    // experiment = new ArExperiment("/home/ashwin/data/3D/???.nrrd",0,99,1);
+    // experiment = new ArExperiment("/home/ashwin/data/synth/???.nrrd",0,99,1);
+    // reprmode.timestep = ;
 
     pipeline = new ArPipeline(experiment);
     view->setvolume(pipeline->repr(reprmode));
@@ -122,18 +108,10 @@ public:
 
     reprmode.name = "blobs";
     reprmode.geom = "graph";
-    // reprmode.timestep = 21;
+
     view->setvolume(pipeline->repr(reprmode));
     view->setgeometry(pipeline->reprgeometry(reprmode));
     view->touch();
-
-    // todo: remove
-
-    // pipeline->process(reprmode.timestep,reprmode.timestep+1);
-    
-    // pipeline->load();
-    // ::exit(0);
-    ///////////////
   }
 
   // low-level function to just handle events (at the window level)
@@ -304,7 +282,7 @@ public:
       view->touch();
     }
     if(keys[sf::Keyboard::Num3]){
-      reprmode.name = "blobs_geometry";
+      reprmode.name = "blobs_all";
       view->setvolume(pipeline->repr(reprmode));
       view->touch();
     }
@@ -352,6 +330,8 @@ public:
       view->setgeometry(pipeline->reprgeometry(reprmode));
       view->touch();
     }
+
+    // print diagnostic information
     if(keys[sf::Keyboard::B]){
       printf("pos: %.3f %.3f %.3f\n", view->camera.pos.x, view->camera.pos.y, view->camera.pos.z);
       keys[sf::Keyboard::B] = false;
@@ -372,23 +352,10 @@ public:
       view->touch();
       keys[sf::Keyboard::G] = false;
     }
-    if(keys[sf::Keyboard::C]){
-      if(!strcmp(reprmode.geom, "none")){
-        reprmode.geom = "paths";
-      }else if(!strcmp(reprmode.geom, "paths")){
-        reprmode.geom = "graph";
-      }else if(!strcmp(reprmode.geom, "graph")){
-        reprmode.geom = "succs";
-      }else{
-        reprmode.geom = "none";
-      }
-      view->setgeometry(pipeline->reprgeometry(reprmode));
-      view->touch();
-      keys[sf::Keyboard::G] = false;
-    }
+
     if(clicked[0]){
       printf("clicked %d %d\n", mousepos.x, mousepos.y);
-      pipeline->repr_highlight(&reprmode, view->camera.pos*33.f, view->pixel_to_ray(vec2(mousepos)), keys[sf::Keyboard::LControl], keys[sf::Keyboard::LShift]);
+      pipeline->repr_highlight(&reprmode, view->get_camera_pos(), view->pixel_to_ray(vec2(mousepos)), keys[sf::Keyboard::LControl], keys[sf::Keyboard::LShift]);
       view->setvolume(pipeline->repr(reprmode, false)); // true = force re-render
       view->setgeometry(pipeline->reprgeometry(reprmode));
       view->touch();
@@ -406,7 +373,7 @@ public:
 
     // process timesteps {n,n+1}
     if(keys[sf::Keyboard::U]){
-      pipeline->process(reprmode.timestep,reprmode.timestep+50);
+      pipeline->process(reprmode.timestep,reprmode.timestep);
       reprmode.name = "blobs";
       reprmode.geom = "graph";
       view->setvolume(pipeline->repr(reprmode));
@@ -422,8 +389,8 @@ public:
       view->touch();
     }
     if(keys[sf::Keyboard::L]){
-      if(keys[sf::Keyboard::LShift])pipeline->findpaths(40, -1, "quick");
-      else pipeline->findpaths(30, -1, "longest");
+      if(keys[sf::Keyboard::LShift])pipeline->findpaths(8, -1, "quick");
+      else pipeline->findpaths(3, -1, "longest");
       // pipeline->process(reprmode.timestep,reprmode.timestep+2);
       // // reprmode.name = "blobs";
       // reprmode.geom = "graph";

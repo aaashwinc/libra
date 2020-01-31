@@ -205,6 +205,25 @@ static std::vector<ScaleBlob*> collect_blobs(ScaleBlob *blob, float scalemin, fl
   return blobs;
 }
 
+
+static std::vector<ScaleBlob*> detected_blobs(ScaleBlob *blob){
+  // printf("peak= %.2f\n", blob->peakvalue);
+  std::vector<ScaleBlob*> blobs;
+  // printf("parent = %p\n", blob->parent);
+  if(blob->parent == 0 || blob->peakvalue > blob->parent->peakvalue){
+    blobs.push_back(blob);
+    // printf("  pushing\n");
+  }else{
+    // printf("  NO!\n");
+  }
+  for(ScaleBlob *child : blob->children){
+    std::vector<ScaleBlob*> childblobs = detected_blobs(child);
+    blobs.insert(blobs.end(), childblobs.begin(), childblobs.end());
+  }
+  // printf(")");
+  return blobs;
+}
+
 /* find all paths in the part of the dataset that has been
  * processed so far, so long as the path is greater than
  * minlen in length.
@@ -537,7 +556,7 @@ ArGeometry3D* ArPipeline::reprgeometry(ReprMode &mode){
           std::vector<glm::dvec3> smoothed(path.size());
 
           if(true){   // smooth path
-            int smooth_path = 40;
+            int smooth_path = 0;
             for(int i=0;i<path.size();i++){
               int k = smooth_path;
               if(i-k < 0){
@@ -778,6 +797,17 @@ Nrrd *ArPipeline::repr(ReprMode &mode, bool force){
     filter.commit(store.buf[1]);
     return (last_nrrd = store.buf[1]);
   }
+  if(!strcmp(mode.name, "blobs_all")){
+    ArFrameData frame = get(mode.timestep);
+    // float scalemin = frame.scales[mode.blob.scale] - frame.scale_eps;
+    // float scalemax = frame.scales[mode.blob.scale] + frame.scale_eps;
+    // printf("mode %s. view scale %d with %.2f %.2f\n", mode.name, scalemin, scalemax);
+    std::vector<ScaleBlob*> blobs = detected_blobs(frame.blob);
+    filter.clear();
+    filter.draw_blobs(blobs, true);
+    filter.commit(store.buf[2]);
+    return (last_nrrd = store.buf[2]);   
+  }
   if(!strcmp(mode.name, "blobs") || !strcmp(mode.name, "blobs_succs")){
     ArFrameData frame = get(mode.timestep);
     float scalemin = frame.scales[mode.blob.scale] - frame.scale_eps;
@@ -871,7 +901,7 @@ Nrrd *ArPipeline::repr(ReprMode &mode, bool force){
     filter.filter();
     filter.laplacian3d();
     filter.normalize(1.f);
-    filter.scale(5.f);
+    // filter.scale(5.f);
     filter.threshold(0.f,1.f);
     filter.commit(store.buf[1]);
     kernel.destroy();
@@ -961,6 +991,7 @@ void ArPipeline::save(){
       WRITE(sb->scale);
       WRITE(sb->n);
       WRITE(sb->npass);
+      WRITE(sb->peakvalue);
     }
   }
 
@@ -1055,6 +1086,7 @@ void ArPipeline::load(){
       READ(blob->scale);
       READ(blob->n);
       READ(blob->npass);
+      READ(blob->peakvalue);
 
       allblobs[label] = blob;
       blobs.push_back(blob);
@@ -1062,8 +1094,9 @@ void ArPipeline::load(){
     frameblobs.push_back(blobs);
   }
   if(!good){
-    fprintf(stderr, "read error.\n");
-    exit(0);
+    fprintf(stderr, "pipeline.load: read error.\n");
+    return;
+    // exit(0);
   }
   // printf("fixing...\n");
   for(std::pair<ScaleBlob*, ScaleBlob*> elt : allblobs){

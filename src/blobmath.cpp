@@ -181,7 +181,7 @@ std::vector<std::vector<ScaleBlob*>> longest_paths2(std::vector<ScaleBlob*> inpu
     info[input[i]] = blobinfo();
     info[input[i]].self = input[i];
   }
-  printf("traverse\n");
+  printf("traverse..");
 
   // form DP map for finding longest path
   while(!traverse.empty()){

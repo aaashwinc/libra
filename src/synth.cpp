@@ -27,7 +27,7 @@ void synth(){
   int a0=DIM,a1=DIM,a2=DIM;
 
   std::vector<vec3> ps;
-  for(int i=0;i<5;i++){
+  for(int i=0;i<10;i++){
     double x = (rand() % DIM/10)/(DIM/10.0);
     double y = (rand() % DIM/10)/(DIM/10.0);
     double z = (rand() % DIM/10)/(DIM/10.0);
@@ -35,7 +35,7 @@ void synth(){
     ps.push_back(vec3(x,y,z));
   }
 
-  double stdv = 0.025;
+  double stdv = 0.125;
 
   double x,y,z,v;
   for(int i=0;i<a0*a1*a2;i++){
@@ -48,7 +48,7 @@ void synth(){
     for(int i=0;i<ps.size();i++){
       vec3 q = p-ps[i];
       // q.z *= 1.f;
-      double d = q.x*q.x + q.y*q.y + q.z*q.z;
+      double d = sqrt(q.x*q.x + q.y*q.y + q.z*q.z);
       v += gaus(d,stdv);
       // v += gaus(d,0.8);
       // v = y;
