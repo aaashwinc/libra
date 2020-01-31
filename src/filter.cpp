@@ -39,6 +39,7 @@ struct thread_conv2d_info_shared{
   int zstep;
   DiscreteKernel kernel;
 };
+
 void ArFilter::conv2d(float *in, float *out, int xlen, int ylen, int zlen, int xstep, int ystep, int zstep, DiscreteKernel kernel){
   // printf("conv2d %d %d\n",xlen, ylen);
   
@@ -110,30 +111,31 @@ void ArFilter::conv2d(float *in, float *out, int xlen, int ylen, int zlen, int x
   }
 }
 void ArFilter::filter(){
+  // printf("curr=%d\n", self.curr);
   float *in  = self.buff[self.curr];
   float *out = self.buff[itempbuf()];
 
   // printf("conv: %p -> %p\n", in, out);
-  conv2d(in, out, self.a1, self.a2, self.a3, self.w1, self.w2, self.w3, self.kernel);  // xy(z) axis.
+  conv2d(in, out, self.a0, self.a1, self.a2, self.w0, self.w1, self.w2, self.kernel);  // xy(z) axis.
   // printf("conv: %p -> %p\n", out, in);
-  conv2d(out, in, self.a1, self.a3, self.a2, self.w1, self.w3, self.w2, self.kernel);  // x(y)z axis.
+  conv2d(out, in, self.a0, self.a2, self.a1, self.w0, self.w2, self.w1, self.kernel);  // x(y)z axis.
   // printf("conv: %p -> %p\n", in, out);
-  conv2d(in, out, self.a2, self.a3, self.a1, self.w2,  self.w3, self.w1, self.kernel);  // (x)yz axis.
+  conv2d(in, out, self.a1, self.a2, self.a0, self.w1,  self.w2, self.w0, self.kernel);  // (x)yz axis.
 
   int from,to;
 
-  // for(int z=self.a3-1;z>=0;z--){
-  //   for(int y=self.a2-1;y>=0;y--){
-  //     for(int x=self.a1-1;x>=0;x--){
-  //       to = x*self.w1 + y*self.w2 + z*self.w3;
+  // for(int z=self.a2-1;z>=0;z--){
+  //   for(int y=self.a1-1;y>=0;y--){
+  //     for(int x=self.a0-1;x>=0;x--){
+  //       to = x*self.w0 + y*self.w1 + z*self.w2;
         
   //       if(  x<self.kernel.radius || y<self.kernel.radius || z<self.kernel.radius
-  //         || x>=self.a1-self.kernel.radius || y>=self.a2-self.kernel.radius || z>=self.a3-self.kernel.radius){
+  //         || x>=self.a0-self.kernel.radius || y>=self.a1-self.kernel.radius || z>=self.a2-self.kernel.radius){
   //           out[to] = 0;
   //         continue;
   //       }
         
-  //       from = (x-self.kernel.radius)*self.w1 + (y-self.kernel.radius)*self.w2 + (z-self.kernel.radius)*self.w3;
+  //       from = (x-self.kernel.radius)*self.w0 + (y-self.kernel.radius)*self.w1 + (z-self.kernel.radius)*self.w2;
   //       out[to] = out[from];
   //     }
   //   }
@@ -223,32 +225,32 @@ void ArFilter::print_kernel(DiscreteKernel k){
 //   double max = 0;
 //   double lap;
 //   int xi, xm;
-//   for(int x=boundary;x<self.a1;++x){
-//     for(int y=boundary;y<self.a2;++y){
-//       xi = x*self.w1 + y*self.w2 + 1*self.w3;
-//       for(; xi<self.w4-self.w3; xi+=self.w3){
-//         lap = 2.0*in[xi] - in[xi-self.w3] - in[xi+self.w3];
-//         if(lap>max)max=lap;
-//       }
-//     }
-//   }
-//   for(int x=boundary;x<self.a1;++x){
-//     for(int z=boundary;z<self.a3;++z){
-//       xi = x*self.w1 + 1*self.w2           + z*self.w3;
-//       xm = x*self.w1 + (self.a2-1)*self.w2 + z*self.w3;
-//       for(; xi<xm; xi+=self.w2){
+//   for(int x=boundary;x<self.a0;++x){
+//     for(int y=boundary;y<self.a1;++y){
+//       xi = x*self.w0 + y*self.w1 + 1*self.w2;
+//       for(; xi<self.w3-self.w2; xi+=self.w2){
 //         lap = 2.0*in[xi] - in[xi-self.w2] - in[xi+self.w2];
 //         if(lap>max)max=lap;
 //       }
 //     }
 //   }
-
-//   for(int y=boundary;y<self.a2;++y){
-//     for(int z=boundary;z<self.a3;++z){
-//       xi = 1*self.w1 + y*self.w2           + z*self.w3;
-//       xm = (self.a1-1)*self.w1 + y*self.w2 + z*self.w3;
+//   for(int x=boundary;x<self.a0;++x){
+//     for(int z=boundary;z<self.a2;++z){
+//       xi = x*self.w0 + 1*self.w1           + z*self.w2;
+//       xm = x*self.w0 + (self.a1-1)*self.w1 + z*self.w2;
 //       for(; xi<xm; xi+=self.w1){
 //         lap = 2.0*in[xi] - in[xi-self.w1] - in[xi+self.w1];
+//         if(lap>max)max=lap;
+//       }
+//     }
+//   }
+
+//   for(int y=boundary;y<self.a1;++y){
+//     for(int z=boundary;z<self.a2;++z){
+//       xi = 1*self.w0 + y*self.w1           + z*self.w2;
+//       xm = (self.a0-1)*self.w0 + y*self.w1 + z*self.w2;
+//       for(; xi<xm; xi+=self.w0){
+//         lap = 2.0*in[xi] - in[xi-self.w0] - in[xi+self.w0];
 //         if(lap>max)max=lap;
 //       }
 //     }
@@ -262,17 +264,17 @@ void ArFilter::laplacian3d(int boundary){
   // printf("lap %p -> %p\n",in,out);
   // printf("nb %d %p %p\n",self.nbuf, self.buff[0], self.buff[1]);
 
-  // printf("dims %d %d %d %d\n",self.a0,self.a1,self.a2,self.a3);
-  // printf("max %d\n",self.w4);
+  // printf("dims %d %d %d %d\n",self.a0,self.a0,self.a1,self.a2);
+  // printf("max %d\n",self.w3);
 
   // double max_laplacian = comp_max_laplacian(in);
   int xo;
-  for(int z=0;z<self.a3; z++){
-    for(int y=0; y<self.a2; y++){
-      for(int x=0; x<self.a1; x++){
-        xo = x*self.w1 + y*self.w2 + z*self.w3;
+  for(int z=0;z<self.a2; z++){
+    for(int y=0; y<self.a1; y++){
+      for(int x=0; x<self.a0; x++){
+        xo = x*self.w0 + y*self.w1 + z*self.w2;
 
-        if(x<1+boundary || y<1+boundary || z<1+boundary || x>=self.a1-1-boundary || y>=self.a2-1-boundary || z>=self.a3-1-boundary){
+        if(x<1+boundary || y<1+boundary || z<1+boundary || x>=self.a0-1-boundary || y>=self.a1-1-boundary || z>=self.a2-1-boundary){
           out[xo]=0;
           continue;
         }
@@ -282,12 +284,12 @@ void ArFilter::laplacian3d(int boundary){
         double v;
 
         int xi = xo;
-        p1 = xi-self.w1;
-        p2 = xi+self.w1;
-        p3 = xi-self.w2;
-        p4 = xi+self.w2;
-        p5 = xi-self.w3;
-        p6 = xi+self.w3;
+        p1 = xi-self.w0;
+        p2 = xi+self.w0;
+        p3 = xi-self.w1;
+        p4 = xi+self.w1;
+        p5 = xi-self.w2;
+        p6 = xi+self.w2;
 
         // printf("%d %d -> %d %d\n",xi, in[xi], p1, in[p1]);
 
@@ -328,47 +330,47 @@ void ArFilter::max1(){
   // printf("max1 %p -> %p\n", in, out);
   int xi,xm;
 
-  // for(int x=0;x<self.a1;++x){
-  //   for(int y=0;y<self.a2;++y){
-  //     xi = x*self.w1 + y*self.w2 + 1*self.w3;
-  //     for(; xi<self.w4-self.w3; xi+=self.w3){
+  // for(int x=0;x<self.a0;++x){
+  //   for(int y=0;y<self.a1;++y){
+  //     xi = x*self.w0 + y*self.w1 + 1*self.w2;
+  //     for(; xi<self.w3-self.w2; xi+=self.w2){
   //       // out[xi] = 1.f;
   //       // out[xi+1] = in[xi];
   //       // out[xi] = in[xi];
-  //       // out[xi] = in[xi+self.w3];
-  //       out[xi] = fmedian(in[xi], in[xi-self.w3],in[xi+self.w3]);
-  //       // out[xi] = max(in[xi],max(in[xi-self.w3],in[xi+self.w3]));
+  //       // out[xi] = in[xi+self.w2];
+  //       out[xi] = fmedian(in[xi], in[xi-self.w2],in[xi+self.w2]);
+  //       // out[xi] = max(in[xi],max(in[xi-self.w2],in[xi+self.w2]));
   //     }
   //   }
   // }
-  // for(int x=0;x<self.a1;++x){
-  //   for(int z=0;z<self.a3;++z){
-  //     xi = x*self.w1 + 1*self.w2           + z*self.w3;
-  //     xm = x*self.w1 + (self.a2-1)*self.w2 + z*self.w3;
-  //     for(; xi<xm; xi+=self.w2){
-  //       // in[xi] = out[xi];
-  //       in[xi] = fmedian(out[xi],out[xi-self.w2],out[xi+self.w2]);
-  //       // in[xi] = max(out[xi],max(out[xi-self.w2],out[xi+self.w2]));
-  //     }
-  //   }
-  // }
-
-  // for(int y=0;y<self.a2;++y){
-  //   for(int z=0;z<self.a3;++z){
-  //     xi = 1*self.w1 + y*self.w2           + z*self.w3;
-  //     xm = (self.a1-1)*self.w1 + y*self.w2 + z*self.w3;
+  // for(int x=0;x<self.a0;++x){
+  //   for(int z=0;z<self.a2;++z){
+  //     xi = x*self.w0 + 1*self.w1           + z*self.w2;
+  //     xm = x*self.w0 + (self.a1-1)*self.w1 + z*self.w2;
   //     for(; xi<xm; xi+=self.w1){
-  //       // out[xi] = in[xi];
-  //       out[xi] = fmedian(in[xi],in[xi-self.w1],in[xi+self.w1]);
-  //       // out[xi] = max(in[xi],max(in[xi-self.w1],in[xi+self.w1]));
+  //       // in[xi] = out[xi];
+  //       in[xi] = fmedian(out[xi],out[xi-self.w1],out[xi+self.w1]);
+  //       // in[xi] = max(out[xi],max(out[xi-self.w1],out[xi+self.w1]));
   //     }
   //   }
   // }
-  for(int z=0;z<self.a3; z++){
-    for(int y=0; y<self.a2; y++){
-      for(int x=0; x<self.a1; x++){
 
-        xi = x*self.w1 + y*self.w2 + z*self.w3;
+  // for(int y=0;y<self.a1;++y){
+  //   for(int z=0;z<self.a2;++z){
+  //     xi = 1*self.w0 + y*self.w1           + z*self.w2;
+  //     xm = (self.a0-1)*self.w0 + y*self.w1 + z*self.w2;
+  //     for(; xi<xm; xi+=self.w0){
+  //       // out[xi] = in[xi];
+  //       out[xi] = fmedian(in[xi],in[xi-self.w0],in[xi+self.w0]);
+  //       // out[xi] = max(in[xi],max(in[xi-self.w0],in[xi+self.w0]));
+  //     }
+  //   }
+  // }
+  for(int z=0;z<self.a2; z++){
+    for(int y=0; y<self.a1; y++){
+      for(int x=0; x<self.a0; x++){
+
+        xi = x*self.w0 + y*self.w1 + z*self.w2;
         
         int neighbor[27];
         for(int i=0;i<27;i++){
@@ -378,8 +380,8 @@ void ArFilter::max1(){
         for(int xx=-1;xx<=1;++xx){
           for(int yy=-1;yy<=1;++yy){
             for(int zz=-1;zz<=1;++zz){
-              int xii = xi + xx*self.w1 + yy*self.w2 + zz*self.w3;
-              if(xii>=0 && xii < self.w4){
+              int xii = xi + xx*self.w0 + yy*self.w1 + zz*self.w2;
+              if(xii>=0 && xii < self.w3){
                 neighbor[nindex] = xii;
                 ++nindex;
               }
@@ -440,27 +442,26 @@ void ArFilter::max1(){
 
 void ArFilter::threshold(int min, int max){
   float *data = self.buff[self.curr];
-  for(int i=0;i<self.w4;i++){
+  for(int i=0;i<self.w3;i++){
     if(data[i]<min)data[i]=0;
     if(data[i]>max)data[i]=max;
   }
 }
 void ArFilter::normalize(double power){
-  int channel =0 ;
-  
+
   NrrdAxisInfo *a = self.a;
   float *data = self.buff[self.curr];
   float *out  = self.buff[itempbuf()];
 
   float max = 0;
   float min = std::numeric_limits<float>::infinity();
-  for(int i=channel;i<self.w4;i+=2){
+  for(int i=0;i<self.w3;i+=self.w0){
     if(data[i] < min)min=data[i];
     if(data[i] > max)max=data[i];
   }
 
   max = max-min;
-  for(int i=channel;i<self.w4;i+=2){
+  for(int i=0;i<self.w3;i+=self.w0){
     float r = (data[i]-min)/(max);
     if(power == 1)out[i] = r;
     else out[i] = pow(r,power);
@@ -469,7 +470,7 @@ void ArFilter::normalize(double power){
 }
 void ArFilter::scale(float s){
   float *data = self.buff[self.curr];
-  for(int i=0;i<self.w4;i+=2){
+  for(int i=0;i<self.w3;i+=self.w0){
     data[i] *= s;
   }
 }
@@ -507,9 +508,8 @@ void ArFilter::scale(float s){
 void ArFilter::capture(Nrrd *nin){
   if(nin->axis[0].size == self.a0 &&
      nin->axis[1].size == self.a1 &&
-     nin->axis[2].size == self.a2 &&
-     nin->axis[3].size == self.a3){
-    memcpy(self.buff[self.curr], nin->data, self.w4 * sizeof(float));
+     nin->axis[2].size == self.a2){
+    memcpy(self.buff[self.curr], nin->data, self.w3 * sizeof(float));
   }
 }
 void ArFilter::init(Nrrd *nin){
@@ -533,13 +533,13 @@ void ArFilter::init(Nrrd *nin){
   self.a0=self.a[0].size;
   self.a1=self.a[1].size;
   self.a2=self.a[2].size;
-  self.a3=self.a[3].size;
+  // self.a2=self.a[3].size;
 
-  self.w0=1;     // offset to crawl channel
-  self.w1=self.a0*self.w0; // offset to crawl x
-  self.w2=self.a1*self.w1; // offset to crawl y
-  self.w3=self.a2*self.w2; // offset to crawl z
-  self.w4=self.a3*self.w3; // length of entire dataset.
+  // self.w0=1;     // offset to crawl channel
+  self.w0=1;               // offset to crawl x
+  self.w1=self.a0*self.w0; // offset to crawl y
+  self.w2=self.a1*self.w1; // offset to crawl z
+  self.w3=self.a2*self.w2; // length of entire dataset.
 
   self.nbuf = 2;
   self.nrrd = new Nrrd* [self.nbuf];
@@ -550,18 +550,21 @@ void ArFilter::init(Nrrd *nin){
   for(int i=1;i<self.nbuf;++i){
     self.nrrd[i] = nrrdNew();
     nrrdCopy(self.nrrd[i],nin);
-    self.buff[i] = (float*)self.nrrd[i]->data;
-    self.curr = 0;
+    self.buff[i] = (float*)(self.nrrd[i]->data);
+    // printf("self.buff[i] = %p %p\n", nin->data, self.nrrd[i]->data);
   }
+  // printf("filter::init %p %p\n", self.nrrd[0], self.nrrd[1]);
+  // printf("filter::init %p %p\n", self.buff[0], self.buff[1]);
+  self.curr = 0;
   self.alive = true;
 }
 Nrrd* ArFilter::commit(Nrrd *nout){
   if(!nout)nout = self.nrrd[0];
   if(0 != nout){
     // printf("memcpy %p %p\n", nout->data, self.nrrd[self.curr]);
-    // memset(self.nrrd[self.curr], 0, sizeof(float)*self.w4);
+    // memset(self.nrrd[self.curr], 0, sizeof(float)*self.w3);
     // printf("commit %p -> %p.\n", self.buff[self.curr], nout);
-    memcpy(nout->data, self.buff[self.curr], sizeof(float)*self.w4);
+    memcpy(nout->data, self.buff[self.curr], sizeof(float)*self.w3);
     // printf("done.\n");
     // exit(0);
   }
@@ -597,9 +600,9 @@ ivec3 ArFilter::hill_climb(ivec3 p){
   if(p.x<1)p.x = 1;
   if(p.y<1)p.y = 1;
   if(p.z<1)p.z = 1;
-  if(p.x>self.a1-2)p.x = self.a1-2;
-  if(p.y>self.a2-2)p.y = self.a2-2;
-  if(p.z>self.a3-2)p.z = self.a3-2;
+  if(p.x>self.a0-2)p.x = self.a0-2;
+  if(p.y>self.a1-2)p.y = self.a1-2;
+  if(p.z>self.a2-2)p.z = self.a2-2;
 
   float maxv = -1;
   ivec3 maxp;
@@ -618,7 +621,7 @@ ivec3 ArFilter::hill_climb(ivec3 p){
       for(int   yy=p.y-1; yy<=p.y+1; yy++){
         for(int xx=p.x-1; xx<=p.x+1; xx++){
           // printf("  %d %d %d\n",xx,yy,zz);
-          int ii = xx*self.w1 + yy*self.w2 + zz*self.w3;
+          int ii = xx*self.w0 + yy*self.w1 + zz*self.w2;
           float testv = data[ii];
           if(testv > maxv){
             maxv = testv;
@@ -646,26 +649,26 @@ std::vector<glm::ivec3> ArFilter::find_maxima(){
 
   float *data = self.buff[self.curr];
 
-  for(int z=0;z<self.a3; z++){
-    for(int y=0; y<self.a2; y++){
-      for(int x=0; x<self.a1; x++){
+  for(int z=0;z<self.a2; z++){
+    for(int y=0; y<self.a1; y++){
+      for(int x=0; x<self.a0; x++){
 
-        if(x<1 || y<1 || z<1 || x>=self.a1-1 || y>=self.a2-1 || z>=self.a3-1){
+        if(x<1 || y<1 || z<1 || x>=self.a0-1 || y>=self.a1-1 || z>=self.a2-1){
           continue;
         }
 
-        int xi = x*self.w1 + y*self.w2 + z*self.w3;
+        int xi = x*self.w0 + y*self.w1 + z*self.w2;
         float p1=0,p2=0,p3=0,
               p4=0,p5=0,p6=0, v;
 
 
         v  = data[xi];
-        p1 = data[xi-self.w1];
-        p2 = data[xi+self.w1];
-        p3 = data[xi-self.w2];
-        p4 = data[xi+self.w2];
-        p5 = data[xi-self.w3];
-        p6 = data[xi+self.w3];
+        p1 = data[xi-self.w0];
+        p2 = data[xi+self.w0];
+        p3 = data[xi-self.w1];
+        p4 = data[xi+self.w1];
+        p5 = data[xi-self.w2];
+        p6 = data[xi+self.w2];
 
         // if(v>0)printf("v: %.4f\n",v);
 
@@ -681,13 +684,13 @@ std::vector<glm::ivec3> ArFilter::find_maxima(){
 void ArFilter::highlight(std::vector<glm::ivec3> points){
 
   float *buff = self.buff[self.curr];
-  for(int i=0;i<self.w4;i+=self.w1){
+  for(int i=0;i<self.w3;i+=self.w0){
     buff[i] = buff[i]*0.5f;
   }
   for(int i=0;i<points.size();++i){
     glm::ivec3 v = points[i];
-    int xi = v.x*self.w1 + v.y*self.w2 + v.z*self.w3;
-    if(xi>=0 && xi<self.w4)buff[xi] = 1.f;
+    int xi = v.x*self.w0 + v.y*self.w1 + v.z*self.w2;
+    if(xi>=0 && xi<self.w3)buff[xi] = 1.f;
   }
 }
 
@@ -722,8 +725,8 @@ std::vector<ScaleBlob*> ArFilter::find_blobs(){
   // std::vector<glm::ivec3> maxima = find_maxima();
   // printf("maxima: %d\n",maxima.size());
 
-  int *labelled = new int[self.w4];  // mark each point with a label indicated which cell it's part of.
-  for(int i=0;i<self.w4;i++){        // initialize to -1.
+  int *labelled = new int[self.w3];  // mark each point with a label indicated which cell it's part of.
+  for(int i=0;i<self.w3;i++){        // initialize to -1.
     labelled[i] = -1;
   }
   float *data     = self.buff[self.curr];
@@ -738,11 +741,11 @@ std::vector<ScaleBlob*> ArFilter::find_blobs(){
   int x=0,y=0,z=0;
 
   // hill-climb to determine labels.
-  for(int z=0;z<self.a3; z++){
-    // if(z%50 == 0)printf("find_blobs progress %d/%d\n",z,self.a3);
-    for(int y=0; y<self.a2; y++){
-      for(int x=0; x<self.a1; x++){
-        int i = x*self.w1 + y*self.w2 + z*self.w3;
+  for(int z=0;z<self.a2; z++){
+    // if(z%50 == 0)printf("find_blobs progress %d/%d\n",z,self.a2);
+    for(int y=0; y<self.a1; y++){
+      for(int x=0; x<self.a0; x++){
+        int i = x*self.w0 + y*self.w1 + z*self.w2;
         // printf("xy %d %d\n",x,y);
         // starting position is this pixel.
         Point peak;
@@ -782,11 +785,11 @@ std::vector<ScaleBlob*> ArFilter::find_blobs(){
           // search for a higher neighbor.
           // do not change the order of traversal.
           // if there are ties, then the lowest index is chosen.
-          for(int zz=max(peak.p.z-1,0);zz<=min(peak.p.z+1,self.a3-1); zz++){
-            for(int yy=max(peak.p.y-1,0);yy<=min(peak.p.y+1,self.a2-1); yy++){
-              for(int xx=max(peak.p.x-1,0);xx<=min(peak.p.x+1,self.a1-1); xx++){
+          for(int zz=max(peak.p.z-1,0);zz<=min(peak.p.z+1,self.a2-1); zz++){
+            for(int yy=max(peak.p.y-1,0);yy<=min(peak.p.y+1,self.a1-1); yy++){
+              for(int xx=max(peak.p.x-1,0);xx<=min(peak.p.x+1,self.a0-1); xx++){
                 // printf("  %d %d %d\n",xx,yy,zz);
-                int      ii = xx*self.w1 + yy*self.w2 + zz*self.w3;
+                int      ii = xx*self.w0 + yy*self.w1 + zz*self.w2;
                 float testv = data[ii];
                 if(testv > maxv){
                   maxv = testv;
@@ -820,19 +823,19 @@ std::vector<ScaleBlob*> ArFilter::find_blobs(){
   // now, each pixel knows where its peak is. form a list of unique peaks.
 
   // float *output = self.buff[self.curr];
-  // for(int i=0;i<self.w4;i++){
+  // for(int i=0;i<self.w3;i++){
   //   output[i] = output[i]*3/4;
   // }
-  // for(int i=0;i<self.w4;i++){
+  // for(int i=0;i<self.w3;i++){
   //   output[labelled[i]] = 30000;
   // }
 
   // form a map, label -> how many voxels are in this blob.
   std::unordered_map<int,int> labels_to_counts;
-  for(int i=0;i<self.w4;i+=2){            // form a list of unique labels.
+  for(int i=0;i<self.w3;i+=2){            // form a list of unique labels.
     labels_to_counts[labelled[i]] = 0;
   }
-  for(int i=0;i<self.w4;i+=2){            // count how many pixels have each label.
+  for(int i=0;i<self.w3;i+=2){            // count how many pixels have each label.
     labels_to_counts[labelled[i]] = labels_to_counts[labelled[i]] + 1;
   }
 
@@ -844,9 +847,9 @@ std::vector<ScaleBlob*> ArFilter::find_blobs(){
     int count = it->second;
     if(count > 125){                       // impose (arbitrary) minimum blob size, as an optimization.
       blobs[index] = new ScaleBlob();
-      float x = (index/self.w1)%self.a1;      // tell the blob where its center is.
-      float y = (index/self.w2)%self.a2;
-      float z = (index/self.w3)%self.a3;
+      float x = (index/self.w0)%self.a0;      // tell the blob where its center is.
+      float y = (index/self.w1)%self.a1;
+      float z = (index/self.w2)%self.a2;
       blobs[index]->mode = vec3(x,y,z);
       blobs[index]->peakvalue = data[index];  // tell the blob the value of its center
     }
@@ -855,12 +858,12 @@ std::vector<ScaleBlob*> ArFilter::find_blobs(){
   // printf("compute blob statistics.\n");
   // now construct the scaleblobs with data in 2 passes.
   for(int pass=0;pass<2;++pass){
-    for(int i=0;i<self.w4;i+=2){
+    for(int i=0;i<self.w3;i+=2){
       auto blob = blobs.find(labelled[i]);
       if(blob != blobs.end()){
-        float x = (i/self.w1)%self.a1;
-        float y = (i/self.w2)%self.a2;
-        float z = (i/self.w3)%self.a3;
+        float x = (i/self.w0)%self.a0;
+        float y = (i/self.w1)%self.a1;
+        float z = (i/self.w2)%self.a2;
         blob->second->pass(glm::vec3(x,y,z), (data[i]));
       }
     }
@@ -908,19 +911,19 @@ void ArFilter::print(){
   int buckets[10];
   for(int i=0;i<10;++i)buckets[i] = 0;
 
-  printf("axes %d %d %d %d\n",self.a0,self.a1,self.a2,self.a3);
+  printf("axes %d %d %d %d\n",self.a0,self.a0,self.a1,self.a2);
 
   NrrdAxisInfo *a = self.a;
   float *data = self.buff[self.curr];
 
   double max = 0;
   double min = std::numeric_limits<double>::infinity();
-  for(int i=channel;i<self.w4;i+=2){
+  for(int i=channel;i<self.w3;i+=2){
     if(data[i] < min)min=data[i];
     if(data[i] > max)max=data[i];
   }
   max = max-min;
-  for(int i=channel;i<self.w4;i+=2){
+  for(int i=channel;i<self.w3;i+=2){
     double r = double(data[i]-min)/double(max);
     int bucket = (int)(r*10.0);
     if(bucket<0)bucket=0;
@@ -937,7 +940,7 @@ void ArFilter::print(){
 
 void ArFilter::clear(){
   float *data = self.buff[self.curr];
-  for(int i=0;i<self.w4;i++)data[i] = 0;
+  for(int i=0;i<self.w3;i++)data[i] = 0;
 }
 void ArFilter::rasterlineadd(vec3 a, vec3 b, float va, float vb){
   float *data = self.buff[self.curr];
@@ -949,7 +952,7 @@ void ArFilter::rasterlineadd(vec3 a, vec3 b, float va, float vb){
 
   for(int j=0;j<len;++j){
     a += step;
-    i = int(a.x)*self.w1 + int(a.y)*self.w2 + int(a.z)*self.w3;
+    i = int(a.x)*self.w0 + int(a.y)*self.w1 + int(a.z)*self.w2;
     // printf(". %.1f %.1f %.1f\n", a.x, a.y, a.z);
     data[i] = va + (float(j)/len)*(vb-va);
   }
@@ -972,7 +975,7 @@ void ArFilter::color_blobs(std::vector<ScaleBlob*> blobs, float color){
     for(float x=minx; x<=maxx; ++x){
       for(float y=miny; y<=maxy; ++y){
         for(float z=minz; z<=maxz; ++z){
-          int i = int(x)*self.w1 + int(y)*self.w2 + int(z)*self.w3;
+          int i = int(x)*self.w0 + int(y)*self.w1 + int(z)*self.w2;
           float v = sb->cellpdf(vec3(x,y,z));
           if(std::isfinite(v) && v > 0.0001f){
             float orig = data[i] - 2.f*int(data[i]/2.f);
@@ -1018,7 +1021,7 @@ static void* t_draw_blobs(void* vinfo){
     for(int x=minx; x<=maxx; ++x){
       for(int y=miny; y<=maxy; ++y){
         for(int z=minz; z<=maxz; ++z){
-          int i = (x)*filter->self.w1 + (y)*filter->self.w2 + (z)*filter->self.w3;
+          int i = (x)*filter->self.w0 + (y)*filter->self.w1 + (z)*filter->self.w2;
           // float 
           if(mode == 'g'){
             v = sb->pdf(vec3(x,y,z));
@@ -1088,12 +1091,12 @@ void ArFilter::draw_blobs(std::vector<ScaleBlob*> blobs, bool highlight){
   // ** Normalizing shouldn't be necessary, because cellpdf < 1 ** .
   // // get max value.
   // float max = 0;
-  // for(int i=0;i<self.w4;i+=2){
+  // for(int i=0;i<self.w3;i+=2){
   //   if(data[i] > max)max=data[i];
   // }
 
   // // divide by max value.
-  // for(int i=0;i<self.w4;i+=2){
+  // for(int i=0;i<self.w3;i+=2){
   //   data[i] = (data[i])/(max);
   // }
 
@@ -1109,11 +1112,11 @@ void ArFilter::draw_blobs(std::vector<ScaleBlob*> blobs, bool highlight){
   //   //   rasterlineadd(vec3(sb->position), vec3(succ->position), 1.1f, 1.5f);
   //   // }
   // }
-  // for(int z=0;z<self.a3; z++){
-  //   if(z%50 == 0)printf("draw_blobs progress %d/%d\n",z,self.a3);
-  //   for(int y=0; y<self.a2; y++){
-  //     for(int x=0; x<self.a1; x++){
-  //       int i = x*self.w1 + y*self.w2 + z*self.w3;
+  // for(int z=0;z<self.a2; z++){
+  //   if(z%50 == 0)printf("draw_blobs progress %d/%d\n",z,self.a2);
+  //   for(int y=0; y<self.a1; y++){
+  //     for(int x=0; x<self.a0; x++){
+  //       int i = x*self.w0 + y*self.w1 + z*self.w2;
   //       vec3 p(x,y,z);
   //       float v= 0.f;
   //       for ( auto blob = blobs.begin(); blob != blobs.end(); ++blob ){
@@ -1133,13 +1136,13 @@ void ArFilter::draw_blobs(std::vector<ScaleBlob*> blobs, bool highlight){
   //   normalize(0.25);
   //   // highlight centers.
   //   float *buff = self.buff[self.curr];
-  //   for(int i=0;i<self.w4;i+=self.w1){
+  //   for(int i=0;i<self.w3;i+=self.w0){
   //     buff[i] = buff[i]*0.95f;
   //   }
   //   for(int i=0;i<blobs.size();++i){
   //     glm::ivec3 v(blobs[i]->position);
-  //     int xi = v.x*self.w1 + v.y*self.w2 + v.z*self.w3;
-  //     if(xi>=0 && xi<self.w4)buff[xi] = 1.f;
+  //     int xi = v.x*self.w0 + v.y*self.w1 + v.z*self.w2;
+  //     if(xi>=0 && xi<self.w3)buff[xi] = 1.f;
   //   }
   // }
 }
@@ -1154,13 +1157,13 @@ static inline float sq(float x){
 }
 
 ScaleBlob* ArFilter::compute_blob_tree(){
-  BSPTree<ScaleBlob> bspblobs(0,10,vec3(-1.f,-1.f,-1.f),vec3(self.a1+1.f,self.a2+1.f,self.a3+1.f)); // safe against any rounding errors.
+  BSPTree<ScaleBlob> bspblobs(0,10,vec3(-1.f,-1.f,-1.f),vec3(self.a0+1.f,self.a1+1.f,self.a2+1.f)); // safe against any rounding errors.
 
   DiscreteKernel kernel; 
   float sigma = 3.f;
   float scale = 0.f;
 
-  float *const iscalec = new float[self.w4];   // data for scaled image.
+  float *const iscalec = new float[self.w3];   // data for scaled image.
   float *iscale = iscalec;                     // so we can manipulate this pointer.
 
   std::vector<ScaleBlob*> blobs;
@@ -1269,5 +1272,5 @@ ScaleBlob* ArFilter::compute_blob_tree(){
 }
 
 BSPTree<ScaleBlob> ArFilter::get_bsp(int depth){
-  return BSPTree<ScaleBlob>(0, depth, vec3(-1.f,-1.f,-1.f),vec3(self.a1+1.f,self.a2+1.f,self.a3+1.f));
+  return BSPTree<ScaleBlob>(0, depth, vec3(-1.f,-1.f,-1.f),vec3(self.a0+1.f,self.a1+1.f,self.a2+1.f));
 }

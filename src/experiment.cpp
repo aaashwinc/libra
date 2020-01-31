@@ -6,7 +6,8 @@
 #include <cstdio>
 #include <cmath>
 
-static Nrrd* convert_short4_to_float4_and_destroy(Nrrd *nin){
+static Nrrd* convert_short4_to_float3_and_destroy(Nrrd *nin){
+  // printf("hi!\n");
   int a0 = nin->axis[0].size;
   int a1 = nin->axis[1].size;
   int a2 = nin->axis[2].size;
@@ -15,16 +16,53 @@ static Nrrd* convert_short4_to_float4_and_destroy(Nrrd *nin){
   Nrrd *nout = nrrdNew();
 
   short *in  = (short*)nin->data;
-  float *out = new float[a0*a1*a2*a3];
+  float *out = new float[a1*a2*a3];
 
-  for(int i=0;i<a0*a1*a2*a3;++i){
-    out[i] = (float)(in[i] / 32768.0);
+  float maxv=0;
+  for(int j=0;j<a1*a2*a3;++j){
+    out[j] = (float)(in[j*a0+0] / 32768.0);
+    maxv = max(maxv, out[j]);
   }
 
-  nrrdWrap_va(nout, out, nrrdTypeFloat, 4, a0, a1, a2, a3);
+  // normalize max value to 1.0
+  for(int j=0;j<a1*a2*a3;++j){
+    out[j] /= maxv;
+  }  
+
+  nrrdWrap_va(nout, out, nrrdTypeFloat, 3, a1, a2, a3);
+  // printf("convert %d %d %d\n", nout->axis[0].size, nout->axis[1].size, nout->axis[2].size);
+  nrrdNuke(nin);
+  printf("created %p.\n", nout);
+  return nout;
+}
+
+static Nrrd* convert_short3_to_float3_and_destroy(Nrrd *nin){
+  // printf("hello3!\n");
+  int a0 = nin->axis[0].size;
+  int a1 = nin->axis[1].size;
+  int a2 = nin->axis[2].size;
+
+  Nrrd *nout = nrrdNew();
+
+  short *in  = (short*)nin->data;
+  float *out = new float[a0*a1*a2];
+
+  float maxv=0;
+  for(int i=0;i<a0*a1*a2;++i){
+    out[i] = (float)(in[i] / 32768.0);
+    maxv = max(maxv, out[i]);
+  }
+
+  // normalize max value to 1.0
+  for(int j=0;j<a0*a1*a2;++j){
+    out[j] /= maxv;
+  }  
+
+  nrrdWrap_va(nout, out, nrrdTypeFloat, 3, a0, a1, a2);
   nrrdNuke(nin);
   return nout;
 }
+
 static Nrrd* load_nrrd(const char *filename){
   printf("load %s\n", filename);
   Nrrd *nrrd = nrrdNew();
@@ -34,7 +72,15 @@ static Nrrd* load_nrrd(const char *filename){
     free(err);
     exit(0);
   }
-  return convert_short4_to_float4_and_destroy(nrrd);
+  int dim = nrrd->dim;
+  if(dim == 4){
+    return convert_short4_to_float3_and_destroy(nrrd);
+  }else if(dim == 3){
+    return convert_short3_to_float3_and_destroy(nrrd);
+  }else{
+    printf("unable to handle nrrd of dim=%d. exit.\n", dim);
+    exit(0);
+  }
 }
 
 
@@ -127,18 +173,7 @@ std::string ArExperiment::getfilepath(int n){
 Nrrd* ArExperiment::copy(int n){
   Nrrd *src = get(n);
   Nrrd *dst = nrrdNew();
+  nrrdCopy(dst, src);
 
-  int a0 = src->axis[0].size;
-  int a1 = src->axis[1].size;
-  int a2 = src->axis[2].size;
-  int a3 = src->axis[3].size;
-
-  float *in  = (float*)src->data;
-  float *out = new float[a0*a1*a2*a3];
-
-  for(int i=0;i<a0*a1*a2*a3;++i){
-    out[i] = in[i];
-  }
-  nrrdWrap_va(dst, out, nrrdTypeFloat, 4, a0, a1, a2, a3);
   return dst;
 }

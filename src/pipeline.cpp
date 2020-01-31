@@ -701,9 +701,19 @@ Nrrd *ArPipeline::repr(ReprMode &mode, bool force){
     // a->commit();
     // blobs.push_back(a);
     // filter.draw_blobs(blobs, false);
+    // filter.max1();
+    // filter.normalize(3.f);
+    // filter.commit(store.buf[1]);
+    ArFrameData frame = get(mode.timestep);
+    float scale = 4.f;
+    filter.capture(exp->get(mode.timestep));
+    DiscreteKernel kernel = filter.gaussian(scale, int(scale*4));
+    filter.set_kernel(kernel);
     filter.max1();
-    filter.normalize(3.f);
+    filter.filter();
     filter.commit(store.buf[1]);
+    kernel.destroy();
+    // return (last_nrrd = store.buf[1]);
     return store.buf[1];
   }
   if(!get(mode.timestep).complete){

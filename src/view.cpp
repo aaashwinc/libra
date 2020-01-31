@@ -63,6 +63,7 @@ void View::step_falloff(float factor){
 }
 
 void View::setvolume(Nrrd *n){
+  // printf("View::setvolume = %p\n", n);
   if(vcache.n == n){
     return;
   }
@@ -71,14 +72,16 @@ void View::setvolume(Nrrd *n){
   vcache.n = n;
   vcache.a = n->axis;
   vcache.data = (float*)n->data;
-  vcache.w0 = 1;
-  vcache.w1 = a[0].size * vcache.w0;
-  vcache.w2 = a[1].size * vcache.w1;
-  vcache.w3 = a[2].size * vcache.w2;
+  vcache.w0 = 1;                      // crawl x
+  vcache.w1 = a[0].size * vcache.w0;  // crawl y
+  vcache.w2 = a[1].size * vcache.w1;  // crawl z
+  vcache.w3 = a[2].size * vcache.w2;  // total size of data
 
-  vcache.a1 = a[1].size;
-  vcache.a2 = a[2].size;
-  vcache.a3 = a[3].size;
+  vcache.a1 = a[0].size;
+  vcache.a2 = a[1].size;
+  vcache.a3 = a[2].size;
+
+  // printf("vcache %d %d %d\n", n->axis[0].size, n->axis[1].size, n->axis[2].size);
   touch();
 }
 void View::setgeometry(ArGeometry3D* geometry){
@@ -153,7 +156,7 @@ float View::qsample(int c, float x, float y, float z){
   }
   // printf("sample %d\n", i3*vcache.w3 + i2*vcache.w2 + i1*vcache.w1 + i0);
   return vcache.data[
-    i3*vcache.w3 + i2*vcache.w2 + i1*vcache.w1 + i0*vcache.w0
+    i3*vcache.w2 + i2*vcache.w1 + i1*vcache.w0
   ];
 }
 
