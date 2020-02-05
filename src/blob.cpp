@@ -81,6 +81,15 @@ float ScaleBlob::cellpdf(vec3 p){
   // float mag = glm::dot(p,(invCov*p));
   // return 1.f/(0.1f + 0.05f*mag*mag);
 }
+float ScaleBlob::ellipsepdf(vec3 p){
+  p = p - vec3(position);
+  float mag = glm::dot(p,(invCov*p));
+  if(mag<2.f)  return 1.f;
+  else         return 0.f;
+  // else         return float(erf(2-mag)*0.5+0.5);
+  // float mag = glm::dot(p,(invCov*p));
+  // return 1.f/(0.1f + 0.05f*mag*mag);
+}
 float ScaleBlob::cellerf(vec3 p){
   p = p - vec3(position);
   float mag = glm::dot(p,(invCov*p));
@@ -94,7 +103,7 @@ float ScaleBlob::cellerf(vec3 p){
 float ScaleBlob::celldot(vec3 p){
   p = p - vec3(position);
   float mag = sqrt(glm::dot(p,p));
-  if(mag<1.f)  return 0.7f;
+  if(mag<1.f)  return 1.f;
   if(mag>3.5f) return 0.f;
   else         return 0.5f;
   // else         return 1 - 0.4 * (-1 + mag);
@@ -113,6 +122,15 @@ float ScaleBlob::outlinepdf(vec3 p){
   // else         return float(erf(2-mag)*0.5+0.5);
   // float mag = glm::dot(p,(invCov*p));
   // return 1.f/(0.1f + 0.05f*mag*mag);
+}
+float ScaleBlob::generalized_multivariate_gaussian_pdf(vec3 p){
+  // return 1.f;
+  // printf("%.2f %.2f %.2f\n", alpha, beta, kappa);
+  p = p-vec3(position);
+  float mag = glm::dot(p,(invCov*p));
+  float v = kappa*exp(-pow(alpha*mag, beta));
+  // float v = exp(-0.5 * glm::dot(p, invCov*p));
+  return v;
 }
 void ScaleBlob::commit(){
   if(npass == 0){  // compute mean.

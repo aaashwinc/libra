@@ -37,6 +37,7 @@ public:
   struct{
     float slice;
     vec3 dims;
+    char projmode;
   }flat;
 
   void setYawPitch(float y, float p);

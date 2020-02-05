@@ -504,15 +504,21 @@ def color_of_line(line):
 
 print('show')
 
-paths = load_paths()
+paths_raw = load_paths()
+paths = []
+for path in paths_raw:
+  # print(path.shape)
+  if path.shape[0] > 18:
+    paths += [path]
 paths += [normalize(line([0,50,50], [1,0,0], 100))]
 # print(line([0,50,50], [1,0,0], 100))
 print('loaded ', len(paths), ' paths')
-paths2d     = []
+# print(paths[0])
+# paths2d     = []
 
 
-for path in paths:
-  paths2d += [path[:,0:2]]
+# for path in paths:
+#   paths2d += [path[:,0:2]]
 
 # print(paths[0])
 # print(paths2d[0])
@@ -530,7 +536,7 @@ pathspt2d  = []
 
 for i in range(len(paths)):
   path = paths[i]
-  path2d = paths2d[i]
+  # path2d = paths2d[i]
   path = normalize(path)
   path = smooth(path, sigma=5)
   # path = normalize(path, nth=10)
@@ -549,7 +555,7 @@ for i in range(len(paths)):
   # ax11.plot(path[:,1], path[:,2], color=color)
 
   paths[i] = path
-  paths2d[i] = path2d
+  # paths2d[i] = path2d
 
 # paths = paths2
 # print(circlespt[-1])
@@ -590,6 +596,17 @@ X5 = manifold.TSNE(n_components=2, n_jobs=-1, n_iter=1000, perplexity=10).fit_tr
     # print(event.ind)
 linecolors = []
 
+pcascatter = None
+pcalines   = None
+# def on_hover(event):
+#   if event.inaxes == ax9:
+#     cont, ind = pcascatter.contains(event)
+#     print(ind)
+#     ax5.clear()
+#     for i in ind['ind']:
+#       print(i)
+#       path = pcalines[i]
+
 def on_pick(event):
   # print(event)
   # print('picked!')
@@ -598,6 +615,7 @@ def on_pick(event):
   toplot = []
   toplot_zero = []
   for c in event.ind:
+    # print('pick', c)
     toplot += [paths[c]]
     toplot_zero += [transform_naive_minus_start(paths[c])]
 
@@ -605,13 +623,30 @@ def on_pick(event):
   if(len(toplot) > 0):
     toplot_array = np.array(toplot_zero)
     average = np.average(toplot_array, axis=0)
-    print(average)
-    print(average.shape)
-    print(toplot[0].shape)
+    # print(average)
+    # print(average.shape)
+    # print(toplot[0].shape)
     # average = np.array(np.zeros(toplot[0].shape))
     # for line in toplot:
     #   average
     toplot += [average]
+    aspoints = []
+    for i in toplot:
+      aspoints += [to_point_naive_minus_start(i)]
+    # print(np.array(aspoints))
+    # print(np.array(aspoints).shape)
+    X2 = sklearn.decomposition.PCA(n_components=1).fit_transform(np.array(aspoints))
+    ax9.clear()
+    # global pcascatter
+    # global pcalines
+    # pcalines   = toplot
+    ax5.clear()
+    for path in toplot:
+      print('path')
+      ax5.plot(path[:,0], path[:,1], color=color_of_line(path))
+    
+    ax9.scatter(X2[:,0], np.zeros(X2.shape[0]), picker=True, s=10)
+    # print('pcascatter', pcascatter)
 
   ax2.clear()
   ax4.clear()
@@ -624,7 +659,7 @@ def on_pick(event):
   ax8.set_aspect('equal', adjustable='box')
   ax11.set_aspect('equal', adjustable='box')
   ax12.set_aspect('equal', adjustable='box')
-  ax5.set_aspect('equal', adjustable='box')
+  # ax5.set_aspect('equal', adjustable='box')
   for line in paths:
     ax2.plot3D(line[:,0], line[:,1], line[:,2], color=[0.8,0.8,0.8,0.8])
   # for line in paths:
@@ -643,7 +678,7 @@ def on_pick(event):
     line2 = transform_normalized_2d_pca(line)
  
     
-    ax5.plot(line2[:,0], line2[:,1], color=color_of_line(line))
+    # ax5.plot(line2[:,0], line2[:,1], color=color_of_line(line))
   # ax8.clear()
 
   plt.ion()
@@ -691,6 +726,7 @@ print('done')
 # line([2,2,2],[1,-1,0], 5)
 
 fig.canvas.mpl_connect('pick_event', on_pick)
+# fig.canvas.mpl_connect("motion_notify_event", on_hover)
 
 # plt.draw()
 # plt.pause(0.001)

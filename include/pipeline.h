@@ -11,6 +11,7 @@
 #include "shapes.h"
 #include "filter.h"
 #include "bsptree.h"
+#include "tgmm.h"
 
 #define SWAP(x,y,t) {t=x;x=y;y=t;}
 
@@ -46,6 +47,7 @@ struct ArFrameData{
   std::vector<float> scales;
   float scale_eps;            // some epsilon that satisfies: for all i, scales[i+1] - scales[i] > epsilon.
   bool complete;
+  ScaleBlob* tgmm_blob;
 };
 // A ArPipeline performs the entire analysis pipeline,
 // for all frames. Input: experiment. Output: tracks.
@@ -60,12 +62,15 @@ private:
     bool init;  // initialized?
   }store;
 
+  TGMM* tgmm;
   ArFilter filter;
   ArExperiment *exp;
   std::vector<ArFrameData> frames;
   ArGeometry3D geometry;
 
   std::vector<std::vector<ScaleBlob*>> paths;
+
+  void loadTGMM();
 
 public:
   int low();
@@ -76,7 +81,7 @@ public:
   
   void process(int low, int high);
   void link(int low, int high);
-  void findpaths(int minlen, int maxframe, char* mode);
+  void findpaths(int minlen, int maxframe, const char* mode);
   
   Nrrd *repr(ReprMode &mode, bool force=false);
   ArGeometry3D *reprgeometry(ReprMode &mode);
@@ -88,6 +93,10 @@ public:
 
   void save();
   void load();
+
+  void emit(ReprMode &mode, std::string suffix, int low, int high);
+  // void getTGMMOutput(std::string path, int low, int high);
+
 };
 
 #endif

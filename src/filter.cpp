@@ -257,6 +257,17 @@ void ArFilter::print_kernel(DiscreteKernel k){
 //   }
 //   return 3.0*max/2.0;
 // }
+void ArFilter::laplacianmasked(float scale){
+  float *raw = self.buff[self.curr];
+  int iraw = self.curr;
+  laplacian3d();
+  float *lap = self.buff[self.curr];
+  for(int i=0;i<self.w3;i++){
+    if(lap[i] == 0)raw[i] = 0;
+  }
+  self.curr = iraw;
+
+}
 void ArFilter::laplacian3d(int boundary){
   float *in  = self.buff[self.curr];
   float *out = self.buff[itempbuf()];
@@ -440,7 +451,7 @@ void ArFilter::max1(){
   // printf("max1 -> %p\n", self.buff[self.curr]);
 }
 
-void ArFilter::threshold(int min, int max){
+void ArFilter::threshold(float min, float max){
   float *data = self.buff[self.curr];
   for(int i=0;i<self.w3;i++){
     if(data[i]<min)data[i]=0;
@@ -751,18 +762,20 @@ std::vector<ScaleBlob*> ArFilter::find_blobs(){
         Point peak;
         peak.p = ivec3(x,y,z);
         peak.i = i;
+        // printf("%d %d\n",i, peak.i);
 
         // printf("(%d %d %d %d)\n",peak.p.x, peak.p.y, peak.p.z, data[peak.i]);
         trail_length = 0;
         for(;;){
+          // printf("%d %d\n",i, peak.i);
           // printf("  -> (%d %d %d %d) ",peak.p.x, peak.p.y, peak.p.z, data[peak.i]);
-          int   maxi = INT_MIN;  // max neighbor index
+          int   maxi = 0;  // max neighbor index
           float maxv = -1.f;      // max neighbor value
           ivec3 maxp = ivec3(0); // max neighbor coordinates
           // printf("3\n");
 
           // printf("labelled[%d]\n",peak.i);
-
+          // printf("i=%d %d from %d %d %d\n", i, peak.i, x, y, z);
           if(labelled[peak.i] != -1){
             // we have reached a pixel that already has a label.
             // use this pixel's label as our own (if we keep 
@@ -991,9 +1004,10 @@ struct thread_drawblobs_info{
   std::vector<ScaleBlob*> *blobs;
   float *data;
   float *lock;
-  int blobmin;   // render window min value.
-  int blobmax;   // render window max value.
-  char mode;     // either 'q'=quick or 'g'=gaussian
+  int blobmin;    // render window min value.
+  int blobmax;    // render window max value.
+  char *mode;     // either 'q'=quick or 'g'=gaussian
+                  // mode[2] either '+' or 'm'
 };
 
 static void* t_draw_blobs(void* vinfo){
@@ -1002,13 +1016,14 @@ static void* t_draw_blobs(void* vinfo){
   float *lock = info->lock;
   int blobmin = info->blobmin;
   int blobmax = info->blobmax;
-  char mode   = info->mode;
+  char *mode   = info->mode;
   ArFilter *filter = info->filter;
   std::vector<ScaleBlob*> &blobs = *info->blobs;
 
-  printf("t_draw_blobs %d - %d\n", blobmin, blobmax);
+  // printf("t_draw_blobs %d - %d\n", blobmin, blobmax);
   for(int bi=blobmin; bi<blobmax; ++bi){
     ScaleBlob *sb = blobs[bi];
+            // printf("dot");
     if(sb->n < 3)continue;
     int minx = sb->min.x;
     int miny = sb->min.y;
@@ -1016,28 +1031,46 @@ static void* t_draw_blobs(void* vinfo){
     int maxx = sb->max.x;
     int maxy = sb->max.y;
     int maxz = sb->max.z;
+    if(minx < 0)minx = 0;
+    if(miny < 0)miny = 0;
+    if(minz < 0)minz = 0;
+    if(maxx >= filter->self.a0)maxx = filter->self.a0;
+    if(maxy >= filter->self.a1)maxy = filter->self.a1;
+    if(maxz >= filter->self.a2)maxz = filter->self.a2;
     float v;
     // printf("minmax %d %d %d %d %d %d\n",minx, maxx, miny, maxy, minz, maxz);
     for(int x=minx; x<=maxx; ++x){
       for(int y=miny; y<=maxy; ++y){
         for(int z=minz; z<=maxz; ++z){
           int i = (x)*filter->self.w0 + (y)*filter->self.w1 + (z)*filter->self.w2;
+          if(i<0)continue;
+          if(i>=filter->self.w3)continue;
           // float 
-          if(mode == 'g'){
+          if(mode[0] == 'g'){
             v = sb->pdf(vec3(x,y,z));
           }
-          else if(mode=='q'){
+          else if(mode[0]=='q'){
             v = sb->cellpdf(vec3(x,y,z));
           }
-          else if(mode=='e'){
+          else if(mode[0]=='e'){
             v = sb->cellerf(vec3(x,y,z));
           }
-          else if(mode=='c'){
+          else if(mode[0]=='.'){
             v = sb->celldot(vec3(x,y,z));
+          }
+          else if(mode[0]=='e'){
+            v = sb->ellipsepdf(vec3(x,y,z));
+          }
+          else if(mode[0]=='m'){
+            v = sb->generalized_multivariate_gaussian_pdf(vec3(x,y,z));
           }
           // float v = 0.5f;
           // if(std::isfinite(v)){
-          data[i] = max(data[i],v);
+          if(mode[1] == '+'){
+            data[i] = (data[i] + v);
+            if(data[i]>1)data[i] = 1;
+          }
+          else data[i] = max(data[i],v);
             // printf("(%.2f %.2f %.2f) -> %.f", x,y,z,v);
           // }
         }
@@ -1046,8 +1079,8 @@ static void* t_draw_blobs(void* vinfo){
   }
 }
 
-void ArFilter::draw_blobs(std::vector<ScaleBlob*> blobs, bool highlight){
-  printf("draw blobs.");
+void ArFilter::draw_blobs(std::vector<ScaleBlob*> blobs, char *mode){
+  // printf("draw blobs.");
   using namespace glm;
 
   const int nthreads = 12;
@@ -1066,7 +1099,7 @@ void ArFilter::draw_blobs(std::vector<ScaleBlob*> blobs, bool highlight){
 
     info[i].blobmin = (i*blobs.size())/nthreads;
     info[i].blobmax = ((i+1)*(blobs.size()))/nthreads;
-    info[i].mode    = 'q';
+    info[i].mode    = mode;
   }
 
   for(int i=0;i<nthreads;++i){
@@ -1156,6 +1189,10 @@ static inline float sq(float x){
   return x*x;
 }
 
+ScaleBlob* model_with_gaussians(){
+
+}
+
 ScaleBlob* ArFilter::compute_blob_tree(){
   BSPTree<ScaleBlob> bspblobs(0,10,vec3(-1.f,-1.f,-1.f),vec3(self.a0+1.f,self.a1+1.f,self.a2+1.f)); // safe against any rounding errors.
 
@@ -1171,6 +1208,8 @@ ScaleBlob* ArFilter::compute_blob_tree(){
 
   int index_of_laplacian;
 
+  printf("threshold 0.1f;\n");
+  threshold(0.1f, 1.f);
   max1();
   // we want to compute the gaussian of the image at various scales.
   // use the fact that the composition of gaussians is a gaussian with
@@ -1185,7 +1224,7 @@ ScaleBlob* ArFilter::compute_blob_tree(){
     scale = sqrt(scale*scale + sigma*sigma);  // compute scale factor with repeated gaussians.
     // printf("scale = %.2f\n", scale);
     float **blurred = self.buff + self.curr;  // address of blurred image.
-    // printf("  laplacian., ");
+    printf("  laplacian.. ");
     laplacian3d(1);                           // compute laplacian, store in self.buff[curr+1].
     // fppswap(blurred, &iscale);                 // remove the blurred image from the swap chain
                                               // and store in iscale, so that it's not overwritten
@@ -1200,6 +1239,7 @@ ScaleBlob* ArFilter::compute_blob_tree(){
     // printf("swap.\n");
     // printf("filter stack: %p %p. curr=%d.\n", self.buff[0], self.buff[1], self.curr);
     // printf("  normalize.. ");
+    filter();
     normalize();
     printf(". find blobs.\n");
     std::vector<ScaleBlob*> bigblobs = find_blobs();
@@ -1273,4 +1313,12 @@ ScaleBlob* ArFilter::compute_blob_tree(){
 
 BSPTree<ScaleBlob> ArFilter::get_bsp(int depth){
   return BSPTree<ScaleBlob>(0, depth, vec3(-1.f,-1.f,-1.f),vec3(self.a0+1.f,self.a1+1.f,self.a2+1.f));
+}
+
+void ArFilter::difference_image(Nrrd* x){
+  float *data1 = self.buff[self.curr];
+  float *data2 = (float*) x->data;
+  for(int i=0;i<self.w3;i+=self.w0){
+    data1[i] = fabs(data1[i] - data2[i]);
+  }
 }

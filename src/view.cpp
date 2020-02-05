@@ -27,8 +27,8 @@ static inline void put_color(float x, Colormap &colormap, sf::Uint8 *color){
   if(x<0)x=0;
   vec4 col = colormap.colorof(x);
   color[0] = ftoi(x);
-  color[1] = ftoi(x*x);
-  color[2] = ftoi(x*x*x);
+  color[1] = ftoi(sqrt(x));
+  color[2] = ftoi(x*x);
   color[3] = 255;
 
 }
@@ -172,15 +172,23 @@ void View::drawflat(){
       xx = float(x)/w * (float(vcache.a1)-0.00005f);
       yy = float(y)/h * (float(vcache.a2)-0.00005f);
       zz = camera.flat.slice * (float(vcache.a3)-0.00005f);
-      // if(MIP){
-      //   float sum = 0;
-      //   for(int i=0;i<vcache.a3;i++){
-      //     sum = max(sum, qsample(0,i,xx,yy));
-      //   }
-      //   vv = sum;
-      // }
+      if(camera.flat.projmode == 'M'){
+        float sum = 0;
+        for(int i=0;i<vcache.a3;i++){
+          sum = max(sum, qsample(0,i,xx,yy));
+        }
+        vv = sum;
+      }else if(camera.flat.projmode == '+'){
+        float sum = 0;
+        for(int i=0;i<vcache.a3;i++){
+          sum += qsample(0,i,xx,yy);
+        }
+        vv = sum / vcache.a3;
+      }else{
+        vv = qsample(0,zz,xx,yy);
+      }
      // vv = sum*5.f;
-      vv = qsample(0,zz,xx,yy);
+      // vv = qsample(0,zz,xx,yy);
       put_color(vv, colormap, texdata+i);
       i+=4;
     }

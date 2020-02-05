@@ -16,6 +16,7 @@ Camera::Camera(){
   drawflat   = false;
 
   flat.slice = 0;
+  flat.projmode   = '_';
 }
 void Camera::set(vec3 pos, vec3 look, vec3 sky){
   this->pos = pos;
@@ -35,7 +36,7 @@ line3 Camera::to_screen(line3 l, ivec2 screen){
     o.b.z = 1.f;
     // l.a.z = l.a.z*33.f - flat.slice*flat.dims.z;
     // l.b.z = l.b.z*33.f - flat.slice * flat.dims.z;
-    printf("slice %.2f -> %.2f \n", flat.slice, l.a.z);
+    // printf("slice %.2f -> %.2f \n", flat.slice, l.a.z);
     // printf("%.2f %.2f %.2f %.2f %.2f %.2f ", l.a.x, l.b.x, l.a.y, l.b.y, l.a.z, l.b.z);
     // l.a.x = 0;
     // l.b.x = 100;

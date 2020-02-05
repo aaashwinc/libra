@@ -102,19 +102,26 @@ static int length_first_repeated_sequence(const char *str, const char c){
   return digits;
 }
 
-ArExperiment::ArExperiment(std::string path, int low, int high, int mem_cap){
-  int digits = length_first_repeated_sequence(path.c_str(),'?');
-  paths = new std::string[high-low+1];
+std::string resolve_filename(std::string path, int index){
+  int digits = length_first_repeated_sequence(path.c_str(),'?');   // number of digits;
   char counter[digits+1];
-  memset(counter,'\0',digits);
+  memset(counter,'\0',digits);      // \0 \0 .... digits .... \0
+  snprintf(counter, sizeof(counter), "%0*d", digits, index);
+  std::string filename = path;
+  int p;
+  while((p=filename.find('?')) != std::string::npos){
+    filename = filename.replace(p,digits,counter);
+  }
+  return filename;
+}
+
+ArExperiment::ArExperiment(std::string path, std::string tgmmpath, int low, int high, int mem_cap){
+  paths     = new std::string[high-low+1];
+  tgmmpaths = new std::string[high-low+1];
   for(int i=low;i<=high;++i){
-    snprintf(counter, sizeof(counter), "%0*d", digits, i);
-    std::string filename = path;
-    int p;
-    while((p=filename.find('?')) != std::string::npos){
-      filename = filename.replace(p,digits,counter);
-    }
-    paths[i] = filename;
+    paths[i] = resolve_filename(path, i);
+    tgmmpaths[i] = resolve_filename(tgmmpath, i);
+    // numbers[i] = std::string(counter);
   }
 
   frames = new NrrdFrame[mem_cap];
@@ -160,6 +167,7 @@ Nrrd* ArExperiment::get(int n){
 
   filter.init(frames[i].nrrd);
   filter.normalize();
+  // filter.threshold(0.1,1.0);
   filter.commit();
 
   // printf("loaded frame %d: %u, %s, %p\n", n, time, paths[n-low].c_str(), frames[i].nrrd);
@@ -169,6 +177,12 @@ Nrrd* ArExperiment::get(int n){
 std::string ArExperiment::getfilepath(int n){
   return paths[n-low];
 }
+std::string ArExperiment::gettgmmpath(int n){
+  return tgmmpaths[n-low];
+}
+// std::string ArExperiment::getfilenumber(int n){
+//   return numbers[n-low];
+// }
 
 Nrrd* ArExperiment::copy(int n){
   Nrrd *src = get(n);

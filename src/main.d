@@ -319,6 +319,7 @@
  /home/ashwin/repo/libra/build/../include/experiment.h \
  /home/ashwin/repo/libra/build/../include/shapes.h \
  /home/ashwin/repo/libra/build/../include/pipeline.h \
+ /home/ashwin/repo/libra/build/../include/tgmm.h \
  /home/ashwin/repo/libra/build/../include/synth.h \
  /home/ashwin/repo/libra/lib/LBFGSpp/include/LBFGS.h \
  /usr/local/include/eigen3/Eigen/Core \

@@ -20,6 +20,9 @@ public:
   dvec3  position;  // mean of this blob in space.
   dmat3x3 shape;    // covariance matrix of blob.
   mat3x3 fshape;    // covariance matrix of blob.
+  float alpha;      // generalized multivariate gaussian alpha. 
+  float beta;       // generalized multivariate gaussian beta. 
+  float kappa;      // generalized multivariate gaussian kappa.
   int timestep;     // the timestep in which this blob exists.
 
   Eigen::Matrix3f covariance;
@@ -47,6 +50,8 @@ public:
   float cellerf(vec3 p);
   float celldot(vec3 p);
   float outlinepdf(vec3 p);
+  float ellipsepdf(vec3 p);
+  float generalized_multivariate_gaussian_pdf(vec3 p);
   void pass(vec3 point, float value);
   void commit();
   void print();

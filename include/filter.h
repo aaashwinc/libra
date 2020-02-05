@@ -52,16 +52,19 @@ public:
 
   void normalize(double power=1.0);
   void scale(float s);
-  void threshold(int min, int max);
+  void threshold(float min, float max);
   void positive(int channel=0);
   void negative(int channel=0);
   void binary(int channel=0);
   void laplacian3d(int boundary = 0);
+  void laplacianmasked(float scale = 0);
   void max1();
   void median1();
   void maxima();
   void print();
   void clear();
+
+  void difference_image(Nrrd* x);
 
   // void gaussian(float scale);
   void lapofgaussian(float scale);
@@ -73,7 +76,7 @@ public:
   ivec3 hill_climb(ivec3 in);
   void highlight(std::vector<glm::ivec3> points);
   std::vector<ScaleBlob*> find_blobs();
-  void draw_blobs(std::vector<ScaleBlob*>, bool highlight=false);
+  void draw_blobs(std::vector<ScaleBlob*>, char *mode="gm");
   void add_blobs(std::vector<ScaleBlob*>);
   void color_blobs(std::vector<ScaleBlob*>, float color);
   ScaleBlob* compute_blob_tree();

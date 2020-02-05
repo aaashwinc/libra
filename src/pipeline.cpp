@@ -10,8 +10,11 @@
 #include <queue>
 #include <SFML/Graphics.hpp>
 
-#include "blobmath.h"
+#include <libxml/parser.h>
+#include <libxml/tree.h>
 
+#include "blobmath.h"
+#include "estimator.h"
 
 using namespace std::chrono; 
 using namespace std;
@@ -38,6 +41,7 @@ ArPipeline::ArPipeline(ArExperiment *exp){
     ArFrameData data;
     data.blob     = 0;
     data.complete = false;
+    data.tgmm_blob = 0;
     frames.push_back(data);
   }
   store.nbuf = 3;
@@ -190,12 +194,14 @@ static std::vector<ScaleBlob*> collect_blobs(ScaleBlob *blob, float scalemin, fl
   // scalemin = -1000;
   // scalemax = 10000;collect_blobs
   // printf("(");
+  // printf("collect_blobs %.2f %.2f\n", scalemin, scalemax);
   std::vector<ScaleBlob*> blobs;
   if(blob->scale >= scalemin || blob->scale == 0 || scalemin == -1){
     if(blob->scale <= scalemax || blob->scale == 0 || scalemax == -1){
       // printf(".");
       blobs.push_back(blob);
     }
+    // printf("  scale = %.2f\n", blob->scale);
     for(ScaleBlob *child : blob->children){
       std::vector<ScaleBlob*> childblobs = collect_blobs(child, scalemin, scalemax);
       blobs.insert(blobs.end(), childblobs.begin(), childblobs.end());
@@ -233,7 +239,7 @@ static std::vector<ScaleBlob*> detected_blobs(ScaleBlob *blob){
 static bool fun_sort_blob_by_n(ScaleBlob* a, ScaleBlob* b){
   return a->n > b->n;
 }
-void ArPipeline::findpaths(int minlen, int maxframe, char* mode){
+void ArPipeline::findpaths(int minlen, int maxframe, const char* mode){
   if(maxframe <= 0)maxframe = frames.size();
   if(maxframe > frames.size())maxframe = frames.size();
   std::vector<ScaleBlob*> allblobs;
@@ -241,6 +247,10 @@ void ArPipeline::findpaths(int minlen, int maxframe, char* mode){
     if(frames[i].complete){           // if it is processed
                                       // collect blobs
       std::vector<ScaleBlob*> blobsi = collect_blobs(frames[i].blob, 0, std::numeric_limits<float>::infinity());
+      if(!strcmp(mode, "tgmm")){
+        // printf("tgmm!");
+        blobsi = collect_blobs(frames[i].tgmm_blob, -1, -1);
+      }
       std::sort(blobsi.begin(), blobsi.end(), fun_sort_blob_by_n);
       // for(auto sb : blobsi){
       //   printf("%.2f; ", sb->n);
@@ -252,7 +262,8 @@ void ArPipeline::findpaths(int minlen, int maxframe, char* mode){
   printf("find paths > %d.\n", minlen);
   printf("find paths in %lu blobs.\n", allblobs.size());
   std::vector<std::vector<ScaleBlob*>> allpaths;
-  if(!strcmp(mode, "quick"))   allpaths = longest_paths(allblobs, minlen);
+  if(!strcmp(mode, "quick"))   allpaths = longest_paths2(allblobs, minlen);
+  if(!strcmp(mode, "tgmm"))    allpaths = longest_paths2(allblobs, minlen);
   if(!strcmp(mode, "longest")) allpaths = longest_paths2(allblobs, minlen);
   paths.clear();
   for(int i=0;i<allpaths.size();++i){
@@ -556,7 +567,7 @@ ArGeometry3D* ArPipeline::reprgeometry(ReprMode &mode){
           std::vector<glm::dvec3> smoothed(path.size());
 
           if(true){   // smooth path
-            int smooth_path = 0;
+            int smooth_path = 5;
             for(int i=0;i<path.size();i++){
               int k = smooth_path;
               if(i-k < 0){
@@ -705,14 +716,24 @@ Nrrd *ArPipeline::repr(ReprMode &mode, bool force){
     // filter.normalize(3.f);
     // filter.commit(store.buf[1]);
     ArFrameData frame = get(mode.timestep);
-    float scale = 4.f;
-    filter.capture(exp->get(mode.timestep));
-    DiscreteKernel kernel = filter.gaussian(scale, int(scale*4));
-    filter.set_kernel(kernel);
-    filter.max1();
-    filter.filter();
+    // float scale = 4.f;
+    filter.clear();
+    // filter.capture(exp->get(mode.timestep));
+    ScaleBlob* blob = frame.blob->children[0]->children[0]->children[0];
+    std::vector<ScaleBlob*> highlight;
+    highlight.push_back(blob);
+    filter.draw_blobs(highlight);
+    // ivec3 points[]={ivec3(100, 129, 194), ivec3(36, 103, 193), ivec3(60, 145, 185), ivec3(142, 35, 185), ivec3(133, 1, 198), ivec3(45, 66, 190), ivec3(82, 81, 196), ivec3(145, 93, 194), ivec3(71, 50, 161), ivec3(113, 79, 197), ivec3(143, 25, 194), ivec3(87, 44, 192), ivec3(82, 107, 194), ivec3(6, 142, 185), ivec3(29, 128, 195), ivec3(72, 139, 189), ivec3(101, 76, 196), ivec3(144, 59, 153), ivec3(103, 15, 182), ivec3(81, 137, 193), ivec3(71, 142, 196), ivec3(122, 90, 168), ivec3(118, 92, 184), ivec3(113, 32, 197), ivec3(66, 116, 198), ivec3(121, 93, 192), ivec3(48, 87, 187), ivec3(2, 86, 175), ivec3(110, 4, 140), ivec3(65, 65, 180), ivec3(27, 43, 196), ivec3(133, 94, 137), ivec3(134, 95, 128), ivec3(147, 83, 164), ivec3(92, 120, 119), ivec3(132, 64, 181), ivec3(143, 14, 127), ivec3(138, 22, 138), ivec3(20, 102, 117), ivec3(55, 5, 197), ivec3(29, 79, 197), ivec3(125, 71, 137), ivec3(83, 148, 109), ivec3(145, 3, 190), ivec3(12, 80, 186), ivec3(27, 148, 128), ivec3(41, 145, 187), ivec3(102, 83, 150), ivec3(101, 108, 141), ivec3(109, 144, 117), ivec3(145, 7, 115), ivec3(4, 89, 162), ivec3(20, 131, 69), ivec3(14, 126, 131), ivec3(83, 122, 153), ivec3(124, 121, 157), ivec3(137, 58, 81), ivec3(138, 25, 3), ivec3(93, 86, 15), ivec3(49, 132, 80), ivec3(86, 148, 3), ivec3(59, 114, 165), ivec3(79, 125, 129), ivec3(89, 113, 126), ivec3(9, 54, 167), ivec3(5, 72, 132), ivec3(44, 99, 172), ivec3(30, 97, 92), ivec3(39, 134, 27), ivec3(86, 83, 182), ivec3(88, 93, 172), ivec3(81, 118, 188), ivec3(89, 101, 161), ivec3(92, 47, 53), ivec3(114, 141, 87), ivec3(132, 144, 77), ivec3(79, 84, 38), ivec3(10, 60, 76), ivec3(23, 101, 136), ivec3(1, 86, 55), ivec3(72, 15, 154), ivec3(143, 148, 169), ivec3(144, 53, 51), ivec3(144, 136, 15), ivec3(143, 102, 73), ivec3(130, 110, 5), ivec3(130, 108, 13), ivec3(72, 67, 127), ivec3(47, 93, 122), ivec3(135, 6, 4), ivec3(26, 3, 176), ivec3(109, 106, 130), ivec3(121, 144, 128), ivec3(147, 50, 144), ivec3(131, 143, 22), ivec3(90, 120, 26), ivec3(13, 147, 97), ivec3(7, 43, 141), ivec3(50, 46, 149), ivec3(20, 15, 80), ivec3(102, 104, 150), ivec3(115, 121, 63), ivec3(148, 92, 51), ivec3(92, 134, 3), ivec3(59, 84, 151), ivec3(47, 147, 88), ivec3(38, 130, 93), ivec3(30, 148, 45), ivec3(111, 62, 80), ivec3(21, 35, 157), ivec3(69, 10, 142), ivec3(94, 45, 46), ivec3(139, 116, 44), ivec3(117, 122, 56), ivec3(144, 53, 44), ivec3(125, 56, 51), ivec3(82, 121, 58), ivec3(86, 86, 104), ivec3(43, 62, 3), ivec3(132, 3, 16), ivec3(109, 13, 28), ivec3(80, 18, 61), ivec3(88, 54, 11), ivec3(60, 35, 3), ivec3(84, 11, 104), ivec3(71, 46, 45), ivec3(3, 51, 91), ivec3(55, 77, 79), ivec3(56, 78, 85), ivec3(71, 59, 66), ivec3(74, 48, 32), ivec3(43, 63, 148), ivec3(68, 9, 103), ivec3(56, 38, 79), ivec3(33, 2, 70), ivec3(70, 58, 78), ivec3(92, 87, 4), ivec3(54, 111, 87), ivec3(56, 50, 93), ivec3(45, 18, 41), ivec3(78, 71, 11), ivec3(59, 35, 112), ivec3(108, 77, 105), ivec3(142, 59, 3), ivec3(7, 125, 105), ivec3(135, 147, 160), ivec3(82, 127, 137), ivec3(86, 99, 85), ivec3(40, 122, 123), ivec3(29, 148, 56), ivec3(40, 135, 37), ivec3(145, 134, 6), ivec3(25, 50, 59), ivec3(86, 43, 107), ivec3(126, 65, 115), ivec3(40, 28, 146), ivec3(105, 17, 40), ivec3(102, 115, 33), ivec3(26, 128, 184), ivec3(102, 148, 158), ivec3(122, 123, 88), ivec3(86, 121, 38), ivec3(36, 91, 80), ivec3(116, 102, 76), ivec3(140, 25, 25), ivec3(145, 136, 63), ivec3(48, 98, 46), ivec3(115, 35, 24), ivec3(127, 33, 75), ivec3(59, 38, 68), ivec3(108, 71, 71), ivec3(145, 126, 180), ivec3(142, 147, 195), ivec3(6, 125, 167), ivec3(26, 99, 174), ivec3(96, 12, 152), ivec3(24, 63, 199), ivec3(131, 76, 152), ivec3(78, 146, 162), ivec3(78, 109, 152), ivec3(85, 121, 48), ivec3(56, 110, 99), ivec3(17, 115, 24), ivec3(128, 28, 140), ivec3(52, 23, 137), ivec3(147, 101, 95), ivec3(144, 0, 49), ivec3(148, 147, 71), ivec3(121, 111, 196), ivec3(56, 74, 176), ivec3(86, 85, 189), ivec3(49, 138, 196), ivec3(33, 67, 177), ivec3(126, 56, 190), ivec3(147, 9, 152), ivec3(5, 113, 188), ivec3(62, 119, 146), ivec3(139, 58, 63), ivec3(123, 131, 172), ivec3(111, 67, 95), ivec3(105, 145, 24), ivec3(140, 143, 29), ivec3(95, 113, 1), ivec3(22, 57, 129), ivec3(45, 32, 161), ivec3(92, 46, 59), ivec3(144, 138, 21), ivec3(74, 25, 101), ivec3(53, 74, 1), ivec3(140, 117, 121), ivec3(102, 131, 101), ivec3(3, 57, 102), ivec3(55, 84, 46), ivec3(21, 148, 139), ivec3(1, 76, 156), ivec3(107, 101, 90), ivec3(24, 141, 176), ivec3(94, 70, 167), ivec3(130, 72, 195), ivec3(68, 90, 180), ivec3(0, 9, 195), ivec3(144, 79, 109), ivec3(62, 27, 196), ivec3(98, 139, 183), ivec3(2, 136, 141), ivec3(16, 117, 33), ivec3(131, 117, 143), ivec3(1, 45, 181), ivec3(131, 34, 128), ivec3(106, 102, 68), ivec3(48, 146, 67), ivec3(60, 79, 139), ivec3(64, 138, 44), ivec3(98, 145, 70), ivec3(125, 14, 48), ivec3(55, 79, 71), ivec3(134, 77, 47), ivec3(33, 81, 91), ivec3(107, 50, 197), ivec3(78, 25, 196), ivec3(148, 119, 190), ivec3(34, 27, 189), ivec3(137, 0, 177), ivec3(6, 132, 125), ivec3(92, 146, 82), ivec3(81, 124, 69), ivec3(53, 130, 65), ivec3(5, 100, 140), ivec3(6, 130, 118), ivec3(133, 144, 10), ivec3(130, 98, 161), ivec3(90, 118, 12), ivec3(57, 37, 11), ivec3(77, 27, 104), ivec3(132, 142, 16), ivec3(21, 73, 134), ivec3(135, 25, 36), ivec3(102, 84, 73), ivec3(72, 8, 28), ivec3(144, 0, 57), ivec3(139, 54, 97), ivec3(145, 139, 118), ivec3(31, 80, 120), ivec3(94, 51, 3), ivec3(1, 57, 198), ivec3(137, 83, 194), ivec3(147, 78, 150), ivec3(76, 148, 139), ivec3(90, 3, 179), ivec3(98, 4, 166), ivec3(58, 146, 122), ivec3(13, 123, 120), ivec3(73, 118, 114), ivec3(103, 117, 102), ivec3(35, 102, 159), ivec3(124, 20, 84), ivec3(7, 102, 149), ivec3(100, 73, 178), ivec3(53, 5, 143), ivec3(77, 23, 120), ivec3(144, 101, 84), ivec3(144, 121, 67), ivec3(134, 94, 58), ivec3(125, 54, 41), ivec3(146, 30, 96), ivec3(35, 90, 101), ivec3(142, 95, 13), ivec3(26, 127, 78), ivec3(71, 12, 95), ivec3(84, 140, 99), ivec3(42, 39, 129), ivec3(24, 94, 128), ivec3(139, 56, 88), ivec3(132, 95, 67), ivec3(126, 48, 170), ivec3(100, 33, 16), ivec3(85, 148, 117), ivec3(146, 127, 171), ivec3(108, 74, 60), ivec3(50, 102, 28), ivec3(68, 37, 187), ivec3(147, 0, 20), ivec3(104, 35, 4), ivec3(19, 113, 16), ivec3(123, 1, 123), ivec3(147, 22, 49), ivec3(60, 144, 4), ivec3(145, 24, 39), ivec3(12, 146, 88), ivec3(30, 14, 196), ivec3(55, 123, 198), ivec3(136, 83, 94), ivec3(85, 68, 150), ivec3(104, 88, 135), ivec3(21, 70, 165), ivec3(111, 57, 75), ivec3(11, 59, 67), ivec3(87, 7, 84), ivec3(68, 2, 123), ivec3(107, 147, 16), ivec3(69, 68, 34), ivec3(77, 3, 58), ivec3(85, 67, 1), ivec3(66, 33, 87), ivec3(21, 16, 90), ivec3(111, 101, 80), ivec3(3, 55, 175), ivec3(10, 56, 55), ivec3(31, 1, 134), ivec3(96, 22, 192), ivec3(98, 96, 118), ivec3(123, 34, 90), ivec3(146, 130, 192), ivec3(83, 35, 146), ivec3(1, 91, 196), ivec3(8, 112, 197), ivec3(45, 122, 104), ivec3(50, 147, 83), ivec3(136, 108, 196), ivec3(128, 17, 60), ivec3(146, 116, 109), ivec3(60, 82, 118), ivec3(1, 54, 113), ivec3(85, 100, 75), ivec3(84, 42, 98), ivec3(40, 62, 13), ivec3(41, 138, 49), ivec3(22, 99, 133), ivec3(145, 138, 110), ivec3(57, 94, 161), ivec3(56, 112, 156), ivec3(148, 43, 198), ivec3(104, 133, 150), ivec3(120, 13, 96), ivec3(137, 60, 69), ivec3(94, 40, 125), ivec3(148, 118, 139), ivec3(130, 117, 136), ivec3(65, 134, 31), ivec3(132, 144, 84), ivec3(52, 134, 11), ivec3(103, 1, 105), ivec3(94, 44, 36), ivec3(70, 33, 77), ivec3(44, 16, 52), ivec3(141, 28, 8), ivec3(24, 77, 159), ivec3(52, 52, 113), ivec3(92, 35, 54), ivec3(4, 125, 157), ivec3(115, 36, 174), ivec3(82, 121, 148), ivec3(54, 81, 105), ivec3(80, 126, 79), ivec3(137, 18, 172), ivec3(82, 122, 89), ivec3(16, 128, 140), ivec3(22, 119, 147), ivec3(138, 60, 75), ivec3(127, 58, 13), ivec3(71, 11, 40), ivec3(61, 32, 101), ivec3(75, 26, 25), ivec3(113, 41, 184), ivec3(92, 122, 111), ivec3(114, 34, 14), ivec3(38, 72, 121), ivec3(127, 56, 20), ivec3(108, 12, 16), ivec3(51, 38, 172), ivec3(124, 4, 77), ivec3(31, 2, 123), ivec3(1, 91, 191), ivec3(49, 145, 74), ivec3(70, 67, 43), ivec3(11, 147, 198), ivec3(145, 124, 78), ivec3(30, 120, 171), ivec3(44, 24, 35), ivec3(20, 84, 37), ivec3(126, 92, 113), ivec3(104, 116, 112), ivec3(137, 96, 4), ivec3(5, 148, 104), ivec3(26, 38, 147), ivec3(136, 76, 34), ivec3(138, 68, 45), ivec3(139, 118, 33), ivec3(128, 112, 32), ivec3(73, 69, 27), ivec3(88, 71, 157), ivec3(103, 6, 71), ivec3(15, 39, 186), ivec3(15, 63, 154), ivec3(97, 84, 25), ivec3(1, 87, 48), ivec3(19, 86, 46), ivec3(78, 2, 50), ivec3(107, 15, 192), ivec3(21, 104, 126), ivec3(97, 140, 49), ivec3(20, 87, 32), ivec3(143, 0, 46), ivec3(120, 121, 49), ivec3(120, 18, 107), ivec3(141, 146, 186), ivec3(100, 118, 184), ivec3(148, 24, 66), ivec3(14, 37, 174), ivec3(30, 31, 177), ivec3(21, 131, 63), ivec3(46, 22, 154), ivec3(126, 65, 109), ivec3(147, 61, 111), ivec3(44, 119, 111), ivec3(148, 100, 170), ivec3(35, 147, 38), ivec3(64, 41, 54), ivec3(144, 90, 26), ivec3(127, 19, 70), ivec3(83, 23, 81), ivec3(52, 53, 46), ivec3(57, 84, 39), ivec3(141, 0, 40), ivec3(146, 72, 94), ivec3(146, 137, 103), ivec3(13, 144, 81), ivec3(39, 129, 86), ivec3(91, 142, 149), ivec3(94, 60, 109), ivec3(124, 53, 33), ivec3(103, 0, 100), ivec3(97, 0, 91), ivec3(32, 2, 116), ivec3(40, 63, 159), ivec3(68, 14, 48), ivec3(83, 118, 95), ivec3(25, 102, 142), ivec3(75, 29, 40), ivec3(126, 64, 128), ivec3(134, 146, 144), ivec3(98, 84, 33), ivec3(96, 140, 56), ivec3(116, 122, 70), ivec3(26, 1, 143), ivec3(47, 148, 95), ivec3(35, 148, 99), ivec3(87, 86, 96), ivec3(29, 111, 72), ivec3(50, 92, 56), ivec3(53, 79, 93), ivec3(88, 50, 23), ivec3(37, 63, 23), ivec3(105, 100, 98), ivec3(34, 136, 107), ivec3(147, 121, 91), ivec3(146, 136, 95), ivec3(126, 2, 26), ivec3(14, 148, 152), ivec3(7, 90, 147), ivec3(123, 101, 91), ivec3(117, 66, 199), ivec3(120, 140, 188), ivec3(41, 137, 58), ivec3(98, 18, 47), ivec3(105, 8, 52), ivec3(145, 145, 52), ivec3(61, 69, 199), ivec3(13, 143, 75), ivec3(114, 11, 126), ivec3(42, 146, 16), ivec3(19, 147, 8), ivec3(96, 136, 13), ivec3(75, 15, 86), ivec3(133, 35, 107), ivec3(99, 84, 42), ivec3(78, 84, 45), ivec3(97, 64, 119), ivec3(17, 129, 74), ivec3(87, 19, 141), ivec3(120, 123, 78), ivec3(3, 148, 109), ivec3(105, 8, 66), ivec3(132, 79, 55), ivec3(144, 145, 39), ivec3(52, 135, 22), ivec3(40, 147, 26), ivec3(112, 65, 184), ivec3(31, 17, 166), ivec3(104, 145, 35), ivec3(100, 96, 125), ivec3(34, 143, 114), ivec3(56, 51, 100), ivec3(129, 148, 60), ivec3(61, 4, 133), ivec3(102, 114, 27), ivec3(147, 22, 57), ivec3(102, 84, 84), ivec3(141, 147, 176), ivec3(131, 2, 155), ivec3(119, 55, 148), ivec3(108, 75, 48), ivec3(128, 18, 67), ivec3(106, 67, 138), ivec3(51, 98, 129), ivec3(126, 54, 27), ivec3(130, 147, 36)};
+    // std::vector<ivec3> pointsv;
+    // pointsv.assign(points, points+(sizeof(points)/sizeof(points[0])));
+    // filter.highlight(pointsv);
+
+    // DiscreteKernel kernel = filter.gaussian(scale, int(scale*4));
+    // filter.set_kernel(kernel);
+    // filter.max1();
+    // filter.filter();
     filter.commit(store.buf[1]);
-    kernel.destroy();
+    // kernel.destroy();
     // return (last_nrrd = store.buf[1]);
     return store.buf[1];
   }
@@ -780,7 +801,7 @@ Nrrd *ArPipeline::repr(ReprMode &mode, bool force){
       // tick("hill-climb");
     }
 
-    printf("found %d paths.\n", paths.size());
+    printf("found %lu paths.\n", paths.size());
     filter.clear();
     for(int i=0;i<paths.size();i++){
       for(int j=0;j<paths[i].size()-1;j++){
@@ -808,13 +829,51 @@ Nrrd *ArPipeline::repr(ReprMode &mode, bool force){
     return (last_nrrd = store.buf[1]);
   }
   if(!strcmp(mode.name, "blobs_all")){
+    
     ArFrameData frame = get(mode.timestep);
+    float scale = frame.scales[mode.blob.scale];
+    // scale = 2.f;
+    // filter.capture(exp->get(mode.timestep));
+    DiscreteKernel kernel = filter.gaussian(scale/1, int(scale*4));
+    filter.set_kernel(kernel);
+    filter.max1();
+    filter.filter();
+    filter.laplacian3d();
+    std::vector<ScaleBlob*> blobs = filter.find_blobs();
+    filter.clear();
+    // filter.draw_blobs(blobs);
+    // filter.commit(store.buf[1]);
+    kernel.destroy();
+    // return (last_nrrd = store.buf[1]);
     // float scalemin = frame.scales[mode.blob.scale] - frame.scale_eps;
     // float scalemax = frame.scales[mode.blob.scale] + frame.scale_eps;
     // printf("mode %s. view scale %d with %.2f %.2f\n", mode.name, scalemin, scalemax);
-    std::vector<ScaleBlob*> blobs = detected_blobs(frame.blob);
-    filter.clear();
-    filter.draw_blobs(blobs, true);
+    // std::vector<ScaleBlob*> blobs = collect_blobs(frame.blob, scalemin, scalemax);
+
+    std::vector<ScaleBlob*> only;
+    Estimator estimator;
+    // filter.clear();
+    ScaleBlob estimated_blob;
+    only.push_back(&estimated_blob);
+    for(int i=1;i<blobs.size();i++){
+      estimated_blob = estimator.fit(exp->get(mode.timestep), blobs[i]);
+      filter.draw_blobs(only, "m+");
+    }
+    printf("done blobs_all.\n");
+    // filter.difference_image(exp->get(mode.timestep));
+    filter.commit(store.buf[2]);
+    return (last_nrrd = store.buf[2]);   
+  }
+  if(!strcmp(mode.name, "tgmm")){
+    // printf("mode = tgmm\n");
+    ArFrameData frame = get(mode.timestep);
+    // printf("size[%d] = %p = 0", mode.timestep, frame.tgmm_blob);
+    std::vector<ScaleBlob*> blobs = frame.tgmm_blob->children;
+    // std::vector<ScaleBlob*> blobs = collect_blobs(frame.tgmm_blob, -1, -1);
+    printf("draw %p = %lu blobs.\n", frame.tgmm_blob, blobs.size());
+    // filter.clear();
+    filter.capture(exp->get(mode.timestep));
+    filter.draw_blobs(blobs, ".m");
     filter.commit(store.buf[2]);
     return (last_nrrd = store.buf[2]);   
   }
@@ -842,55 +901,57 @@ Nrrd *ArPipeline::repr(ReprMode &mode, bool force){
     // }
     // blobs.push_back(mode.highlight.highlight_loci);
     // blobs.insert(blobs.end(), mode.highlight.highlight_loci.begin(), mode.highlight.highlight_loci.end());
-    filter.draw_blobs(blobs, true);
+    filter.capture(exp->get(mode.timestep));
+    filter.draw_blobs(blobs, ".m");
 
     // for(ScaleBlob *sb : mode.highlight.blobs){
-    if(mode.highlight.highlight_loci.size() > 0){
-      // printf("highlight %lu; scale = %.2f \n", mode.highlight.highlight_loci.size(), mode.highlight.highlight_loci[0]->scale);
-      // filter.color_blobs(mode.highlight.highlight_loci, 2.f);
-    }
-    if(mode.highlight.highlight_loci.size() > 1){
-      int i=0;
-      int j=0;
-      for(int i=0;i<mode.highlight.highlight_loci.size();++i){
-        for(int j=0;j<mode.highlight.highlight_loci.size();++j){
-          printf("  distance %d %d -- %.4f\n", i, j, 
-            mode.highlight.highlight_loci[i]
-              ->distance(
-            mode.highlight.highlight_loci[j])
-            );
-        }
-      }
-    }
+    // if(mode.highlight.highlight_loci.size() > 0){
+    //   // printf("highlight %lu; scale = %.2f \n", mode.highlight.highlight_loci.size(), mode.highlight.highlight_loci[0]->scale);
+    //   // filter.color_blobs(mode.highlight.highlight_loci, 2.f);
+    // }
+    // if(mode.highlight.highlight_loci.size() > 1){
+    //   int i=0;
+    //   int j=0;
+    //   for(int i=0;i<mode.highlight.highlight_loci.size();++i){
+    //     for(int j=0;j<mode.highlight.highlight_loci.size();++j){
+    //       printf("  distance %d %d -- %.4f\n", i, j, 
+    //         mode.highlight.highlight_loci[i]
+    //           ->distance(
+    //         mode.highlight.highlight_loci[j])
+    //         );
+    //     }
+    //   }
+    // }
     // }
 
     // show all successors of  blob.
-    if(!strcmp(mode.name, "blobs_succs")){
-      BSPTree<ScaleBlob> *t1 = &frames[ mode.highlight.timestep - exp->low    ].bspblobs;
-      std::vector<ScaleBlob*> succs;
-      for(ScaleBlob *sb : mode.highlight.blobs){
-        std::vector<ScaleBlob*> potential;
-        t1->find_within_distance(potential, sb->position, 1000.f);
-        for(int i=0;i<potential.size();i++){
-          if(sb->n>1 && potential[i]->n>1 && sb->distance(potential[i]) <= 1.f){
-            // if(sb->detCov/potential[i]->detCov < 2.f && potential[i]->detCov/sb->detCov < 2.f){
-              // volume cannot more than double or half.
-              succs.push_back(potential[i]);
-              potential[i]->pred.push_back(sb);
-            // }
-          }
-          // printf("%d.", i);
-        }
-      }
-      filter.color_blobs(succs, 4.f);
-    }
+    // if(!strcmp(mode.name, "blobs_succs")){
+    //   BSPTree<ScaleBlob> *t1 = &frames[ mode.highlight.timestep - exp->low    ].bspblobs;
+    //   std::vector<ScaleBlob*> succs;
+    //   for(ScaleBlob *sb : mode.highlight.blobs){
+    //     std::vector<ScaleBlob*> potential;
+    //     t1->find_within_distance(potential, sb->position, 1000.f);
+    //     for(int i=0;i<potential.size();i++){
+    //       if(sb->n>1 && potential[i]->n>1 && sb->distance(potential[i]) <= 1.f){
+    //         // if(sb->detCov/potential[i]->detCov < 2.f && potential[i]->detCov/sb->detCov < 2.f){
+    //           // volume cannot more than double or half.
+    //           succs.push_back(potential[i]);
+    //           potential[i]->pred.push_back(sb);
+    //         // }
+    //       }
+    //       // printf("%d.", i);
+    //     }
+    //   }
+    //   filter.color_blobs(succs, 4.f);
+    // }
     filter.commit(store.buf[1]);
     return (last_nrrd = store.buf[1]);
   }
   if(!strcmp(mode.name, "gaussian")){
     // printf("mode %s.\n", mode.name);
     ArFrameData frame = get(mode.timestep);
-    float scale = frame.scales[mode.blob.scale];
+    // float scale = frame.scales[mode.blob.scale];
+    float scale = 2.f;
     filter.capture(exp->get(mode.timestep));
     DiscreteKernel kernel = filter.gaussian(scale, int(scale*4));
     filter.set_kernel(kernel);
@@ -904,18 +965,74 @@ Nrrd *ArPipeline::repr(ReprMode &mode, bool force){
     // printf("mode %s.\n", mode.name);
     ArFrameData frame = get(mode.timestep);
     float scale = frame.scales[mode.blob.scale];
+    scale = 2.f;
+    filter.capture(exp->get(mode.timestep));
+
+    // DiscreteKernel kernel1 = filter.gaussian(3.f, int(3.f*4));;
+    // DiscreteKernel kernel2 = filter.gaussian(1.f, int(1.f*4));;
+
+    DiscreteKernel kernel1 = filter.gaussian(3.f, int(3.f*4));;
+    DiscreteKernel kernel2 = filter.gaussian(2.f, int(2.f*4));;
+
+    filter.max1();    
+    filter.set_kernel(kernel1);
+    filter.filter();
+    filter.laplacian3d();
+    filter.normalize(0.5f);
+    filter.set_kernel(kernel2);
+    filter.filter();
+    // filter.filter();
+    // filter.scale(5.f);
+    // filter.threshold(0.f,1.f);
+    filter.commit(store.buf[1]);
+    kernel1.destroy();
+    kernel2.destroy();
+    return (last_nrrd = store.buf[1]);
+  }
+  if(!strcmp(mode.name, "masked")){
+    // printf("mode %s.\n", mode.name);
+    ArFrameData frame = get(mode.timestep);
+    float scale = frame.scales[mode.blob.scale];
     filter.capture(exp->get(mode.timestep));
     DiscreteKernel kernel = filter.gaussian(scale, int(scale*4));
     filter.set_kernel(kernel);
     filter.max1();
     filter.filter();
-    filter.laplacian3d();
+    // filter.laplacian3d();
+    // filter.filter();
+    filter.laplacianmasked();
+    filter.filter();
     filter.normalize(1.f);
     // filter.scale(5.f);
     filter.threshold(0.f,1.f);
     filter.commit(store.buf[1]);
     kernel.destroy();
     return (last_nrrd = store.buf[1]);
+  }
+}
+/*
+ * emit the current representation
+ * as a set of .nrrd files.         ASSUMES 3 DIMENSIONS
+ */
+void ArPipeline::emit(ReprMode &mode, std::string suffix, int low, int high){
+  // printf("emit %d %d\n", low, high);
+  for(int i=low; i<=high; i++){
+    if(i < exp->low)continue;
+    if(i > exp->high)continue;
+    mode.timestep = i;
+    printf("emit to %s\n", (exp->getfilepath(i)+suffix).c_str());
+    Nrrd *nrrdfloat = repr(mode);
+    Nrrd *nrrdshort = nrrdNew();
+    nrrdConvert(nrrdshort, nrrdfloat, nrrdTypeUShort);
+    int size = nrrdshort->axis[0].size * nrrdshort->axis[1].size * nrrdshort->axis[2].size;
+    short *datashort = (short*)nrrdshort->data;
+    float *datafloat = (float*)nrrdfloat->data;
+    for(int i=0;i<size;++i){
+      datashort[i] = (unsigned short) (datafloat[i] * 32767.0);
+    }
+    // nrrdCopy(out, asfloat);
+    nrrdSave((exp->getfilepath(i)+suffix).c_str(), nrrdshort, NULL);
+    nrrdNuke(nrrdshort);
   }
 }
 
@@ -1182,6 +1299,107 @@ void ArPipeline::load(){
     paths.push_back(path);
   }
 
+  loadTGMM();
+
   // done.
 #undef READ
+}
+
+
+// void ArPipeline::getTGMMOutput(std::string path, int low, int high){
+//   printf("load tgmm output\n");
+// }
+static void print_element_names(xmlNode * a_node)
+ {
+    xmlNode *cur_node = NULL;
+
+    for (cur_node = a_node; cur_node; cur_node =
+         cur_node->next) {
+       if (cur_node->type == XML_ELEMENT_NODE) {
+          printf("node type: Element, name: %s\n",
+               cur_node->name);
+       }
+       print_element_names(cur_node->children);
+    }
+ }
+
+static vec3 from_string(char *in){
+  char *token;
+  vec3 ret(0,0,0);
+ 
+  token = strtok(in, " ");
+  ret.x = std::stof(token);
+  token = strtok(NULL, " ");
+  ret.y = std::stof(token);
+  token = strtok(NULL, " ");
+  ret.z = std::stof(token);
+  // printf("token = %s", token);
+  return ret;
+}
+static dmat3x3 dmat3_from_string(char *W){
+  return mat3x3(5,0,0, 0,5,0, 0,0,5);
+}
+void ArPipeline::loadTGMM(){
+  xmlDoc *doc = NULL;
+  xmlNode *root = NULL;
+
+
+  // map of blobs between frames
+  std::map<int, ScaleBlob*> maps[] = {
+    std::map<int, ScaleBlob*>(),
+    std::map<int, ScaleBlob*>()
+  };int mapi = 0;
+
+  for(int i=exp->low, ii=0; i<=exp->high;i++, ii++){
+    // printf("TGMM load %s.\n", exp->gettgmmpath(i).c_str());
+    doc = xmlReadFile(exp->gettgmmpath(i).c_str(), NULL, 0);
+    if(!doc){
+      printf("could not read file.\n");
+      continue;
+    }
+
+    root = xmlDocGetRootElement(doc);
+
+
+    xmlNode *cur = 0;
+    
+    frames[ii].tgmm_blob = new ScaleBlob();
+    maps[mapi].clear();
+
+    for(cur = root->children; cur; cur = cur->next){
+      if (cur->type == XML_ELEMENT_NODE){
+        // GaussianMixtureModel
+        ScaleBlob *blob = new ScaleBlob();
+        xmlChar *m = xmlGetProp(cur, (xmlChar*)"m");
+        xmlChar *W = xmlGetProp(cur, (xmlChar*)"W");
+        xmlChar *s_id = xmlGetProp(cur, (xmlChar*)"id");
+        xmlChar *s_parent = xmlGetProp(cur, (xmlChar*)"parent");
+
+        int id = std::stof((char*) s_id);
+        int pred = std::stof((char*) s_parent);
+
+        maps[mapi][id] = blob;
+        if(pred != -1){
+          maps[mapi][id]->pred.push_back(maps[!mapi][pred]);
+          maps[!mapi][pred]->succ.push_back(maps[mapi][id]);
+        }
+        // printf("m=%s\n", m);
+        // printf("W=%s\n", W);
+        blob->n = 100;
+        blob->scale = 0;
+        blob->position = from_string((char*)m);
+        blob->min = blob->position - dvec3(10,10,10);
+        blob->max = blob->position + dvec3(10,10,10);
+        blob->shape = dmat3_from_string((char*)W);
+        // printf("m = %.2f %.2f %.2f\n", blob->position.x, blob->position.y, blob->position.z);
+        frames[ii].tgmm_blob->children.push_back(blob);
+      }
+    }
+    mapi = !mapi;
+    // printf("size[%d] = %p = %d\n", ii, frames[ii].tgmm_blob, frames[ii].tgmm_blob->children.size());
+    // print_element_names(root);
+    xmlFreeDoc(doc);       // free document
+    xmlCleanupParser();    // Free globals
+  }
+
 }
