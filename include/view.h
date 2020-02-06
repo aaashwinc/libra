@@ -38,6 +38,7 @@ public:
     float slice;
     vec3 dims;
     char projmode;
+    char projaxis;
   }flat;
 
   void setYawPitch(float y, float p);

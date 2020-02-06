@@ -102,7 +102,7 @@ public:
         // "/home/ashwin/data/miniventral2/tgmm/tracking_mine/XML_finalResult_lht/GMEMfinalResult_frame????.xml",
         "/home/ashwin/data/miniventral2/tgmm/GMEMtracking3D_1580783604/XML_finalResult_lht/GMEMfinalResult_frame????.xml",
         // "/home/ashwin/data/miniventral2/tgmm/tracking_mine/bkgRm/XML_finalResult_lht/GMEMfinalResult_frame????.xml",
-        0,20,2);
+        0,99,2);
     // experiment = new ArExperiment("/home/ashwin/data/miniventral2/???.nrrd-blobs.nrrd",0,20,2);
     // experiment = new ArExperiment("/home/ashwin/data/miniventral/s???.nrrd-blobs.nrrd",0,20,2);
     // experiment = new ArExperiment("/home/ashwin/data/3D/???.nrrd",0,99,1);
@@ -275,6 +275,19 @@ public:
       }
       view->touch();
     }
+    if(keys[sf::Keyboard::Period]){
+      keys[sf::Keyboard::Period] = false;
+      if(view->camera.flat.projaxis == 'x'){
+        view->camera.flat.projaxis = 'y';
+      }
+      if(view->camera.flat.projaxis == 'y'){
+        view->camera.flat.projaxis = 'z';
+      }
+      if(view->camera.flat.projaxis == 'z'){
+        view->camera.flat.projaxis = 'x';
+      }
+      view->touch();
+    }
 
     // move timestep
     if(keys[sf::Keyboard::O]){
@@ -404,7 +417,7 @@ public:
 
     // process timesteps {n,n+1}
     if(keys[sf::Keyboard::U]){
-      pipeline->process(reprmode.timestep,reprmode.timestep+0);
+      pipeline->process(reprmode.timestep,reprmode.timestep+100);
       reprmode.name = "blobs";
       reprmode.geom = "graph";
       view->setvolume(pipeline->repr(reprmode));

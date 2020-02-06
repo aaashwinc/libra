@@ -17,6 +17,7 @@ Camera::Camera(){
 
   flat.slice = 0;
   flat.projmode   = '_';
+  flat.projaxis   = 'z';
 }
 void Camera::set(vec3 pos, vec3 look, vec3 sky){
   this->pos = pos;

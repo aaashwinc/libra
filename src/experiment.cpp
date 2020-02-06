@@ -32,7 +32,7 @@ static Nrrd* convert_short4_to_float3_and_destroy(Nrrd *nin){
   nrrdWrap_va(nout, out, nrrdTypeFloat, 3, a1, a2, a3);
   // printf("convert %d %d %d\n", nout->axis[0].size, nout->axis[1].size, nout->axis[2].size);
   nrrdNuke(nin);
-  printf("created %p.\n", nout);
+  // printf("created %p.\n", nout);
   return nout;
 }
 

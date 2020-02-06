@@ -249,7 +249,9 @@ void ArPipeline::findpaths(int minlen, int maxframe, const char* mode){
       std::vector<ScaleBlob*> blobsi = collect_blobs(frames[i].blob, 0, std::numeric_limits<float>::infinity());
       if(!strcmp(mode, "tgmm")){
         // printf("tgmm!");
-        blobsi = collect_blobs(frames[i].tgmm_blob, -1, -1);
+        if(frames[i].tgmm_blob){
+          blobsi = collect_blobs(frames[i].tgmm_blob, -1, -1);
+        }
       }
       std::sort(blobsi.begin(), blobsi.end(), fun_sort_blob_by_n);
       // for(auto sb : blobsi){

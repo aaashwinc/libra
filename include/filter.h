@@ -76,7 +76,7 @@ public:
   ivec3 hill_climb(ivec3 in);
   void highlight(std::vector<glm::ivec3> points);
   std::vector<ScaleBlob*> find_blobs();
-  void draw_blobs(std::vector<ScaleBlob*>, char *mode="gm");
+  void draw_blobs(std::vector<ScaleBlob*>, const char *mode="gm");
   void add_blobs(std::vector<ScaleBlob*>);
   void color_blobs(std::vector<ScaleBlob*>, float color);
   ScaleBlob* compute_blob_tree();

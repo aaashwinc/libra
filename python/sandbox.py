@@ -387,8 +387,8 @@ def plot(ax, path):
 
 
 # def to_point
-paths=[None]*3
-paths[0] = np.array([[10, 20], [10, 20], [10, 20]]).T
+# paths=[None]*3
+# paths[0] = np.array([[10, 20], [10, 20], [10, 20]]).T
 # paths[0] = normalize(paths[0])
 # print(to_point_curvature(paths[0]))
 # print(to_point_lastminusfirst(paths[0]))
@@ -588,6 +588,7 @@ X = np.array(pathspt)
 # random.seed(0)
 print('tsne perp=10')
 X5 = manifold.TSNE(n_components=2, n_jobs=-1, n_iter=1000, perplexity=10).fit_transform(X)
+print('done')
 # X5 = manifold.TSNE(n_components=2).fit_transform(X)
 
 

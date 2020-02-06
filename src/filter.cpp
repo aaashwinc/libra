@@ -1004,10 +1004,10 @@ struct thread_drawblobs_info{
   std::vector<ScaleBlob*> *blobs;
   float *data;
   float *lock;
-  int blobmin;    // render window min value.
-  int blobmax;    // render window max value.
-  char *mode;     // either 'q'=quick or 'g'=gaussian
-                  // mode[2] either '+' or 'm'
+  int blobmin;          // render window min value.
+  int blobmax;          // render window max value.
+  const char *mode;     // either 'q'=quick or 'g'=gaussian
+                        // mode[2] either '+' or 'm'
 };
 
 static void* t_draw_blobs(void* vinfo){
@@ -1016,7 +1016,7 @@ static void* t_draw_blobs(void* vinfo){
   float *lock = info->lock;
   int blobmin = info->blobmin;
   int blobmax = info->blobmax;
-  char *mode   = info->mode;
+  const char *mode   = info->mode;
   ArFilter *filter = info->filter;
   std::vector<ScaleBlob*> &blobs = *info->blobs;
 
@@ -1079,7 +1079,7 @@ static void* t_draw_blobs(void* vinfo){
   }
 }
 
-void ArFilter::draw_blobs(std::vector<ScaleBlob*> blobs, char *mode){
+void ArFilter::draw_blobs(std::vector<ScaleBlob*> blobs, const char *mode){
   // printf("draw blobs.");
   using namespace glm;
 

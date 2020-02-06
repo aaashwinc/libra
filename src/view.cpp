@@ -6,6 +6,11 @@
 #include <cstdio>
 #include <cmath>
 
+#include <glad/glad.h>
+#include <glm/glm.hpp>
+#include <glm/ext.hpp>
+#include <GLFW/glfw3.h>
+
 #include <pthread.h>
 #include <stdio.h>
 
@@ -166,26 +171,42 @@ void View::drawflat(){
   if(camera.flat.slice<0)camera.flat.slice=0;
   float zz=camera.flat.slice;
   int i=0;
+  char axis = camera.flat.projaxis;
   float xx=0,yy=0, vv=0;
   for(int x=0;x<w;++x){
     for(int y=0;y<h;++y){
-      xx = float(x)/w * (float(vcache.a1)-0.00005f);
-      yy = float(y)/h * (float(vcache.a2)-0.00005f);
-      zz = camera.flat.slice * (float(vcache.a3)-0.00005f);
+      if(axis == 'z'){
+        xx = float(x)/w * (float(vcache.a1)-0.00005f);
+        yy = float(y)/h * (float(vcache.a2)-0.00005f);
+        zz = camera.flat.slice * (float(vcache.a3)-0.00005f);
+      }if(axis == 'x'){
+        xx = float(x)/w * (float(vcache.a1)-0.00005f);
+        yy = float(y)/h * (float(vcache.a2)-0.00005f);
+        zz = camera.flat.slice * (float(vcache.a3)-0.00005f);
+      }if(axis == 'y'){
+        xx = float(x)/w * (float(vcache.a1)-0.00005f);
+        yy = float(y)/h * (float(vcache.a2)-0.00005f);
+      }
       if(camera.flat.projmode == 'M'){
         float sum = 0;
         for(int i=0;i<vcache.a3;i++){
-          sum = max(sum, qsample(0,i,xx,yy));
+          if(axis == 'x')sum = max(sum, qsample(0,i,xx,yy));
+          if(axis == 'y')sum = max(sum, qsample(0,i,xx,yy));
+          if(axis == 'z')sum = max(sum, qsample(0,i,xx,yy));
         }
         vv = sum;
       }else if(camera.flat.projmode == '+'){
         float sum = 0;
         for(int i=0;i<vcache.a3;i++){
-          sum += qsample(0,i,xx,yy);
+          if(axis == 'x')sum += qsample(0,i,xx,yy);
+          if(axis == 'y')sum += qsample(0,i,xx,yy);
+          if(axis == 'z')sum += qsample(0,i,xx,yy);
         }
         vv = sum / vcache.a3;
       }else{
-        vv = qsample(0,zz,xx,yy);
+        if(axis == 'x')vv = qsample(0,zz,xx,yy);
+        if(axis == 'y')vv = qsample(0,zz,xx,yy);
+        if(axis == 'z')vv = qsample(0,zz,xx,yy);
       }
      // vv = sum*5.f;
       // vv = qsample(0,zz,xx,yy);
