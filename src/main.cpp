@@ -86,23 +86,35 @@ public:
   // init camera, create new experiment, init keypresses
   // initialize VIEW (renderer) for a particular EXPERIMENT and computation PIPELINE.
 
-  void init(){
+  void init(int argc, char** argv){
+    printf("USAGE: ./game [nrrd_path] [tgmm_path] [min] [max]\n");
+
     // synth();
     view->camera.set(vec3(-4,3,6), vec3(1,0,-0.33), vec3(0,0,1));
 
     // experiment = new ArExperiment("/media/ashwin/UBUNTU 18_0/data/???.nrrd",0,9,1);
     // experiment = new ArExperiment("/home/ashwin/data/17-05-01/1??.nrrd",0,9,1);
     // experiment = new ArExperiment("/home/ashwin/data/16-05-05/???.nrrd",0,99,1);
-    experiment = 
-      new ArExperiment(
-        // "/media/ashwin/UBUNTU 18_0/data/17-05-01/17-05-01/1??.nrrd",
-        // "/home/ashwin/data/16-05-05/???.nrrd",
-        "/home/ashwin/data/miniventral2/???.nrrd",
-        // "/home/ashwin/data/mini/???.nrrd",
-        // "/home/ashwin/data/miniventral2/tgmm/tracking_mine/XML_finalResult_lht/GMEMfinalResult_frame????.xml",
-        "/home/ashwin/data/miniventral2/tgmm/GMEMtracking3D_1580783604/XML_finalResult_lht/GMEMfinalResult_frame????.xml",
-        // "/home/ashwin/data/miniventral2/tgmm/tracking_mine/bkgRm/XML_finalResult_lht/GMEMfinalResult_frame????.xml",
-        0,99,2);
+
+    if(argc == 5){
+      experiment = new ArExperiment(argv[1], argv[2], atoi(argv[3]), atoi(argv[4]), 2);
+    }
+    else{
+      experiment = 
+        new ArExperiment(
+          // "/media/ashwin/UBUNTU 18_0/data/17-05-01/17-05-01/1??.nrrd",
+          // "/media/ashwin/UBUNTU 18_0/data/???.nrrd",
+          // "/home/ashwin/data/16-05-05/???.nrrd-blobs.nrrd",
+          // "/home/ashwin/data/16-05-05/???.nrrd",
+          // "/home/ashwin/data/tiny/???.nrrd",
+          // "/home/ashwin/data/synth/???.nrrd",
+          "/home/ashwin/data/mini/???.nrrd",
+          // "/home/ashwin/data/miniventral2/???.nrrd",
+          // "/home/ashwin/data/miniventral2/tgmm/tracking_mine/XML_finalResult_lht/GMEMfinalResult_frame????.xml",
+          "/home/ashwin/data/miniventral2/tgmm/GMEMtracking3D_1580783604/XML_finalResult_lht/GMEMfinalResult_frame????.xml",
+          // "/home/ashwin/data/miniventral2/tgmm/tracking_mine/bkgRm/XML_finalResult_lht/GMEMfinalResult_frame????.xml",
+          0,5,2);
+    }
     // experiment = new ArExperiment("/home/ashwin/data/miniventral2/???.nrrd-blobs.nrrd",0,20,2);
     // experiment = new ArExperiment("/home/ashwin/data/miniventral/s???.nrrd-blobs.nrrd",0,20,2);
     // experiment = new ArExperiment("/home/ashwin/data/3D/???.nrrd",0,99,1);
@@ -280,10 +292,10 @@ public:
       if(view->camera.flat.projaxis == 'x'){
         view->camera.flat.projaxis = 'y';
       }
-      if(view->camera.flat.projaxis == 'y'){
+      else if(view->camera.flat.projaxis == 'y'){
         view->camera.flat.projaxis = 'z';
       }
-      if(view->camera.flat.projaxis == 'z'){
+      else{
         view->camera.flat.projaxis = 'x';
       }
       view->touch();
@@ -347,6 +359,11 @@ public:
     }
     if(keys[sf::Keyboard::Num8]){
       reprmode.name = "masked";
+      view->setvolume(pipeline->repr(reprmode));
+      view->touch();
+    }
+    if(keys[sf::Keyboard::Num9]){
+      reprmode.name = "maxima";
       view->setvolume(pipeline->repr(reprmode));
       view->touch();
     }
@@ -417,7 +434,7 @@ public:
 
     // process timesteps {n,n+1}
     if(keys[sf::Keyboard::U]){
-      pipeline->process(reprmode.timestep,reprmode.timestep+100);
+      pipeline->process(reprmode.timestep,reprmode.timestep);
       reprmode.name = "blobs";
       reprmode.geom = "graph";
       view->setvolume(pipeline->repr(reprmode));
@@ -480,9 +497,9 @@ public:
     window->draw(text);
     window->display();
   }
-  int run(){
+  int run(int argc, char** argv){
     view = new View(400,400);
-    init();
+    init(argc, argv);
     initUI();
 
     while (window->isOpen()){
@@ -493,8 +510,8 @@ public:
     }  
   }
 };
-int main(){
+int main(int argc, char** argv){
   setvbuf(stdout, NULL, _IONBF, 0);  
   Game game;
-  return game.run();
+  return game.run(argc, argv);
 }

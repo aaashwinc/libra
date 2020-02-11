@@ -14,8 +14,8 @@ from scipy.ndimage.filters import gaussian_filter
 
 # Data for a three-dimensional line
 
-def load_paths():
-  f= open("../rsc/store/s-home-ashwin-data-miniventral2-000.nrrd.paths.txt","r")
+def load_paths(filename):
+  f= open(filename,"r")
   # f= open("../rsc/store/s-home-ashwin-data-16-05-05-000.nrrd.paths.txt","r")
   contents = f.read()
   lines = contents.split('\n')

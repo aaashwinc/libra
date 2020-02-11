@@ -1197,7 +1197,7 @@ ScaleBlob* ArFilter::compute_blob_tree(){
   BSPTree<ScaleBlob> bspblobs(0,10,vec3(-1.f,-1.f,-1.f),vec3(self.a0+1.f,self.a1+1.f,self.a2+1.f)); // safe against any rounding errors.
 
   DiscreteKernel kernel; 
-  float sigma = 3.f;
+  float sigma = 2.f;
   float scale = 0.f;
 
   float *const iscalec = new float[self.w3];   // data for scaled image.

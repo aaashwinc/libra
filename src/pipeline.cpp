@@ -70,10 +70,14 @@ static std::vector<float> collect_scales(ScaleBlob *blob){
   while(!queue.empty()){
     blob = queue.front();
     queue.pop();
+    // printf("blob %p %.2f\n", blob, 14.f);
+    // printf("blob %p %.2f\n", blob, blob->scale);
     scales.insert(blob->scale);
+    // printf("inserted.\n");
     for(ScaleBlob *child : blob->children){
       queue.push(child);
     }
+    // printf("hello\n");
   }
   scales.erase(0);
   return std::vector<float>(scales.begin(), scales.end());
@@ -832,20 +836,26 @@ Nrrd *ArPipeline::repr(ReprMode &mode, bool force){
   }
   if(!strcmp(mode.name, "blobs_all")){
     
+
     ArFrameData frame = get(mode.timestep);
-    float scale = frame.scales[mode.blob.scale];
-    // scale = 2.f;
+    
+    // float scale = frame.scales[mode.blob.scale];
     // filter.capture(exp->get(mode.timestep));
-    DiscreteKernel kernel = filter.gaussian(scale/1, int(scale*4));
-    filter.set_kernel(kernel);
-    filter.max1();
-    filter.filter();
-    filter.laplacian3d();
-    std::vector<ScaleBlob*> blobs = filter.find_blobs();
+    // DiscreteKernel kernel = filter.gaussian(scale/1, int(scale*4));
+    // filter.set_kernel(kernel);
+    // filter.max1();
+    // filter.filter();
+    // filter.laplacian3d();
+    // std::vector<ScaleBlob*> blobs = filter.find_blobs();
+    // filter.clear();
+    // kernel.destroy();
+
+    float scalemin = frame.scales[mode.blob.scale] - frame.scale_eps;
+    float scalemax = frame.scales[mode.blob.scale] + frame.scale_eps;
+    std::vector<ScaleBlob*> blobs = collect_blobs(frame.blob, -1, -1);
+
     filter.clear();
-    // filter.draw_blobs(blobs);
-    // filter.commit(store.buf[1]);
-    kernel.destroy();
+
     // return (last_nrrd = store.buf[1]);
     // float scalemin = frame.scales[mode.blob.scale] - frame.scale_eps;
     // float scalemax = frame.scales[mode.blob.scale] + frame.scale_eps;
@@ -857,9 +867,11 @@ Nrrd *ArPipeline::repr(ReprMode &mode, bool force){
     // filter.clear();
     ScaleBlob estimated_blob;
     only.push_back(&estimated_blob);
-    for(int i=1;i<blobs.size();i++){
+    printf("estimating %lu blobs.\n", blobs.size());
+    for(int i=0;i<blobs.size();i++){
       estimated_blob = estimator.fit(exp->get(mode.timestep), blobs[i]);
       filter.draw_blobs(only, "m+");
+      filter.draw_blobs(only, ".m");
     }
     printf("done blobs_all.\n");
     // filter.difference_image(exp->get(mode.timestep));
@@ -884,7 +896,7 @@ Nrrd *ArPipeline::repr(ReprMode &mode, bool force){
     float scalemin = frame.scales[mode.blob.scale] - frame.scale_eps;
     float scalemax = frame.scales[mode.blob.scale] + frame.scale_eps;
     // printf("mode %s. view scale %d with %.2f %.2f\n", mode.name, scalemin, scalemax);
-    std::vector<ScaleBlob*> blobs = collect_blobs(frame.blob, scalemin, scalemax);
+    // std::vector<ScaleBlob*> blobs = collect_blobs(frame.blob, scalemin, scalemax);
     // std::vector<ScaleBlob*> blobs = collect_blobs(frame.blob, -1, -1);
     
     // draw the blobs in paths at the current timestep.
@@ -903,8 +915,10 @@ Nrrd *ArPipeline::repr(ReprMode &mode, bool force){
     // }
     // blobs.push_back(mode.highlight.highlight_loci);
     // blobs.insert(blobs.end(), mode.highlight.highlight_loci.begin(), mode.highlight.highlight_loci.end());
-    filter.capture(exp->get(mode.timestep));
-    filter.draw_blobs(blobs, ".m");
+    // filter.capture(exp->get(mode.timestep));
+    std::vector<ScaleBlob*> blobs = collect_blobs(frame.blob, scalemin, scalemax);
+    filter.draw_blobs(blobs, "m+");
+    // printf("model type = %c\n", blobs[0]->model.type);
 
     // for(ScaleBlob *sb : mode.highlight.blobs){
     // if(mode.highlight.highlight_loci.size() > 0){
@@ -964,10 +978,15 @@ Nrrd *ArPipeline::repr(ReprMode &mode, bool force){
     return (last_nrrd = store.buf[1]);
   }
   if(!strcmp(mode.name, "laplacian")){
-    // printf("mode %s.\n", mode.name);
+    
     ArFrameData frame = get(mode.timestep);
+    float scalemin = frame.scales[mode.blob.scale] - frame.scale_eps;
+    float scalemax = frame.scales[mode.blob.scale] + frame.scale_eps;
+
+    // printf("mode %s.\n", mode.name);
+    // ArFrameData frame = get(mode.timestep);
     float scale = frame.scales[mode.blob.scale];
-    scale = 2.f;
+    // scale = 2.f;
     filter.capture(exp->get(mode.timestep));
 
     // DiscreteKernel kernel1 = filter.gaussian(3.f, int(3.f*4));;
@@ -983,6 +1002,10 @@ Nrrd *ArPipeline::repr(ReprMode &mode, bool force){
     filter.normalize(0.5f);
     filter.set_kernel(kernel2);
     filter.filter();
+
+    std::vector<ScaleBlob*> blobs = collect_blobs(frame.blob, scalemin, scalemax);
+    // filter.draw_blobs(blobs, ".m");
+
     // filter.filter();
     // filter.scale(5.f);
     // filter.threshold(0.f,1.f);
@@ -1075,11 +1098,13 @@ void ArPipeline::save(){
   }
 
   WRITET(int, nframes);
+  // printf("write %d processed\n", nframes);
 
   for(int i=0;i<nframes;++i){
     // fwrite("ff", sizeof(char), 2, file);
     // write address of root scaleblob.
     WRITET(ScaleBlob*, frames[i].blob);
+    // printf("write %p\n", frames[i].blob);
     // fwrite(&frames[i].blob, sizeof(ScaleBlob*), 1, file);
     std::vector<ScaleBlob*> allblobs = frames[i].bspblobs.as_vector();
     
@@ -1109,7 +1134,6 @@ void ArPipeline::save(){
       WRITE(sb->mode);
       WRITE(sb->position);
       WRITE(sb->shape);
-      WRITE(sb->fshape);
       WRITE(sb->timestep);
       WRITE(sb->covariance);
       WRITE(sb->invCov);
@@ -1127,7 +1151,7 @@ void ArPipeline::save(){
   fclose(file);
 
   file = fopen((path0 + ".paths").c_str(),"wb");
-  printf("write %lu\n", paths.size());
+  printf("write %lu paths\n", paths.size());
   WRITET(int, paths.size());
   for(std::vector<ScaleBlob*> path : paths){
     WRITET(int, path.size());
@@ -1204,7 +1228,6 @@ void ArPipeline::load(){
       READ(blob->mode);
       READ(blob->position);
       READ(blob->shape);
-      READ(blob->fshape);
       READ(blob->timestep);
       READ(blob->covariance);
       READ(blob->invCov);
@@ -1216,44 +1239,56 @@ void ArPipeline::load(){
       READ(blob->n);
       READ(blob->npass);
       READ(blob->peakvalue);
+      // printf("read blob->n = %.2f\n", blob->n);
 
       allblobs[label] = blob;
+      // allblobs.insert({label, blob});
+      // printf("%d: %p\t%p\n", allblobs.size(), label, blob);
       blobs.push_back(blob);
     }
     frameblobs.push_back(blobs);
   }
+  // allblobs[0] = 0;
   if(!good){
     fprintf(stderr, "pipeline.load: read error.\n");
     return;
     // exit(0);
   }
+  // int itr=0;
+  // for(auto  it = allblobs.begin(); it != allblobs.end(); ++it){
+  //   printf("%d %p %p\n", ++itr, it->first, it->second);
+  // }
   // printf("fixing...\n");
-  for(std::pair<ScaleBlob*, ScaleBlob*> elt : allblobs){
-    if(!elt.second)continue;
+  int itr=0;
+  // printf("size=%d\n", allblobs.size());
+  for(auto  elt = allblobs.begin(); elt != allblobs.end(); ++elt){
+    // if(!elt.second)continue;
+    printf("%d %p %p\n", ++itr, elt->first, elt->second);
     // printf("parents...");
-    // printf("%p; ", elt.second->parent);
-    elt.second->parent = allblobs[elt.second->parent];
+    // printf("%p; \n", elt->second->parent);
+    if(elt->second->parent)
+      elt->second->parent = allblobs[elt->second->parent];
     // printf("children...");
-    for(int i=0;i<elt.second->children.size(); ++i){
-      // printf("%d/%d; ", i, elt.second->children.size());
-      elt.second->children[i] = allblobs[elt.second->children[i]];
+    for(int i=0;i<elt->second->children.size(); ++i){
+      // printf("%d/%d; ", i, elt->second->children.size());
+      elt->second->children[i] = allblobs[elt->second->children[i]];
     }
     // printf("preds...");
-    for(int i=0;i<elt.second->pred.size(); ++i){
-      // printf("%d/%d; ", i, elt.second->pred.size());
-      elt.second->pred[i] = allblobs[elt.second->pred[i]];
+    for(int i=0;i<elt->second->pred.size(); ++i){
+      // printf("%d/%d; ", i, elt->second->pred.size());
+      elt->second->pred[i] = allblobs[elt->second->pred[i]];
     }
     // printf("succs...");
-    for(int i=0;i<elt.second->succ.size(); ++i){
-      // printf("%d/%d; ", i, elt.second->succ.size());
-      elt.second->succ[i] = allblobs[elt.second->succ[i]];
+    for(int i=0;i<elt->second->succ.size(); ++i){
+      // printf("%d/%d; ", i, elt->second->succ.size());
+      elt->second->succ[i] = allblobs[elt->second->succ[i]];
     }
   }
-  // printf("\nread......\n");
+  printf("\nread......\n");
   // printf("all blobs:");
   int i=0;
   for(std::pair<ScaleBlob*, ScaleBlob*> elt : allblobs){
-    // printf("%d: %p\n", i, elt.second);
+    // printf("%d: %p %p\n", i, elt.first, elt.second);
     ++i;
   }
   // printf("pushing\n");

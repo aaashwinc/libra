@@ -150,7 +150,7 @@ std::vector<std::vector<ScaleBlob*>> compute_paths(std::vector<ScaleBlob*> input
       }
     }
   }
-  printf("found %d paths.\n", paths.size());
+  printf("found %lu paths.\n", paths.size());
   return paths;
 }
 std::vector<std::vector<ScaleBlob*>> longest_paths2(std::vector<ScaleBlob*> input, int minlength){

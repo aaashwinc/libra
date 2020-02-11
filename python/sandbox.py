@@ -10,6 +10,8 @@ import sklearn
 
 from pathsio import load_paths
 from matplotlib.widgets import CheckButtons
+from matplotlib.widgets import RadioButtons
+
 
 from scipy.spatial.transform import Rotation as R
 
@@ -504,19 +506,24 @@ def color_of_line(line):
 
 print('show')
 
-paths_raw = load_paths()
+# paths_raw = load_paths("../rsc/store/s-home-ashwin-data-miniventral2-000.nrrd.paths.txt")
+paths_raw = load_paths("../rsc/store/s-home-ashwin-data-16-05-05-000.nrrd.paths.txt")
 paths = []
 for path in paths_raw:
   # print(path.shape)
-  if path.shape[0] > 18:
+  if path.shape[0] > 90:
     paths += [path]
-paths += [normalize(line([0,50,50], [1,0,0], 100))]
-# print(line([0,50,50], [1,0,0], 100))
+paths += [normalize(line([50,50,50], [1,0,0], 100))]
+paths += [normalize(line([50,50,50], [0,1,0], 100))]
+paths += [normalize(line([50,50,50], [0,0,1], 100))]
+# print(line([50,50,50], [1,0,0], 100))
+# print(line([50,50,50], [0,1,0], 100))
+# print(line([50,50,50], [0,0,1], 100))
 print('loaded ', len(paths), ' paths')
 # print(paths[0])
 # paths2d     = []
 
-
+# paths = gen_paths_torus()
 # for path in paths:
 #   paths2d += [path[:,0:2]]
 
@@ -544,11 +551,8 @@ for i in range(len(paths)):
   # pathspt += [to_point_length(path)+to_point_fishingline(path)]
   pathspt += [to_point_naive_minus_start(path)]
 
-  color = path[-1] - path[1]
-  color /= np.linalg.norm(color)
-  color = (1.0+color)/2.0
   # print(color)
-  ax1.plot3D(path[:,0], path[:,1], path[:,2], color=color)
+  ax1.plot3D(path[:,0], path[:,1], path[:,2], color=color_of_line(path))
 # for path in paths2d:
   # ax3.plot( path[:,0], path[:,1], color=color)
   # ax7.plot( path[:,0], path[:,2], color=color)
@@ -575,10 +579,11 @@ for i in range(len(paths)):
 X = np.array(pathspt)
 # print(X.shape)
 # print(X)
-# print('MDS')
-# X1 = manifold.MDS(n_components=2).fit_transform(X)
-# print('Isomap')
-# X2 = manifold.Isomap(n_components=2).fit_transform(X)
+print('MDS')
+X1 = manifold.LocallyLinearEmbedding(n_components=2).fit_transform(X)
+print('Isomap')
+X2 = manifold.SpectralEmbedding(n_components=2).fit_transform(X)
+X6 = sklearn.decomposition.PCA(n_components=2).fit_transform(X)
 # print('LLE')
 # X3 = manifold.LocallyLinearEmbedding(n_components=2).fit_transform(X)
 # random.seed(0)
@@ -586,9 +591,15 @@ X = np.array(pathspt)
 # print(X.reshape(-1,3))
 # X4 = manifold.TSNE(n_components=2, n_jobs=-1, n_iter=1000, perplexity=20).fit_transform(X)
 # random.seed(0)
+# X = X[0:10]
+# print(X.shape)
 print('tsne perp=10')
-X5 = manifold.TSNE(n_components=2, n_jobs=-1, n_iter=1000, perplexity=10).fit_transform(X)
+X5 = manifold.TSNE(n_components=2, n_iter=1000, perplexity=10, n_jobs=-1).fit_transform(X)
 print('done')
+
+
+ax2.set_yticklabels([])
+ax2.set_xticklabels([])
 # X5 = manifold.TSNE(n_components=2).fit_transform(X)
 
 
@@ -599,6 +610,7 @@ linecolors = []
 
 pcascatter = None
 pcalines   = None
+clustering = None
 # def on_hover(event):
 #   if event.inaxes == ax9:
 #     cont, ind = pcascatter.contains(event)
@@ -608,14 +620,10 @@ pcalines   = None
 #       print(i)
 #       path = pcalines[i]
 
-def on_pick(event):
-  # print(event)
-  # print('picked!')
-  # print(event)
-  # print(event.ind)
+def render_paths(inds):
   toplot = []
   toplot_zero = []
-  for c in event.ind:
+  for c in inds:
     # print('pick', c)
     toplot += [paths[c]]
     toplot_zero += [transform_naive_minus_start(paths[c])]
@@ -636,17 +644,17 @@ def on_pick(event):
       aspoints += [to_point_naive_minus_start(i)]
     # print(np.array(aspoints))
     # print(np.array(aspoints).shape)
-    X2 = sklearn.decomposition.PCA(n_components=1).fit_transform(np.array(aspoints))
-    ax9.clear()
+    # X2 = sklearn.decomposition.PCA(n_components=1).fit_transform(np.array(aspoints))
+    # ax9.clear()
     # global pcascatter
     # global pcalines
     # pcalines   = toplot
-    ax5.clear()
-    for path in toplot:
-      print('path')
-      ax5.plot(path[:,0], path[:,1], color=color_of_line(path))
+    # ax5.clear()
+    # for path in toplot:
+      # print('path')
+      # ax5.plot(path[:,0], path[:,1], color=color_of_line(path))
     
-    ax9.scatter(X2[:,0], np.zeros(X2.shape[0]), picker=True, s=10)
+    # ax9.scatter(X2[:,0], np.zeros(X2.shape[0]), picker=True, s=10)
     # print('pcascatter', pcascatter)
 
   ax2.clear()
@@ -654,11 +662,11 @@ def on_pick(event):
   ax8.clear()
   ax12.clear()
   ax5.clear()
-  ax3.set_aspect('equal', adjustable='box')
+  # ax3.set_aspect('equal', adjustable='box')
   ax4.set_aspect('equal', adjustable='box')
-  ax7.set_aspect('equal', adjustable='box')
+  # ax7.set_aspect('equal', adjustable='box')
   ax8.set_aspect('equal', adjustable='box')
-  ax11.set_aspect('equal', adjustable='box')
+  # ax11.set_aspect('equal', adjustable='box')
   ax12.set_aspect('equal', adjustable='box')
   # ax5.set_aspect('equal', adjustable='box')
   for line in paths:
@@ -679,16 +687,73 @@ def on_pick(event):
     line2 = transform_normalized_2d_pca(line)
  
     
-    # ax5.plot(line2[:,0], line2[:,1], color=color_of_line(line))
+    ax5.plot(line2[:,0], line2[:,1], color=color_of_line(line))
   # ax8.clear()
 
   plt.ion()
   plt.draw()
   plt.pause(0.001)
   plt.ioff()
+
+def on_pick(event):
+  render_paths(event.ind)
+
+check_buttons = None
+
+def on_check(label):
+  # print('select', label)
+  index = label.index(label)
+
+  checks = check_buttons.get_status()
+  labels = np.where(np.array(checks) == True)[0]
+  # labels = [int(label)]
+
+  # print('search for ', labels)
+
+  # print(label, index, type(label), type(index))
+  # print(clustering.labels_)
+  indices = [x for x in range(len(clustering.labels_)) if clustering.labels_[x] in labels]
+  render_paths(indices)
+  # print('indices', indices)
+  # print(label)
+  # print(event)
+  # print('picked!')
+  # print(event)
+  # print(event.ind)
+
   # print(event.inaxes)
   # if event.inaxes == ax3:
   #   print(event.ind)
+
+hexcolors = None
+
+
+
+
+
+def draw_phenotypes(clustering):
+  n = clustering.n_clusters
+  nn = n
+  fig, axs = plt.subplots(int(np.ceil(nn/4)), int(np.ceil(nn/(nn/4))), subplot_kw={'projection': '3d'})
+  axes = axs.flat
+
+  for i in range(n):    # enumerate axes = cluster
+    ax = axes[i]
+    ax.view_init(elev=ax1.elev, azim=ax1.azim)
+    for p in range(len(paths)):   # enumerate paths
+      if clustering.labels_[p] == i:
+        ax.plot3D(paths[p][:,0], paths[p][:,1], paths[p][:,2], color=color_of_line(paths[p]))
+
+  # def on_move(event):
+  #   if event.inaxes == axes[n]:
+  #     print('hi')
+  #     for ax in axes:
+  #       ax.view_init(elev=axes[n].elev, azim=axes[n].azim)
+
+  # c1 = fig.canvas.mpl_connect('motion_notify_event', on_move)
+
+
+
 
 # fig.canvas.mpl_connect("motion_notify_event", hover)
 
@@ -697,7 +762,10 @@ def on_pick(event):
 # X3 = manifold.TSNE(n_components=2).fit_transform(X)
 
 # ax3.scatter(X1[:,0], X1[:,1], picker=True, color=pathcolors)
-# ax5.scatter(X2[:,0], X2[:,1], picker=True, color=pathcolors)
+ax3.scatter(X1[:,0], X1[:,1], picker=True, color=pathcolors, s=10)
+ax7.scatter(X2[:,0], X2[:,1], picker=True, color=pathcolors, s=10)
+ax11.scatter(X6[:,0], X6[:,1], picker=True, color=pathcolors, s=10)
+# selector = lasso.SelectFromCollection(ax11, pts2, on_pick)
 # ax6.scatter(X3[:,0], X3[:,1], picker=True, color=pathcolors)
 # ax9.scatter(X4[:,0], X4[:,1], picker=True, color=pathcolors, s=10)
 pts = ax10.scatter(X5[:,0], X5[:,1], color=pathcolors, s=10)
@@ -729,7 +797,24 @@ print('done')
 fig.canvas.mpl_connect('pick_event', on_pick)
 # fig.canvas.mpl_connect("motion_notify_event", on_hover)
 
+cluster_names = []
+
+for i in range(clustering.n_clusters):
+  cluster_names += [i]
+
+
+check_buttons = CheckButtons(ax9, cluster_names, [False]*clustering.n_clusters)
+for i, rect in zip(range(len(check_buttons.rectangles)), check_buttons.rectangles):
+  rect.fill = True
+  # rect.color = hexcolors[i]
+  rect.set_facecolor(hexcolors[i])
+  rect.set_width(0.1)
+check_buttons.on_clicked(on_check)
 # plt.draw()
 # plt.pause(0.001)
-# plt.ioff()
+plt.draw()
+# plt.show()
+
+draw_phenotypes(clustering)
+
 plt.show()

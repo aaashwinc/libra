@@ -1,6 +1,14 @@
 #include "estimator.h"
 #include <limits>
+#include <random>
 
+
+static float randf(){
+  return static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
+}
+static float randf(float min, float max){
+  return min + randf()*(max-min);
+}
 ScaleBlob Estimator::fit(Nrrd* source, ScaleBlob* in){
   ScaleBlob blob;
   blob.position = in->position;
@@ -8,7 +16,6 @@ ScaleBlob Estimator::fit(Nrrd* source, ScaleBlob* in){
   blob.max = in->max;
   blob.n = in->n;
   blob.shape = in->shape;
-  blob.fshape = in->fshape;
   blob.mode = in->mode;
   blob.invCov = in->invCov;
 
@@ -17,35 +24,51 @@ ScaleBlob Estimator::fit(Nrrd* source, ScaleBlob* in){
   int a2 = source->axis[2].size;
 
 
-  float bestalpha;
-  float bestbeta;
-  float bestkappa;
+  float bestalpha = 0;
+  float bestbeta = 0;
+  float bestkappa = 0;
   float besterror = std::numeric_limits<float>::infinity();
 
   float error = 0;
   std::vector<ivec3> indices;
-  float n = 0;
-  for (int xx=blob.min.x; xx < blob.max.x; xx++){
-    for(int yy=blob.min.y; yy < blob.max.y; yy++){
-      for(int zz=blob.min.z; zz < blob.max.z; zz++){
+  int n = 0;
+  printf("indices..");
+  for (int xx=0; xx < a0; xx++){
+    for(int yy=0; yy < a1; yy++){
+      for(int zz=0; zz < a2; zz++){
          vec3 p(xx,yy,zz);
          if(blob.ellipsepdf(p) > 0){
           indices.push_back(ivec3(xx,yy,zz));
-          ++n;
+          n = n+1;
         }
       }
     }
   }
+  if(n == a0*a1*a2){
+    indices = std::vector<ivec3>();
+    indices.push_back(ivec3(blob.position.x, blob.position.y, blob.position.z));
+  }
+  // printf("max = %d\n",a0*a1*a2);
+  printf("estimate.. n=%.2f, ", n);
   float beta = 1.f;
-  // for(float beta = 0.33; beta <=1.33; beta+=0.33f){
-    for(float kappa = 0.1; kappa < 0.95; kappa += 0.05f){
-      for(float alpha=0.16f; alpha < 0.5f; alpha*= 1.41421f){
-        
+  for(int i=0;i<1000;i++){
+    // printf("%d, ", i);
+    float beta  = randf(1,6);
+    float kappa = randf(0.1,0.95);
+    float alpha = randf(0.15, 0.5);
+
+  // for(float beta = 1.f; beta < 6.f; beta *= 1.2f){
+  //   // printf("beta = %.2f. ", beta);
+  //   for(float kappa = 0.1; kappa < 0.95; kappa += 0.05f){
+  //     for(float alpha=0.08f; alpha < 0.5f; alpha*= 1.1){
+        // float r1 = 
+        // float beta = 1.f;
         // for each beta, kappa, alpha:
-        blob.kappa = kappa;
-        blob.alpha = alpha;
-        blob.beta  = beta;
+        blob.model.kappa = kappa;
+        blob.model.alpha = alpha;
+        blob.model.beta  = beta;
         error = 0;
+        // printf("hi . ");
         for(ivec3 v : indices){
           vec3 p(v);
           int xx = v.x;
@@ -63,12 +86,12 @@ ScaleBlob Estimator::fit(Nrrd* source, ScaleBlob* in){
           bestbeta  = beta;
           bestkappa = kappa;
         }
-      }
-    }
-  // }
-  blob.alpha = bestalpha;
-  blob.beta = bestbeta;
-  blob.kappa = bestkappa;
+    //   }
+    // }
+  }
+  blob.model.alpha = bestalpha;
+  blob.model.beta = bestbeta;
+  blob.model.kappa = bestkappa;
   printf("best parameters: %.2f %.2f %.2f, err=%.5f\n", bestalpha, bestbeta, bestkappa, besterror);
 
   if (error < 1 ){
@@ -81,6 +104,13 @@ ScaleBlob Estimator::fit(Nrrd* source, ScaleBlob* in){
       if(blob.max.x >= a0 && blob.max.y >= a1 && blob.max.z >= a2 )break;
     }
   }
+  in->min = blob.min;
+  in->max = blob.max;
+  in->model.alpha = blob.model.alpha;
+  in->model.beta = blob.model.beta;
+  in->model.kappa = blob.model.kappa;
+  in->model.type = 'g';
+
   // blob.min.x = blob.position.x
   return blob;
 }

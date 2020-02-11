@@ -2,6 +2,8 @@
 EIGEN=/usr/local/include/eigen3
 LBFGSpp=/home/ashwin/repo/libra/lib/LBFGSpp/include
 LBFGS=$(BUILD_DIR)/../lib/lbfgs
+LIBXML2=/usr/include/libxml2/
+GLAD=/home/ashwin/repo/voxels/lib/glad/include
 
 BUILD_DIR = $(shell pwd)
 SRC_DIR = $(BUILD_DIR)/../src
@@ -12,12 +14,12 @@ CC=gcc -O4
 CXX=g++ -g -O4
 RM=rm -f
 
-IPATH    = -I$(VULKAN_SDK)/include -I$(GLFW)/include -I${CURDIR}/../include -I$(EIGEN) -I$(LBFGSpp) -I$(LBFGS)/include
+IPATH    = -I$(VULKAN_SDK)/include -I$(GLFW)/include -I${CURDIR}/../include -I$(EIGEN) -I$(LBFGSpp) -I$(LBFGS)/include -I$(LIBXML2) -I$(GLAD)
 RPATH    = -Wl,-rpath,$(GLFW)/build/src
 CPPFLAGS = -g $(IPATH)
 LDFLAGS  = -g -L$(GLFW)/build/src 
 LDLIBS   =
-LIBS     = -lteem -lsfml-graphics -lsfml-window -lsfml-system -lglfw3 -lGL -lX11 -lXi -lXrandr -lXxf86vm -lXinerama -lXcursor -lrt -lm -pthread -ldl -lpng -lz
+LIBS     = -lteem -lsfml-graphics -lsfml-window -lsfml-system -lglfw3 -lGL -lX11 -lXi -lXrandr -lXxf86vm -lXinerama -lXcursor -lrt -lm -pthread -ldl -lpng -lz -lxml2
 CLIBS    = -lm
 
 SRCS=$(wildcard $(SRC_DIR)/*.cpp)

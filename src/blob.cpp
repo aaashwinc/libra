@@ -32,6 +32,8 @@ ScaleBlob::ScaleBlob(){
 
   children = std::vector<ScaleBlob*>();
 
+  model.type = '_';
+
   // initialized = false;
 }
 void ScaleBlob::pass(vec3 point, float value){
@@ -103,6 +105,7 @@ float ScaleBlob::cellerf(vec3 p){
 float ScaleBlob::celldot(vec3 p){
   p = p - vec3(position);
   float mag = sqrt(glm::dot(p,p));
+  // if(mag < 1.f)printf("mag=%.2f\n", mag);
   if(mag<1.f)  return 1.f;
   if(mag>3.5f) return 0.f;
   else         return 0.5f;
@@ -123,14 +126,42 @@ float ScaleBlob::outlinepdf(vec3 p){
   // float mag = glm::dot(p,(invCov*p));
   // return 1.f/(0.1f + 0.05f*mag*mag);
 }
+float ScaleBlob::erf_pdf(vec3 p){
+  // model.alpha = 1;
+  // model.beta = 4;
+  // model.kappa = [0,1];
+  p = p - vec3(position);
+  float mag = sqrt(glm::dot(p,(invCov*p)));
+  if(mag<model.alpha){
+    return model.kappa;
+    // return model.kappa * 1.f;
+  }
+  else{
+    mag -= model.alpha;
+    mag *= model.beta;
+    if(mag > 4){
+      return 0;
+    }
+    return model.kappa * float(erf(2-mag)*0.5+0.5);
+  }
+  return 0;
+}
 float ScaleBlob::generalized_multivariate_gaussian_pdf(vec3 p){
+  if(model.kappa<0.1f)return celldot(p);
   // return 1.f;
   // printf("%.2f %.2f %.2f\n", alpha, beta, kappa);
   p = p-vec3(position);
   float mag = glm::dot(p,(invCov*p));
-  float v = kappa*exp(-pow(alpha*mag, beta));
+  float v = model.kappa*exp(-pow(model.alpha*mag, model.beta));
   // float v = exp(-0.5 * glm::dot(p, invCov*p));
   return v;
+}
+float ScaleBlob::modelpdf(vec3 p){
+  if(model.type == 'e'){
+    return erf_pdf(p);
+  }else{
+    return generalized_multivariate_gaussian_pdf(p);
+  }
 }
 void ScaleBlob::commit(){
   if(npass == 0){  // compute mean.
@@ -149,7 +180,7 @@ void ScaleBlob::commit(){
     // pdfCoef   = pow(glm::determinant(invCov*pi*2.0),-0.5);
     pdfCoef   = pow(2.0*pi, -1.5)*pow(glm::determinant(invCov), -0.5);
 
-    fshape = shape;
+    // fshape = shape;
 
     covariance << invCov[0][0], invCov[0][1], invCov[0][2],
                   invCov[1][0], invCov[1][1], invCov[1][2],

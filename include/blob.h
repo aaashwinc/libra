@@ -17,14 +17,18 @@ public:
   std::vector<ScaleBlob*> succ;     // temporal successors
 
   vec3   mode;      // the local maxima which seeded this blob.
+  float peakvalue;  // value of the image at the peak.
   dvec3  position;  // mean of this blob in space.
-  dmat3x3 shape;    // covariance matrix of blob.
-  mat3x3 fshape;    // covariance matrix of blob.
-  float alpha;      // generalized multivariate gaussian alpha. 
-  float beta;       // generalized multivariate gaussian beta. 
-  float kappa;      // generalized multivariate gaussian kappa.
+  mat3x3 shape;    // covariance matrix of blob.
   int timestep;     // the timestep in which this blob exists.
+  // mat3x3 fshape;    // covariance matrix of blob.
 
+  struct{
+    float alpha;      // scaling parameter. 
+    float beta;       // kurtosis parameter. 
+    float kappa;      // magnitude paramater.
+    char  type;       // either 'e'rf or 'g'aussian.
+  }model;
   Eigen::Matrix3f covariance;
 
 
@@ -40,7 +44,6 @@ public:
   float n;
   int npass;
 
-  float peakvalue;
 
   // bool initialized;
 
@@ -52,6 +55,10 @@ public:
   float outlinepdf(vec3 p);
   float ellipsepdf(vec3 p);
   float generalized_multivariate_gaussian_pdf(vec3 p);
+  float erf_pdf(vec3 p);
+
+  float modelpdf(vec3 p);
+
   void pass(vec3 point, float value);
   void commit();
   void print();
