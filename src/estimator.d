@@ -311,4 +311,6 @@
  /usr/local/include/eigen3/Eigen/src/Eigenvalues/GeneralizedEigenSolver.h \
  /usr/local/include/eigen3/Eigen/src/Eigenvalues/./RealQZ.h \
  /usr/local/include/eigen3/Eigen/src/Eigenvalues/MatrixBaseEigenvalues.h \
- /usr/local/include/eigen3/Eigen/Eigenvalues
+ /usr/local/include/eigen3/Eigen/Eigenvalues \
+ /home/ashwin/repo/libra/build/../include/filter.h \
+ /home/ashwin/repo/libra/build/../include/bsptree.h

@@ -38,6 +38,9 @@ public:
     std::vector<std::vector<ScaleBlob*>> paths;
     double path_smooth_alpha;
   }highlight;
+  struct{
+    float v;
+  }scan;
   bool operator==(ReprMode &r);
 };
 struct ArFrameData{
@@ -93,6 +96,9 @@ public:
 
   void save();
   void load();
+
+  void estimate(int timestep);
+  void select_scales(int timestep);
 
   void emit(ReprMode &mode, std::string suffix, int low, int high);
   // void getTGMMOutput(std::string path, int low, int high);

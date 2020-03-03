@@ -507,15 +507,32 @@ def color_of_line(line):
 print('show')
 
 # paths_raw = load_paths("../rsc/store/s-home-ashwin-data-miniventral2-000.nrrd.paths.txt")
-paths_raw = load_paths("../rsc/store/s-home-ashwin-data-16-05-05-000.nrrd.paths.txt")
+paths_raw = load_paths("../rsc/store/s-home-ashwin-data2-16-05-05-000.nrrd.paths.txt")
+# paths_raw = load_paths("../rsc/store/s-home-ashwin-data-17-05-01-small-100.nrrd.paths.txt")
 paths = []
 for path in paths_raw:
   # print(path.shape)
-  if path.shape[0] > 90:
+  if path.shape[0] > 100:
     paths += [path]
+
+
 paths += [normalize(line([50,50,50], [1,0,0], 100))]
 paths += [normalize(line([50,50,50], [0,1,0], 100))]
 paths += [normalize(line([50,50,50], [0,0,1], 100))]
+
+
+#TEST
+
+
+# paths = []
+
+# for i in range(20):
+#   paths += [normalize(line([50,random.uniform(40,60),random.uniform(40,60)], [1,0,0], 100))]
+
+#   paths += [normalize(line([50,random.uniform(40,60),random.uniform(40,60)], [2,0,0], 100))]
+
+
+#/TEST
 # print(line([50,50,50], [1,0,0], 100))
 # print(line([50,50,50], [0,1,0], 100))
 # print(line([50,50,50], [0,0,1], 100))
@@ -545,7 +562,7 @@ for i in range(len(paths)):
   path = paths[i]
   # path2d = paths2d[i]
   path = normalize(path)
-  path = smooth(path, sigma=5)
+  path = smooth(path, sigma=1)
   # path = normalize(path, nth=10)
 
   # pathspt += [to_point_length(path)+to_point_fishingline(path)]
@@ -553,6 +570,7 @@ for i in range(len(paths)):
 
   # print(color)
   ax1.plot3D(path[:,0], path[:,1], path[:,2], color=color_of_line(path))
+
 # for path in paths2d:
   # ax3.plot( path[:,0], path[:,1], color=color)
   # ax7.plot( path[:,0], path[:,2], color=color)
@@ -560,6 +578,21 @@ for i in range(len(paths)):
 
   paths[i] = path
   # paths2d[i] = path2d
+
+xs= []
+ys= []
+zs= []
+cs= []
+for i in range(len(paths)):
+  path = paths[i]
+  xs = [path[0,0]]
+  ys = [path[0,1]]
+  zs = [path[0,2]]
+  # cs += [color_of_line(path)]
+  ax2.scatter(xs, ys, zs, color=color_of_line(path), s=5)
+# print(xs)
+
+
 
 # paths = paths2
 # print(circlespt[-1])
@@ -582,8 +615,10 @@ X = np.array(pathspt)
 print('MDS')
 X1 = manifold.LocallyLinearEmbedding(n_components=2).fit_transform(X)
 print('Isomap')
-X2 = manifold.SpectralEmbedding(n_components=2).fit_transform(X)
+X2 = manifold.Isomap(n_components=2).fit_transform(X)
 X6 = sklearn.decomposition.PCA(n_components=2).fit_transform(X)
+# X2 = X6
+# X1 = X2
 # print('LLE')
 # X3 = manifold.LocallyLinearEmbedding(n_components=2).fit_transform(X)
 # random.seed(0)
@@ -594,7 +629,7 @@ X6 = sklearn.decomposition.PCA(n_components=2).fit_transform(X)
 # X = X[0:10]
 # print(X.shape)
 print('tsne perp=10')
-X5 = manifold.TSNE(n_components=2, n_iter=1000, perplexity=10, n_jobs=-1).fit_transform(X)
+X5 = manifold.TSNE(n_components=2, n_iter=1000, perplexity=20, n_jobs=-1).fit_transform(X)
 print('done')
 
 
@@ -737,9 +772,16 @@ def draw_phenotypes(clustering):
   fig, axs = plt.subplots(int(np.ceil(nn/4)), int(np.ceil(nn/(nn/4))), subplot_kw={'projection': '3d'})
   axes = axs.flat
 
+  paths_sample = random.sample(paths,500)
+
   for i in range(n):    # enumerate axes = cluster
     ax = axes[i]
     ax.view_init(elev=ax1.elev, azim=ax1.azim)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_zticks([])
+    for line in paths_sample:
+      ax.plot3D(line[:,0], line[:,1], line[:,2], color=[0.8,0.8,0.8,0.8])
     for p in range(len(paths)):   # enumerate paths
       if clustering.labels_[p] == i:
         ax.plot3D(paths[p][:,0], paths[p][:,1], paths[p][:,2], color=color_of_line(paths[p]))
@@ -771,7 +813,7 @@ ax11.scatter(X6[:,0], X6[:,1], picker=True, color=pathcolors, s=10)
 pts = ax10.scatter(X5[:,0], X5[:,1], color=pathcolors, s=10)
 selector = lasso.SelectFromCollection(ax10, pts, on_pick)
 
-clustering = AgglomerativeClustering(distance_threshold=None, n_clusters=20).fit(X5)
+clustering = AgglomerativeClustering(distance_threshold=None, n_clusters=16).fit(X)
 print(clustering.n_clusters, 'clusters')
 
 get_colors = lambda n: list(map(lambda i: "#" + "%06x" % random.randint(0, 0xFFFFFF),range(n)))

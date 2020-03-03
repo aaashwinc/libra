@@ -39,7 +39,7 @@ void synth(){
 
   ScaleBlob blob;
   blob.position = vec3(50,50,50);
-  blob.model.alpha = 1.f;
+  blob.model.alpha = 0.1f;
   blob.model.beta = 0.1;
   blob.model.kappa = 0.8;
   blob.invCov = glm::mat3(0.01f,0,0, 0,0.02f,0, 0,0,0.04f);

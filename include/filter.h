@@ -41,6 +41,8 @@ public:
   int itempbuf(int c);
   int itempbuf();
   double comp_max_laplacian(float *data);
+
+  void label_blobs(float *data, int* labelled);
 public:
   ArFilter();
   void conv2d(float *nin, float *nout, int xmax, int ymax, int zmax, int xstep, int ystep, int zstep, DiscreteKernel kernel);
@@ -50,6 +52,7 @@ public:
   void set_kernel(DiscreteKernel k);
   void filter();
 
+  void posterize(int nlevels);
   void normalize(double power=1.0);
   void scale(float s);
   void threshold(float min, float max);
@@ -57,6 +60,7 @@ public:
   void negative(int channel=0);
   void binary(int channel=0);
   void laplacian3d(int boundary = 0);
+  void hessian3d(int boundary = 1);
   void laplacianmasked(float scale = 0);
   void max1();
   void median1();
@@ -64,14 +68,21 @@ public:
   void print();
   void clear();
 
+
   void difference_image(Nrrd* x);
 
+  int count_connected_components();
+  int count_blobs();
+
+
   // void gaussian(float scale);
-  void lapofgaussian(float scale);
+  // void lapofgaussian(float scale);
+  void lapofgaussian_masked(float sigma, bool multiply);
 
   // raster operations
   void rasterlineadd(vec3 a, vec3 b, float va, float vb);
 
+  std::vector<glm::ivec3> find_nonzero();
   std::vector<glm::ivec3> find_maxima();
   ivec3 hill_climb(ivec3 in);
   void highlight(std::vector<glm::ivec3> points);

@@ -68,7 +68,7 @@ float ScaleBlob::pdf(vec3 p){
   // float v = pdfCoef * exp(-0.5 * glm::dot(p,(invCov*p)));
 
   // the center should be 1.
-  float v = exp(-0.5 * glm::dot(p, invCov*p));
+  float v = peakvalue * exp(-0.5 * glm::dot(p, invCov*p));
   // printf("%.2f ", v );
   // if(v>1)v=1;
   return v;
@@ -130,6 +130,14 @@ float ScaleBlob::erf_pdf(vec3 p){
   // model.alpha = 1;
   // model.beta = 4;
   // model.kappa = [0,1];
+
+  // p = p-vec3(position);
+  // float rr = glm::dot(p, (invCov*p));
+  // vec3  gv = (invCov + glm::transpose(invCov)) * p;
+  // float ss = (rr-1)/(0.000001 + glm::length(gv));
+  // return (model.kappa * erf(-ss * model.alpha));
+  // return 0;
+
   p = p - vec3(position);
   float mag = sqrt(glm::dot(p,(invCov*p)));
   if(mag<model.alpha){
@@ -147,7 +155,7 @@ float ScaleBlob::erf_pdf(vec3 p){
   return 0;
 }
 float ScaleBlob::generalized_multivariate_gaussian_pdf(vec3 p){
-  if(model.kappa<0.1f)return celldot(p);
+  // if(model.kappa<0.1f)return celldot(p);
   // return 1.f;
   // printf("%.2f %.2f %.2f\n", alpha, beta, kappa);
   p = p-vec3(position);

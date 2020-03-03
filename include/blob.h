@@ -16,7 +16,8 @@ public:
   std::vector<ScaleBlob*> pred;     // temporal predecessors
   std::vector<ScaleBlob*> succ;     // temporal successors
 
-  vec3   mode;      // the local maxima which seeded this blob.
+  int    imode;      // the local maximum which seeded this blob.
+  vec3    mode;       // the local maximum which seeded this blob.
   float peakvalue;  // value of the image at the peak.
   dvec3  position;  // mean of this blob in space.
   mat3x3 shape;    // covariance matrix of blob.
@@ -28,6 +29,11 @@ public:
     float beta;       // kurtosis parameter. 
     float kappa;      // magnitude paramater.
     char  type;       // either 'e'rf or 'g'aussian.
+    float n;          // number of pixels explained by model.
+    float error;      // total amount of error over these pixels.
+                      // average error is error/n.
+    vec3 min;         // min/max of portion of image explained 
+    vec3 max;         // by model.
   }model;
   Eigen::Matrix3f covariance;
 

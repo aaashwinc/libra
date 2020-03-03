@@ -405,7 +405,7 @@ void View::raytrace(){
   texture.update(texdata);
 }
 void View::touch(){
-  unstable = 5;
+  unstable = 2;
 }
 int View::render(){
   if(unstable<=0)return (unstable = 0);
