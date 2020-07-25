@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <set>
+#include <map>
+#include <unordered_map>
 #include <queue>
 #include <limits>
 #include <queue>
@@ -42,20 +44,26 @@ ArPipeline::ArPipeline(ArExperiment *exp){
     ArFrameData data;
     data.blob     = 0;
     data.complete = false;
-    data.tgmm_blob = 0;
+    // data.tgmm_blob = 0;
     frames.push_back(data);
   }
   store.nbuf = 1;
   store.buf  = new Nrrd*[store.nbuf];
   for(int i=0;i<store.nbuf;++i){
-    store.buf[i] = exp->copy(0);
+    store.buf[i] = exp->copy(exp->low);
   }
   store.init = true;
 
   filter.init(store.buf[0]);
 }
 ArFrameData &ArPipeline::get(int frame){
-  return frames[frame - exp->low];
+  int i = frame - exp->low;
+  while(i >= frames.size() ){
+    ArFrameData afd;
+    afd.complete = false;
+    frames.push_back(afd);
+  }
+  return frames[i];
 }
 int ArPipeline::low(){
   return exp->low;
@@ -80,7 +88,7 @@ static std::vector<float> collect_scales(ScaleBlob *blob){
     }
     // printf("hello\n");
   }
-  scales.erase(0);
+  scales.erase(-1);
   return std::vector<float>(scales.begin(), scales.end());
 }
 static float compute_epsilon(std::vector<float> &v){
@@ -115,14 +123,286 @@ void ArPipeline::path_highlight(ReprMode *rm, vec3 p, vec3 ray, bool diagnose, b
   rm->highlight.highlight_loci.push_back(found[0]);
 }
 
+void ArPipeline::track(ReprMode &repr, std::string output){
+  repr.name = "detection";
+  // return;
+  printf("track.\n");
+  repr.geom = "paths";
+  repr.name = "cells";
+
+  cells = new std::vector<Cell*>[high() + 1];
+
+  // unlink all blobs:
+  for(int i=low();i<=high();i++){
+    while(i >= frames.size()){
+      ArFrameData data{};
+      data.complete = false;
+      frames.push_back(data);
+    }
+    for(ScaleBlob *blob : frames[i].bspblobs.as_vector()){
+      blob->succ.clear();
+      blob->pred.clear();
+    }
+  }
+
+  // iterate through frames.
+  for(int i=low();i<=high();i++){
+    ArFrameData &frame =  get(i);
+    if(!frame.complete){
+      // printf("load frame.\n");
+      loadframe(i);
+    }
+    if(!frame.complete){
+      process(i, i);
+      // printf("save frame.\n");
+      saveframe(i);
+      frame =  get(i);
+    }
+    std::vector<ScaleBlob*> blobs = frame.bspblobs.as_vector();
+
+    if(i == low()){   // first frame
+      for(ScaleBlob* blob : blobs){
+        if(blob->scale == frame.scales[0]){
+          Cell *cell = new Cell;
+          cell->time = 0;
+          cell->pred = 0;
+          cell->blob = blob;
+          cell->f_id = cells[i].size();
+          cells[i].push_back(cell);
+        }
+      }
+    }
+    else{             // succeeding frames
+;
+      std::map<ScaleBlob*, bool> alive;
+      for(ScaleBlob *blob : blobs)alive[blob] = true;
+
+      int countdeaths = 0;
+      for(Cell *cell : cells[i-1]){
+        // for each cell in the previous frame...
+        // find the appropriate successor.
+        float mindist = std::numeric_limits<float>::infinity();
+        ScaleBlob *closest = 0;
+        
+        std::vector<ScaleBlob*> potential;
+        potential.push_back(frame.bspblobs.find_closest(cell->blob->position));
+        frame.bspblobs.find_within_distance(potential, cell->blob->position, 100.f);
+
+        for(ScaleBlob *blob : potential){
+          if(!cell)continue;
+          if(!cell->blob)continue;
+          if(!blob)continue;
+          float dist = glm::distance(cell->blob->position, blob->position);
+          float rad1 = blob->covmaxev();
+          float rad2 = blob->covmaxev();
+          dist -= rad1 + rad2;
+          if(dist < mindist && dist < 0 && alive[blob]){
+            mindist = dist;
+            closest = blob;
+          }
+        }
+
+        // if(!closest){
+        //   printf("blob died...potential.size = %d\n", potential.size());
+        // }
+        // if(mindist>2)closest = 0;
+
+        // closest = frame.bspblobs.find_closest(cell->blob->position);
+
+        if(!closest){
+          if(cell->life > 0){
+            closest = cell->blob;
+            Cell *next = new Cell;
+            next->f_id = cells[i].size();
+            next->pred = cell;
+            next->time = i;
+            next->blob = closest;
+            next->life = cell->life - 1;
+            cells[i].push_back(next);
+          }
+          else{
+            ++countdeaths;
+          }
+        }
+        else{
+          Cell *next = new Cell;
+          next->f_id = cells[i].size();
+          next->pred = cell;
+          next->time = i;
+          next->blob = closest;
+          cells[i].push_back(next);
+
+          cell->blob->succ.push_back(next->blob);
+          next->blob->pred.push_back(cell->blob);
+
+          // kill all children/grandchildren
+          std::queue<ScaleBlob*> tokill;
+          tokill.push(closest);
+          while(tokill.size() > 0){
+            ScaleBlob *curr = tokill.front();
+            tokill.pop();
+            alive[curr] = false;
+            for(ScaleBlob *child : curr->children){
+              tokill.push(child);
+            }
+          }
+
+          // kill all parents/grandparents
+          ScaleBlob *blob = closest;
+          while(blob){
+            alive[blob] = false;
+            blob = blob->parent;
+          }
+          alive[closest] = false;
+        }
+      }
+      int countalive = 0;
+      for(ScaleBlob *blob : blobs){
+        if(alive[blob] && blob->scale == frame.scales[0] && blob->n > 125){
+          // printf("cell born ... ");
+          ScaleBlob *curr = blob;
+          bool valid = true;
+          while(curr){valid &= alive[curr]; /*printf("%d ", alive[curr]);*/ curr = curr->parent;}
+          // printf(" = %d \n", valid);
+          if(valid){
+            Cell *born = new Cell;
+            born->f_id = cells[i].size();
+
+            // ScaleBlob *father = get(i-1).bspblobs.find_closest(blob->position);
+            // float dist = glm::distance(cell->blob->position, blob->position);
+            // float rad1 = fabs(cbrt(blob->detCov));
+            // float rad2 = fabs(cbrt(cell->blob->detCov));
+            // dist -= rad1 + rad2;
+            // born->pred = dist<0 ? father : 0
+
+            born->pred = 0;
+            born->time = i;
+            born->blob = blob;
+            cells[i].push_back(born);
+            ++countalive;
+          }
+        }
+      }
+      printf("%d died. %d born.\n", countdeaths, countalive);
+    }
+
+
+    printf("frame %d has %d cells.\n", i, cells[i].size());
+    // write to file
+
+
+    char *filepath = new char[output.size()+1];
+    strcpy(filepath, output.c_str());
+    // char filepath[] = "/home/ashwin/data2/tgmmout/17-05-01-4-?????.xml";    // output file format
+    char *iwildcard  = filepath;                                          // pointer to wildcard ?s
+    int sizewildcard = 5;                                                 // number of ?s
+    while(*iwildcard != '?')++iwildcard;
+
+    sprintf(iwildcard, "%05d.xml", i);
+    printf("write to file %s\n", filepath);
+    FILE *file = fopen(filepath, "w");
+
+    if(file){
+
+      fprintf(file, "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<document>");
+
+      for(Cell *cell : cells[i]){
+        ScaleBlob *blob = cell->blob;
+        int m_id = cell->f_id;
+        int m_parent = cell->pred? cell->pred->f_id : -1;
+
+        float m_x = blob->position.x;
+        float m_y = blob->position.y;
+        float m_z = blob->position.z;
+
+        fprintf(file, 
+          "<GaussianMixtureModel id=\"%d\" parent=\"%d\" m=\"%f %f %f\">\n</GaussianMixtureModel>\n",
+           m_id, m_parent, m_x, m_y, m_z);
+      }
+
+      fprintf(file, "</document>");
+      fclose(file);
+    }
+    delete[] filepath;
+
+  }
+
+  // exit(0);
+
+  // for(int i=low();i<high();i++){
+  //   printf("capture %d\n", i);
+  //   filter.capture(exp->get(i));
+
+  //   DiscreteKernel kernel = filter.gaussian(2, 2*4);
+  //   filter.set_kernel(kernel);
+  //   filter.filter();
+  //   kernel.destroy();
+  //   // filter.highlight(filter.find_maxima());
+  //   // filter.commit(store.buf[0]);
+  //   // return;
+  //   frames.push_back(Frame());
+  //   printf("find blobs.\n");
+  //   frames[i].blobs    = filter.find_blobs();
+  //   frames[i].bspblobs = filter.get_bsp(10);
+  //   for(ScaleBlob *blob : frames[i].blobs){
+  //     frames[i].bspblobs.insert(blob, blob->mode);
+  //   }
+  //   printf("connect.\n");
+  //   // connect to the previous frame.
+  //   if(i>1){
+  //     for(ScaleBlob *succ : frames[i].blobs){
+  //       ScaleBlob *pred = frames[i-1].bspblobs.find_closest(succ->mode);
+  //       if(pred->distance(succ) < 2.f){
+  //         pred->succ.push_back(succ);
+  //         succ->pred.push_back(pred);
+  //       }
+  //     }
+  //   }
+
+  //   printf("output.\n");
+  //   Frame &f = frames[i];
+
+
+
+  //   fprintf(file, "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<document>");
+    
+
+  //   // get IDs for current frame.
+  //   pointer_to_id[currmap].clear();
+  //   for(int j=0;j<f.blobs.size();j++){
+  //     pointer_to_id[currmap][f.blobs[j]] = j;
+  //   }
+
+
+  //   for(ScaleBlob *blob : f.blobs){
+  //     int m_id = pointer_to_id[currmap][blob];
+  //     int m_parent = -1;
+  //     if(blob->pred.size() > 0){
+  //       m_parent = pointer_to_id[!currmap][blob->pred[0]];
+  //     }
+  //     float m_x = blob->position.x;
+  //     float m_y = blob->position.y;
+  //     float m_z = blob->position.z;
+  //     fprintf(file, 
+  //       "<GaussianMixtureModel id=\"%d\" parent = \"%d\" m = \"%f %f %f\">\n</GaussianMixtureModel>\n",
+  //        m_id, m_parent, m_x, m_y, m_z);
+  //   }
+
+  //   fprintf(file, "</document>");
+  //   fclose(file);
+
+  //   currmap = !currmap;
+  // }
+
+  // for(Frame &f : frames){
+  //   for(ScaleBlob *blob : f.blobs){
+  //     delete blob;
+  //   }
+  // }
+}
+
 void ArPipeline::repr_highlight(ReprMode *rm, vec3 p, vec3 ray, bool drawpaths, bool add){
-  if(drawpaths){
-    rm->highlight.paths = paths;
-  }
-  else{
-    rm->highlight.paths.clear();
-  }
-  return;
+
   if(get(rm->timestep).complete){
     // printf("highlight along (%.2f %.2f %.2f) + (%.2f %.2f %.2f)\n",p.x,p.y,p.z, ray.x,ray.y,ray.z);
     ray = normalize(ray)*3.f;
@@ -134,7 +414,7 @@ void ArPipeline::repr_highlight(ReprMode *rm, vec3 p, vec3 ray, bool drawpaths, 
 
     // shoot ray out until it hits a blob.
     for(int i=0;i<100 && found.size()==0;++i){
-      p+=ray;
+      p+=ray; 
       bsptree->find_within_distance(found, p, i+1);
       if(found.size()>0){
         // if(drawpaths){
@@ -152,33 +432,46 @@ void ArPipeline::repr_highlight(ReprMode *rm, vec3 p, vec3 ray, bool drawpaths, 
       }
     }
 
-    if(!add)rm->highlight.blobs.clear();
-    for(int i=0;i<found.size();i++)rm->highlight.blobs.push_back(found[i]);
+    rm->highlight.blobs.clear();
+    // for(int i=0;i<found.size();i++)rm->highlight.blobs.push_back(found[i]);
+
+    bool drawblobs = true;
 
     if(drawpaths){
-      // printf("drawpaths.\n");
+      printf("drawpaths %.2f %.2f %.2f.\n", p.x, p.y, p.z);
       if(add){
-        rm->highlight.paths = paths;
+        // rm->highlight.paths = paths;
       }else{
         rm->highlight.paths.clear();
-        for(std::vector<ScaleBlob*> path : paths){
-          // if(path[0] == found[0]){
-          //   rm->highlight.paths.push_back(path);
-          // }
-          for(ScaleBlob *blob : path){
-            if(!blob)break;
-            // printf("blob=%p\n,", blob);
-            if(glm::distance(vec3(blob->position), p) < 5){
-              rm->highlight.paths.push_back(path);
-              break;
+      }
+      bool found = false;
+      for(std::vector<ScaleBlob*> path : paths){
+        // if(found)break;
+        // if(path[0] == found[0]){
+        //   rm->highlight.paths.push_back(path);
+        // }
+        for(ScaleBlob *blob : path){
+          if(!blob)break;
+          // printf("blob=%p\n,", blob);
+          if(glm::distance(vec3(blob->position), p) < 10){
+            rm->highlight.paths.push_back(path);
+            if(drawblobs){
+              for(ScaleBlob *blob2 : path){
+                rm->highlight.blobs.push_back(blob2);
+              }
+              // found = true;
+              // drawblobs = false;
             }
-            // break;
+            break;
           }
+          // break;
         }
       }
+
     }else{
       rm->highlight.paths.clear();
     }
+    printf("draw blobs %d\n", rm->highlight.blobs.size());
     rm->highlight.locus = p;
     rm->highlight.timestep = rm->timestep;
     // rm->highlight.paths = longest_paths(rm->highlight.blobs);
@@ -210,12 +503,14 @@ static std::vector<ScaleBlob*> collect_blobs(ScaleBlob *blob, float scalemin, fl
   // printf("collect_blobs %.2f %.2f\n", scalemin, scalemax);
   std::vector<ScaleBlob*> blobs;
   // printf("blob = %p\n", blob);
-  if(blob->scale >= scalemin || blob->scale == 0 || scalemin == -1){
-    if(blob->scale <= scalemax || blob->scale == 0 || scalemax == -1){
+  // printf("blob.scale = %.2f\n", blob->scale);
+  if(blob->scale >= scalemin || blob->scale <= 0 || scalemin == -1){
+    if(blob->scale <= scalemax || blob->scale <= 0 || scalemax == -1){
       // printf(".");
+      // printf("blob.scale = %.2f\n", blob->scale);
       blobs.push_back(blob);
     }
-    // printf("  scale = %.2f\n", blob->scale);
+    // printf("  bscale = %.2f, %.2f\n", blob->scale, scalemax);
     for(ScaleBlob *child : blob->children){
       std::vector<ScaleBlob*> childblobs = collect_blobs(child, scalemin, scalemax);
       blobs.insert(blobs.end(), childblobs.begin(), childblobs.end());
@@ -328,15 +623,7 @@ void ArPipeline::findpaths(int minlen, int maxframe, const char* mode){
     if(!strcmp(mode, "tgmm") || frames[i].complete){           // if it is processed
                                       // collect blobs
       std::vector<ScaleBlob*> blobsi;
-      if(!strcmp(mode, "tgmm")){
-        // printf("tgmm!");
-        if(frames[i].tgmm_blob){
-          // printf("tgmm_blob. hi!\n");
-          blobsi = collect_blobs(frames[i].tgmm_blob, -1, -1);
-        }
-      }else{
-        blobsi = collect_blobs(frames[i].blob, 0, std::numeric_limits<float>::infinity());
-      }
+      blobsi = collect_blobs(frames[i].blob, 0, std::numeric_limits<float>::infinity());
       std::sort(blobsi.begin(), blobsi.end(), fun_sort_blob_by_n);
       // for(auto sb : blobsi){
       //   printf("%.2f; ", sb->n);
@@ -435,6 +722,7 @@ void ArPipeline::findpaths(int minlen, int maxframe, const char* mode){
 void ArPipeline::link(int low, int high){
   printf("linking...");
   for(int frame = this->low(); frame <= high; ++frame){
+    printf("%d ", frame);
     if(get(frame).complete && get(frame+1).complete);
     else continue;
     BSPTree<ScaleBlob> *t0 = &frames[ frame - exp->low    ].bspblobs;
@@ -454,10 +742,10 @@ void ArPipeline::link(int low, int high){
       t1->find_within_distance(potential, sb->position, 1000.f);
       for(int i=0;i<potential.size();i++){
         if(sb->n>1 && potential[i]->n>1 && sb->distance(potential[i]) <= 1.f){
-          if(sb->detCov/potential[i]->detCov < 8.f && potential[i]->detCov/sb->detCov < 8.f){            // volume cannot more than double or half.
-            sb->succ.push_back(potential[i]);
-            potential[i]->pred.push_back(sb);
-          }
+          // if(sb->detCov/potential[i]->detCov < 8.f && potential[i]->detCov/sb->detCov < 8.f){            // volume cannot more than double or half.
+          sb->succ.push_back(potential[i]);
+          potential[i]->pred.push_back(sb);
+          // }
         }
       }
       std::sort(sb->succ.begin(), sb->succ.end(), fun_sort_blob_by_n);
@@ -491,56 +779,56 @@ void ArPipeline::process(int low, int high){
         frames[frame - exp->low].bspblobs  = filter.get_bsp(10);
 
         BSPTree<ScaleBlob> *bsptree = &frames[frame - exp->low].bspblobs;
-        std::vector<ScaleBlob*> allblobs = collect_blobs(blob, 0, std::numeric_limits<float>::infinity());
+        std::vector<ScaleBlob*> allblobs = collect_blobs(blob, -1, std::numeric_limits<float>::infinity());
         
         for(ScaleBlob *sb : allblobs){
-          bsptree->insert(sb, sb->position);
+          bsptree->insert(sb, sb->mode);
         }
 
     // } THIS CAN BE PARALLELIZED
 
     // link with previous frame.
-    printf("linking.\n");
-    if(frame-1 >= this->low() && get(frame-1).complete){
-      BSPTree<ScaleBlob> *t0 = &frames[ frame - exp->low -1 ].bspblobs;
-      BSPTree<ScaleBlob> *t1 = &frames[ frame - exp->low    ].bspblobs;
+    // printf("linking.\n");
+    // if(frame-1 >= this->low() && get(frame-1).complete){
+    //   BSPTree<ScaleBlob> *t0 = &frames[ frame - exp->low -1 ].bspblobs;
+    //   BSPTree<ScaleBlob> *t1 = &frames[ frame - exp->low    ].bspblobs;
 
-      std::vector<ScaleBlob*> v0 = t0->as_vector();
-      int itr = 0;
-      for(ScaleBlob *sb : v0){
-        std::vector<ScaleBlob*> potential;
-        t1->find_within_distance(potential, sb->position, 1000.f);
-        for(int i=0;i<potential.size();i++){
+    //   std::vector<ScaleBlob*> v0 = t0->as_vector();
+    //   int itr = 0;
+    //   for(ScaleBlob *sb : v0){
+    //     std::vector<ScaleBlob*> potential;
+    //     t1->find_within_distance(potential, sb->position, 1000.f);
+    //     for(int i=0;i<potential.size();i++){
 
-          //  *** NOTE ***
-          // 1.0 means touching. I don't know what 2.0 means. This is somewhat
-          // arbitrary, but we notice that in the data, sometimes successor
-          // blobs aren't touching predecessor blobs, so we need a small margin.
-          // In any case, we next want to choose the potential successor with
-          // the smallest distance and closest scale.
-          //  *** **** ***
+    //       //  *** NOTE ***
+    //       // 1.0 means touching. I don't know what 2.0 means. This is somewhat
+    //       // arbitrary, but we notice that in the data, sometimes successor
+    //       // blobs aren't touching predecessor blobs, so we need a small margin.
+    //       // In any case, we next want to choose the potential successor with
+    //       // the smallest distance and closest scale.
+    //       //  *** **** ***
 
-          if(sb->n>1 && potential[i]->n>1 && sb->distance(potential[i]) <= 1.f){
-            if(sb->n/potential[i]->n < 8.f && potential[i]->n/sb->n < 8.f){
-              // volume cannot more than double or half.
-              sb->succ.push_back(potential[i]);
-              potential[i]->pred.push_back(sb);
-            }
-          }
-          // printf("%d.", i);
-        }
-        std::sort(sb->succ.begin(), sb->succ.end(), fun_sort_blob_by_n);
+    //       if(sb->n>1 && potential[i]->n>1 && sb->distance(potential[i]) <= 1.f){
+    //         if(sb->n/potential[i]->n < 8.f && potential[i]->n/sb->n < 8.f){
+    //           // volume cannot more than double or half.
+    //           sb->succ.push_back(potential[i]);
+    //           potential[i]->pred.push_back(sb);
+    //         }
+    //       }
+    //       // printf("%d.", i);
+    //     }
+    //     std::sort(sb->succ.begin(), sb->succ.end(), fun_sort_blob_by_n);
 
-        // for(ScaleBlob *next : sb->succ){
-        //   printf("%.2f; ", next->n);
-        // }printf("\n");
-        // printf("o");
-        ++itr;
-        // for(ScaleBlob *sb0 : sb->succ){
-        //   sb0->pred.push_back(sb);
-        // }
-      }
-    }
+    //     // for(ScaleBlob *next : sb->succ){
+    //     //   printf("%.2f; ", next->n);
+    //     // }printf("\n");
+    //     // printf("o");
+    //     ++itr;
+    //     // for(ScaleBlob *sb0 : sb->succ){
+    //     //   sb0->pred.push_back(sb);
+    //     // }
+    //   }
+    // }
     tick("done.\n");
   }
   filter.commit(store.buf[0]);
@@ -550,205 +838,107 @@ ArGeometry3D* ArPipeline::reprgeometry(ReprMode &mode){
   geometry.lines = std::vector<vec3>();
   geometry.lines_c = std::vector<sf::Color>();
   // printf("mode %s\n", mode.geom);
-  if(!strcmp(mode.geom, "flow")){
+  if(!strcmp(mode.geom, "paths")){
+    // draw reference x- y- z- axes 
+    geometry.lines.push_back(dvec3(0,0,0));
+    geometry.lines_c.push_back(sf::Color(255,0,0,255));
+    geometry.lines.push_back(dvec3(100,0,0));
+    geometry.lines_c.push_back(sf::Color(255,0,0,255));
+    geometry.lines.push_back(dvec3(0,0,0));
+    geometry.lines_c.push_back(sf::Color(0,255,0,255));
+    geometry.lines.push_back(dvec3(0,100,0));
+    geometry.lines_c.push_back(sf::Color(0,255,0,255));
+    geometry.lines.push_back(dvec3(0,0,0));
+    geometry.lines_c.push_back(sf::Color(0,0,255,255));
+    geometry.lines.push_back(dvec3(0,0,100));
+    geometry.lines_c.push_back(sf::Color(0,0,255,255));
+    
+    // draw trajectory of highlighted blobs
+    if(!mode.highlight.paths.empty()){
 
-    // blobs = collect_blobs(frame.blob, 0, std::numeric_limits<float>::infinity());
-    // int i=0;
-    // for(int x=0;x<)
-    // for(ScaleBlob *sb : blobs){
-    //   geometry.lines.push_back(sb.position)
-    // }
-  }
-  if(!strcmp(mode.geom, "graph") || !strcmp(mode.geom, "paths") || !strcmp(mode.geom, "succs")){
-    if(get(mode.timestep).complete){
-      ArFrameData frame = get(mode.timestep);
-      float scalemin = frame.scales[mode.blob.scale] - frame.scale_eps;
-      float scalemax = frame.scales[mode.blob.scale] + frame.scale_eps;
-      std::vector<ScaleBlob*> blobs;
+      // draw the longest trajectories.
+      // double path_smooth_beta = 1.f - mode.highlight.path_smooth_alpha;
+      // printf("Draw %d paths.\n", mode.highlight.paths.size());
 
-      // if(!strcmp(mode.name, "plain")){
-      //   blobs = collect_blobs(frame.blob, 0, std::numeric_limits<float>::infinity());
-      // }else{
-      //   blobs = collect_blobs(frame.blob, scalemin, scalemax);
-      // }
+      for(std::vector<ScaleBlob*> path : mode.highlight.paths){
 
+        std::vector<glm::dvec3> smoothed(path.size());
 
-      if(!strcmp(mode.geom, "graph") || !strcmp(mode.geom, "succs")){
-        // draw scale hierarchy:
-        blobs = collect_blobs(frame.blob, 0, std::numeric_limits<float>::infinity());
-        for(ScaleBlob *sb : mode.highlight.blobs){
-        // for(ScaleBlob *sb : blobs){
-          // for(ScaleBlob *succ : sb->succ){
-          //   geometry.lines.push_back(sb->position);
-          //   geometry.lines.push_back(succ->position);
-          //   geometry.lines_c.push_back(sf::Color(255,255,255,120));
-          //   geometry.lines_c.push_back(sf::Color(255,255,255,120));
-          // }
-          // for(ScaleBlob *pred : sb->pred){
-          //   geometry.lines.push_back(sb->position);
-          //   geometry.lines.push_back(pred->position);
-          //   geometry.lines_c.push_back(sf::Color(80,80,80,80));
-          //   geometry.lines_c.push_back(sf::Color(80,80,80,80));
-          // }
-          if(sb->parent){
-            geometry.lines.push_back(sb->position);
-            geometry.lines.push_back(sb->parent->position);
-            geometry.lines_c.push_back(sf::Color(0,0,255,150));
-            geometry.lines_c.push_back(sf::Color(0,0,255,150));
+        if(true){   // smooth path
+          int smooth_path = 0;
+          for(int i=0;i<path.size();i++){
+            int k = smooth_path;
+            if(i-k < 0){
+              k = i;
+            }
+            if(i+k >= path.size()){
+              k = path.size() - i - 1;
+            }
+            int j0 = i-k;
+            int j1 = i+k;
+            float n=k*2+1;
+            for(int j=j0;j<=j1;++j){
+              smoothed[i] += path[j]->position;
+            }
+            smoothed[i] /= n;
+            // smoothed[i] = path[i]->position;
           }
+        }else{
+          // smoothed = path;
         }
-      }
 
-
-      // draw reference x- y- z- axes 
-      geometry.lines.push_back(dvec3(0,0,0));
-      geometry.lines_c.push_back(sf::Color(255,0,0,255));
-      geometry.lines.push_back(dvec3(100,0,0));
-      geometry.lines_c.push_back(sf::Color(255,0,0,255));
-      geometry.lines.push_back(dvec3(0,0,0));
-      geometry.lines_c.push_back(sf::Color(0,255,0,255));
-      geometry.lines.push_back(dvec3(0,100,0));
-      geometry.lines_c.push_back(sf::Color(0,255,0,255));
-      geometry.lines.push_back(dvec3(0,0,0));
-      geometry.lines_c.push_back(sf::Color(0,0,255,255));
-      geometry.lines.push_back(dvec3(0,0,100));
-      geometry.lines_c.push_back(sf::Color(0,0,255,255));
-      
-      // draw trajectory of highlighted blobs
-      if(!paths.empty()){
-        // std::queue<ScaleBlob*> traverse;
-        // for(int i=0;i<mode.highlight.blobs.size();++i){
-        //   traverse.push(mode.highlight.blobs[i]);
-        // }
-        // while(!traverse.empty()){
-        //   ScaleBlob* curr = traverse.front();
-        //   traverse.pop();
-        //   for(ScaleBlob *succ : curr->succ){
-        //     traverse.push(succ);
-        //     geometry.lines.push_back(curr->position);
-        //     geometry.lines.push_back(succ->position);
-        //     geometry.lines_c.push_back(sf::Color(255,255,255,120));
-        //     geometry.lines_c.push_back(sf::Color(255,255,255,120));
-        //   }
-        // }
-
-        // // draw all branches in white.
-        // for(std::vector<ScaleBlob*> path : paths){
-        //   for(int j=0;j<path.size()-1;j++){
-        //     for(int k=0;k<path[j]->succ.size();k++){
-        //       geometry.lines.push_back(path[j]->position);
-        //       geometry.lines.push_back(path[j]->succ[k]->position);
-        //       geometry.lines_c.push_back(sf::Color::White);
-        //       geometry.lines_c.push_back(sf::Color::White);
-        //     }
-        //   }
-        // }
-
-        // draw the longest trajectories.
-        // double path_smooth_beta = 1.f - mode.highlight.path_smooth_alpha;
-        // printf("Draw %d paths.\n", mode.highlight.paths.size());
-
-        for(std::vector<ScaleBlob*> path : paths){
-
-          std::vector<glm::dvec3> smoothed(path.size());
-
-          if(true){   // smooth path
-            int smooth_path = 5;
-            for(int i=0;i<path.size();i++){
-              int k = smooth_path;
-              if(i-k < 0){
-                k = i;
-              }
-              if(i+k >= path.size()){
-                k = path.size() - i - 1;
-              }
-              int j0 = i-k;
-              int j1 = i+k;
-              float n=k*2+1;
-              for(int j=j0;j<=j1;++j){
-                smoothed[i] += path[j]->position;
-              }
-              smoothed[i] /= n;
-              // smoothed[i] = path[i]->position;
-            }
-          }
-
-          if(false){  // draw vectors
-            smoothed = std::vector<glm::dvec3>(2);
-            smoothed[0] = path[0]->position;
-            smoothed[1] = path[path.size()-1]->position;
-            // smoothed[1] = path[path.size()-1]->position - path[1]->position;
-            // smoothed[1] *= 20.f/glm::length(smoothed[1]);
-            // smoothed[1] += smoothed[0];
-          }
-
-          float len  = float(smoothed.size());
-          // if(len<20)continue;
-          float step = 1.f/len;
-          glm::dvec3 weightedp = path[0]->position;
-          for(int j=0;j<smoothed.size()-1;j++){
-            // geometry.lines.push_back(path[j]->position);
-            // geometry.lines.push_back(path[j+1]->position);
-            // geometry.lines.push_back(weightedp);
-            // glm::dvec3 weightedq = path[j+1]->position;
-            
-            // weightedp = (weightedp * mode.highlight.path_smooth_alpha) + (weightedq * path_smooth_beta);
-
-            // geometry.lines.push_back(weightedp);
-
-            geometry.lines.push_back(smoothed[j]);
-            geometry.lines.push_back(smoothed[j+1]);
-
-            const int SMOOTH   = 0;
-            const int GRADIENT = 1;
-            int pathcolormode = GRADIENT;
-
-            if(pathcolormode == SMOOTH){
-              int r0 = 0   + int(200.f * step * j    );
-              int g0 = 155 + int(100.f * step * j    );
-              int b0 = 255 - int(250.f * step * j    );
-              int r1 = 0   + int(200.f * step * (j+1));
-              int g1 = 155 + int(100.f * step * (j+1));
-              int b1 = 255 - int(250.f * step * j    );
-              geometry.lines_c.push_back(sf::Color(r0,g0,b0,255));
-              geometry.lines_c.push_back(sf::Color(r1,g1,b1,255));
-            }
-            else if(pathcolormode == GRADIENT){
-              glm::dvec3 direction = path[path.size()-1]->position - path[0]->position;
-              float len = glm::length(direction);
-              direction = glm::normalize(direction);
-              int alpha = len*15;
-              if(alpha>255)alpha = 255;
-              int r,g,b;
-              r = 127 + direction.x*127;
-              g = 127 + direction.y*127;
-              b = 127 + direction.z*127;
-              geometry.lines_c.push_back(sf::Color(r,g,b,alpha));
-              geometry.lines_c.push_back(sf::Color(r,g,b,alpha));
-            }
-          }
+        if(false){  // draw vectors
+          smoothed = std::vector<glm::dvec3>(2);
+          smoothed[0] = path[0]->position;
+          smoothed[1] = path[path.size()-1]->position;
+          // smoothed[1] = path[path.size()-1]->position - path[1]->position;
+          // smoothed[1] *= 20.f/glm::length(smoothed[1]);
+          // smoothed[1] += smoothed[0];
         }
-      }
-      // draw successors and predecessors:
-      if(!strcmp(mode.geom, "succs")){
-        float scalemin = frame.scales[mode.blob.scale] - frame.scale_eps;
-        float scalemax = frame.scales[mode.blob.scale] + frame.scale_eps;
-        // blobs = collect_blobs(frame.blob, 0, std::numeric_limits<float>::infinity());
-        // blobs = collect_blobs(frame.blob, scalemin, scalemax);
-        for(ScaleBlob *sb : mode.highlight.blobs){
-        // for(ScaleBlob *sb : blobs){
-          // if(sb->scale < scalemin || sb->scale > scalemax)continue;
-          for(ScaleBlob *succ : sb->succ){
-            geometry.lines.push_back(sb->position);
-            geometry.lines.push_back(succ->position);
-            geometry.lines_c.push_back(sf::Color(255,255,255,200));
-            geometry.lines_c.push_back(sf::Color(255,255,255,200));
+
+        float len  = float(smoothed.size());
+        // if(len<20)continue;
+        float step = 1.f/len;
+        glm::dvec3 weightedp = path[0]->position;
+        for(int j=0;j<smoothed.size()-1;j++){
+          // geometry.lines.push_back(path[j]->position);
+          // geometry.lines.push_back(path[j+1]->position);
+          // geometry.lines.push_back(weightedp);
+          // glm::dvec3 weightedq = path[j+1]->position;
+          
+          // weightedp = (weightedp * mode.highlight.path_smooth_alpha) + (weightedq * path_smooth_beta);
+
+          // geometry.lines.push_back(weightedp);
+
+          geometry.lines.push_back(smoothed[j]);
+          geometry.lines.push_back(smoothed[j+1]);
+
+          const int SMOOTH   = 0;
+          const int GRADIENT = 1;
+          int pathcolormode = GRADIENT;
+
+          if(pathcolormode == SMOOTH){
+            int r0 = 0   + int(200.f * step * j    );
+            int g0 = 155 + int(100.f * step * j    );
+            int b0 = 255 - int(250.f * step * j    );
+            int r1 = 0   + int(200.f * step * (j+1));
+            int g1 = 155 + int(100.f * step * (j+1));
+            int b1 = 255 - int(250.f * step * j    );
+            geometry.lines_c.push_back(sf::Color(r0,g0,b0,255));
+            geometry.lines_c.push_back(sf::Color(r1,g1,b1,255));
           }
-          for(ScaleBlob *pred : sb->pred){
-            geometry.lines.push_back(sb->position);
-            geometry.lines.push_back(pred->position);
-            geometry.lines_c.push_back(sf::Color(0,40,0,200));
-            geometry.lines_c.push_back(sf::Color(0,40,0,200));
+          else if(pathcolormode == GRADIENT){
+            glm::dvec3 direction = path[path.size()-1]->position - path[0]->position;
+            float len = glm::length(direction);
+            direction = glm::normalize(direction);
+            int alpha = len*15;
+            if(alpha>255)alpha = 255;
+            int r,g,b;
+            r = 127 + direction.x*127;
+            g = 127 + direction.y*127;
+            b = 127 + direction.z*127;
+            geometry.lines_c.push_back(sf::Color(r,g,b,alpha));
+            geometry.lines_c.push_back(sf::Color(r,g,b,alpha));
           }
         }
       }
@@ -836,21 +1026,26 @@ Nrrd *ArPipeline::repr(ReprMode &mode, bool force){
     else f *= 1.1f;
     // else f += 0.3f;
     // for(float f = 0.5f; f< 6.f; f*= 1.33f){
+    tick("sandbox");
     for(float f = 3.6; f< 3.7; f++){
       filter.capture(exp->get(mode.timestep));
+
       DiscreteKernel kernel = filter.gaussian(f, int(f*4));
       
       filter.max1();    
       filter.set_kernel(kernel);
       filter.filter();
+      tick("gaussian");
       kernel.destroy();
       filter.laplacian3d();
+      tick("laplacian");
       // filter.find_blobs();
       // filter.threshold(0.01,1.f);
       // filter.filter();
       // int np  = filter.find_maxima().size();
       // std::vector<ScaleBlob*> blobs = filter.find_blobs();
       int np = filter.count_blobs();
+      tick("count");
       // int np  = filter.count_connected_components();
       // int np  = 0;
       int dnp = last_np - np; 
@@ -871,9 +1066,9 @@ Nrrd *ArPipeline::repr(ReprMode &mode, bool force){
     filter.commit(store.buf[0]);
     return store.buf[0];
   }
-  if(!get(mode.timestep).complete){
-    return exp->get(mode.timestep);
-  }
+  // if(!get(mode.timestep).complete){
+  //   return exp->get(mode.timestep);
+  // }
 
   static ReprMode last_repr("");
   static Nrrd *last_nrrd;
@@ -884,6 +1079,32 @@ Nrrd *ArPipeline::repr(ReprMode &mode, bool force){
   last_repr  = mode;
   // printf("repr %s\n",mode.name);
 
+  if(!strcmp(mode.name, "detection")){
+    filter.capture(exp->get(mode.timestep));
+    DiscreteKernel kernel = filter.gaussian(2, 2*4);
+    filter.set_kernel(kernel);
+    filter.filter();
+    kernel.destroy();
+    std::vector<ScaleBlob*> blobs = filter.find_blobs();
+    filter.draw_blobs(blobs, ".+");
+    filter.commit(store.buf[0]);
+    for(ScaleBlob *b : blobs)delete b;
+    return (last_nrrd = store.buf[0]);
+  }
+  if(!strcmp(mode.name, "sum")){
+    filter.clear();
+    for(int i=0;i<30;i++){
+      printf("%d ", i);
+      ArFrameData frame = get(i);
+      float scalemin = frame.scales[mode.blob.scale] - frame.scale_eps;
+      float scalemax = frame.scales[mode.blob.scale] + frame.scale_eps;
+      std::vector<ScaleBlob*> blobs = collect_blobs(frame.blob, scalemin, scalemax);      filter.clear();
+      filter.draw_blobs(blobs, "g+");
+    }
+    printf("\n");
+    filter.commit(store.buf[0]);
+    return (last_nrrd = store.buf[0]);
+  }
   if(!strcmp(mode.name, "flow")){
     // visualize the flow of GFP throughout the experiment.
     
@@ -978,9 +1199,15 @@ Nrrd *ArPipeline::repr(ReprMode &mode, bool force){
     // filter.clear();
     // kernel.destroy();
 
-    // float scalemin = frame.scales[mode.blob.scale] - frame.scale_eps;
-    // float scalemax = frame.scales[mode.blob.scale] + frame.scale_eps;
-    // std::vector<ScaleBlob*> blobs = collect_blobs(frame.blob, -1, -1);
+    float scalemin = frame.scales[mode.blob.scale] - frame.scale_eps;
+    float scalemax = frame.scales[mode.blob.scale] + frame.scale_eps;
+    // printf("scale = %d %.2f %.2f\n", mode.blob.scale, scalemin, scalemax);
+    std::vector<ScaleBlob*> blobs = collect_blobs(frame.blob, scalemin, scalemax);
+
+    printf("collect %d blobs\n", blobs.size());
+    for(ScaleBlob *sb : blobs){
+      // printf("%.2f %.2f %.2f %.2f\n", sb->position.x, sb->position.y, sb->position.z, sb->n);
+    }
 
     // filter.clear();
 
@@ -988,11 +1215,16 @@ Nrrd *ArPipeline::repr(ReprMode &mode, bool force){
     // float scalemin = frame.scales[mode.blob.scale] - frame.scale_eps;
     // float scalemax = frame.scales[mode.blob.scale] + frame.scale_eps;
     // printf("mode %s. view scale %d with %.2f %.2f\n", mode.name, scalemin, scalemax);
-    std::vector<ScaleBlob*> blobs = modeled_blobs(frame.blob);
+    
+
+
+    // std::vector<ScaleBlob*> blobs = modeled_blobs(frame.blob);
+    
+
     // std::vector<ScaleBlob*> blobs = collect(frame.blob);
 
     filter.clear();
-    filter.draw_blobs(blobs, "m+");
+    filter.draw_blobs(blobs, "lm");
     // filter.difference_image(exp->get(mode.timestep));
     // filter.draw_blobs(blobs, ".m");
 
@@ -1016,22 +1248,57 @@ Nrrd *ArPipeline::repr(ReprMode &mode, bool force){
     return (last_nrrd = store.buf[0]);   
   }
   if(!strcmp(mode.name, "tgmm")){
-    printf("mode = tgmm\n");
+    // printf("mode = tgmm\n");
+    // ArFrameData frame = get(mode.timestep);
+    // // printf("size[%d] = %p = 0", mode.timestep, frame.tgmm_blob);
+    // std::vector<ScaleBlob*> blobs = frame.tgmm_blob->children;
+    // // std::vector<ScaleBlob*> blobs = collect_blobs(frame.tgmm_blob, -1, -1);
+    // printf("draw %p = %lu blobs.\n", frame.tgmm_blob, blobs.size());
+    // // filter.clear();
+    // filter.capture(exp->get(mode.timestep));
+    // filter.draw_blobs(blobs, ".m");
+    // filter.commit(store.buf[0]);
+    // return (last_nrrd = store.buf[0]);   
+  }
+  if(!strcmp(mode.name, "cells")){
     ArFrameData frame = get(mode.timestep);
-    // printf("size[%d] = %p = 0", mode.timestep, frame.tgmm_blob);
-    std::vector<ScaleBlob*> blobs = frame.tgmm_blob->children;
-    // std::vector<ScaleBlob*> blobs = collect_blobs(frame.tgmm_blob, -1, -1);
-    printf("draw %p = %lu blobs.\n", frame.tgmm_blob, blobs.size());
-    // filter.clear();
-    filter.capture(exp->get(mode.timestep));
-    filter.draw_blobs(blobs, ".m");
+    std::vector<Cell*> cellsi = cells[mode.timestep];
+
+    filter.clear();
+    std::vector<ScaleBlob*> draw;
+    std::vector<ScaleBlob*> color;
+    for(Cell *cell : cellsi){
+      // singleton[0] = cell->blob;
+      if(cell->pred) draw.push_back(cell->blob);
+      else          color.push_back(cell->blob);
+    }
+    filter.draw_blobs(draw, "g+");
+    filter.color_blobs(color, 4.f);
+    filter.commit(store.buf[0]);
+    return (last_nrrd = store.buf[0]);
+  }
+  if(!strcmp(mode.name, "diff_blobs")){
+    ArFrameData frame = get(mode.timestep);
+
+    float scalemin = frame.scales[mode.blob.scale] - frame.scale_eps;
+    float scalemax = frame.scales[mode.blob.scale] + frame.scale_eps;
+    std::vector<ScaleBlob*> blobs = collect_blobs(frame.blob, scalemin, scalemax);
+
+    filter.clear();
+    filter.draw_blobs(blobs, "gm");
+    // filter.scale(0.8);
+
+    filter.difference_image(exp->get(mode.timestep));
+
     filter.commit(store.buf[0]);
     return (last_nrrd = store.buf[0]);   
   }
   if(!strcmp(mode.name, "blobs") || !strcmp(mode.name, "blobs_succs")){
     ArFrameData frame = get(mode.timestep);
-    float scalemin = frame.scales[mode.blob.scale] - frame.scale_eps;
-    float scalemax = frame.scales[mode.blob.scale] + frame.scale_eps;
+    std::vector<Cell*> cellsi = cells[mode.timestep];
+    // printf("get scale %d\n", mode.blob.scale);
+    // float scalemin = frame.scales[mode.blob.scale] - frame.scale_eps;
+    // float scalemax = frame.scales[mode.blob.scale] + frame.scale_eps;
     // printf("mode %s. view scale %d with %.2f %.2f\n", mode.name, scalemin, scalemax);
     // std::vector<ScaleBlob*> blobs = collect_blobs(frame.blob, scalemin, scalemax);
     // std::vector<ScaleBlob*> blobs = collect_blobs(frame.blob, -1, -1);
@@ -1053,10 +1320,16 @@ Nrrd *ArPipeline::repr(ReprMode &mode, bool force){
     // blobs.push_back(mode.highlight.highlight_loci);
     // blobs.insert(blobs.end(), mode.highlight.highlight_loci.begin(), mode.highlight.highlight_loci.end());
     // filter.capture(exp->get(mode.timestep));
-    std::vector<ScaleBlob*> blobs = collect_blobs(frame.blob, scalemin, scalemax);
+    // std::vector<ScaleBlob*> blobs = collect_blobs(frame.blob, scalemin, scalemax);
     // filter.capture(exp->get(mode.timestep));
     // filter.draw_blobs(blobs, "g+");
+    std::vector<ScaleBlob*> blobs;
+    for(Cell *c : cellsi)blobs.push_back(c->blob);
     filter.draw_blobs(blobs, "g+");
+    printf("draw blobs %d\n", mode.highlight.blobs.size());
+    filter.draw_blobs(mode.highlight.blobs, ".m");
+
+
     // filter.draw_blobs(blobs, ".m");
     // printf("model type = %c\n", blobs[0]->model.type);
 
@@ -1158,6 +1431,7 @@ Nrrd *ArPipeline::repr(ReprMode &mode, bool force){
     filter.capture(exp->get(mode.timestep));
     ArFrameData frame = get(mode.timestep);
     float scale = frame.scales[mode.blob.scale];
+    filter.max1();
     filter.lapofgaussian_masked(scale, false);
     filter.normalize();
     filter.commit(store.buf[0]);
@@ -1168,6 +1442,31 @@ Nrrd *ArPipeline::repr(ReprMode &mode, bool force){
     ArFrameData frame = get(mode.timestep);
     float scale = frame.scales[mode.blob.scale];
     filter.lapofgaussian_masked(scale, true);
+    filter.normalize();
+    filter.commit(store.buf[0]);
+    return (last_nrrd = store.buf[0]);
+  }
+  if(!strcmp(mode.name, "levelsets")){
+    filter.capture(exp->get(mode.timestep));
+    ArFrameData frame = get(mode.timestep);
+    float scale = frame.scales[mode.blob.scale];
+    filter.max1();
+    filter.lapofgaussian_masked(scale, 0);
+    filter.normalize();
+    filter.show_blobs(1);
+    // filter.highlight(filter.find_maxima());
+    // filter.normalize(3.f);
+    filter.commit(store.buf[0]);
+    return (last_nrrd = store.buf[0]);
+  }
+  if(!strcmp(mode.name, "show_blobs")){
+    filter.capture(exp->get(mode.timestep));
+    ArFrameData frame = get(mode.timestep);
+    float scale = frame.scales[mode.blob.scale];
+    filter.max1();
+    filter.lapofgaussian_masked(scale, 0);
+    filter.normalize();
+    filter.show_blobs(0);
     filter.normalize();
     filter.commit(store.buf[0]);
     return (last_nrrd = store.buf[0]);
@@ -1199,6 +1498,118 @@ void ArPipeline::emit(ReprMode &mode, std::string suffix, int low, int high){
   }
 }
 
+#define WRITET(T, x) {T xx = (T)x; fwrite(&(xx), sizeof(T), 1, file);}
+#define WRITE(x)    {fwrite(&(x), sizeof(x), 1, file);}
+#define READ(x) (good&=!!(fread(&(x), sizeof(x), 1, file)));
+
+void ArPipeline::loadframe(int timestep){
+  int good = 1;
+  std::string path = (exp->getfilepath(timestep)+".blobs");
+  FILE *file = fopen(path.c_str(),"rb");
+  if(!file)return;
+  // printf("load %s\n", path.c_str());
+  int nblobs = 1;
+  
+  std::map<void*, ScaleBlob*> label_to_blob;
+  label_to_blob[0] = 0;
+
+  ScaleBlob *root;
+  std::vector<ScaleBlob*> blobs;
+  while(nblobs){
+    ScaleBlob *blob = new ScaleBlob;
+    blobs.push_back(blob);
+    void *label;
+    int nchildren;
+    READ(label);
+    label_to_blob[label] = blob;
+    READ(nchildren);
+    nblobs += nchildren;
+    for(int i=0;i<nchildren;i++){
+      ScaleBlob *child;
+      READ(child);
+      blob->children.push_back(child);
+    }
+    READ(blob->parent);
+    READ(blob->mode);
+    READ(blob->imode);
+    READ(blob->position);
+    READ(blob->shape);
+    READ(blob->timestep);
+    READ(blob->covariance);
+    READ(blob->invCov);
+    READ(blob->detCov);
+    READ(blob->pdfCoef);
+    READ(blob->min);
+    READ(blob->max);
+    READ(blob->scale);
+    READ(blob->n);
+    READ(blob->npass);
+    READ(blob->peakvalue);
+    nblobs -= 1;
+  }
+  fclose(file);
+
+  if(!good)return;
+
+  // convert labels into real pointers
+  for(ScaleBlob *blob : blobs){
+    for(int i=0;i<blob->children.size();i++){
+      blob->children[i] = label_to_blob[blob->children[i]];
+    }
+    blob->parent = label_to_blob[blob->parent];
+  }
+
+  root = blobs[0];
+  ArFrameData &frame = get(timestep);
+  frame.complete = true;
+  frame.blob = root;
+  frame.bspblobs = filter.get_bsp(10);
+  for(ScaleBlob* blob : blobs)frame.bspblobs.insert(blob, blob->mode);
+  frame.scales = collect_scales(root);
+  frame.scale_eps = compute_epsilon(frame.scales);
+}
+void ArPipeline::saveframe(int timestep){
+  std::string path = (exp->getfilepath(timestep)+".blobs");
+  printf("write to %s\n", path.c_str());
+  FILE *file = fopen(path.c_str(),"wb");
+  if(!file){
+    printf("cannot write to file.");
+  }
+  std::queue<ScaleBlob*> blobs;
+  blobs.push(get(timestep).blob);
+  if(!get(timestep).blob){
+    printf("frames(%d).blob = null\n", timestep);
+    return;
+  }
+  while(!blobs.empty()){
+    ScaleBlob *sb = blobs.front();
+    blobs.pop();
+    WRITET(ScaleBlob*, sb);
+    WRITET(int, sb->children.size());
+    for(ScaleBlob *s : sb->children){
+      WRITE(s);
+      blobs.push(s);
+    }
+    WRITE(sb->parent);
+    WRITE(sb->mode);
+    WRITE(sb->imode);
+    WRITE(sb->position);
+    WRITE(sb->shape);
+    WRITE(sb->timestep);
+    WRITE(sb->covariance);
+    WRITE(sb->invCov);
+    WRITE(sb->detCov);
+    WRITE(sb->pdfCoef);
+    WRITE(sb->min);
+    WRITE(sb->max);
+    WRITE(sb->scale);
+    WRITE(sb->n);
+    WRITE(sb->npass);
+    WRITE(sb->peakvalue);
+  }
+  fclose(file);
+}
+
 
   /* Save/Load processed pipeline. format:
    * filename as [filepath_0].pipeline
@@ -1212,8 +1623,6 @@ void ArPipeline::emit(ReprMode &mode, std::string suffix, int low, int high){
 
 void ArPipeline::save(){
 
-#define WRITET(T, x) {T xx = (T)x; fwrite(&(xx), sizeof(T), 1, file);}
-#define WRITE(x)    {fwrite(&(x), sizeof(x), 1, file);}
 
   std::string path0 = exp->getfilepath(exp->low);
   std::replace(path0.begin(), path0.end(), '/', '-');
@@ -1320,8 +1729,6 @@ void ArPipeline::save(){
   }
 
 }
-#undef WRITE
-#undef WRITET
 void ArPipeline::load(){
 //   printf("loading...\n");
   std::string path0 = exp->getfilepath(exp->low);
@@ -1336,7 +1743,6 @@ void ArPipeline::load(){
 
   char buf[2];
   int good=1;
-#define READ(x) (good&=!!(fread(&(x), sizeof(x), 1, file)));
   int nframes;
   READ(nframes);
   printf("nframes = %d\n", nframes);
@@ -1422,7 +1828,7 @@ void ArPipeline::load(){
   int itr=0;
   // printf("size=%d\n", allblobs.size());
   for(auto  elt = allblobs.begin(); elt != allblobs.end(); ++elt){
-    // if(!elt.second)continue;
+    if(!elt->second)continue;
     // printf("%d %p %p\n", ++itr, elt->first, elt->second);
     // printf("parents...");
     // printf("%p; \n", elt->second->parent);
@@ -1473,7 +1879,8 @@ void ArPipeline::load(){
     //   printf("scale %.2f;\n", f);
     // }
     // /////
-    frames[i] = fd;
+    if(i == frames.size())frames.push_back(fd);
+    else frames[i] = fd;
   }
 
   // load paths...
@@ -1496,12 +1903,14 @@ void ArPipeline::load(){
     paths.push_back(path);
   }
 
-  loadTGMM();
+  // loadTGMM();
 
   // done.
-#undef READ
 }
 
+#undef WRITE
+#undef WRITET
+#undef READ
 
 // void ArPipeline::getTGMMOutput(std::string path, int low, int high){
 //   printf("load tgmm output\n");
@@ -1549,20 +1958,20 @@ void ArPipeline::loadTGMM(){
 
   for(int i=exp->low, ii=0; i<=exp->high;i++, ii++){
     // printf("TGMM load %s.\n", exp->gettgmmpath(i).c_str());
-    doc = xmlReadFile(exp->gettgmmpath(i).c_str(), NULL, 0);
-    if(!doc){
-      printf("could not read file.\n");
-      continue;
-    }else{
-      printf("read %s\n", exp->gettgmmpath(i).c_str());
-    }
+    // doc = xmlReadFile(exp->gettgmmpath(i).c_str(), NULL, 0);
+    // if(!doc){
+    //   printf("could not read file.\n");
+    //   continue;
+    // }else{
+    //   printf("read %s\n", exp->gettgmmpath(i).c_str());
+    // }
 
     root = xmlDocGetRootElement(doc);
 
 
     xmlNode *cur = 0;
     
-    frames[ii].tgmm_blob = new ScaleBlob();
+    // frames[ii].tgmm_blob = new ScaleBlob();
     maps[mapi].clear();
 
     int framen = 0;
@@ -1593,7 +2002,7 @@ void ArPipeline::loadTGMM(){
         blob->max = blob->position + dvec3(10,10,10);
         blob->shape = dmat3_from_string((char*)W);
         // printf("m = %.2f %.2f %.2f\n", blob->position.x, blob->position.y, blob->position.z);
-        frames[ii].tgmm_blob->children.push_back(blob);
+        // frames[ii].tgmm_blob->children.push_back(blob);
         // printf("nchildren = %d\n", frames[ii].tgmm_blob->children.size());
       }
     }

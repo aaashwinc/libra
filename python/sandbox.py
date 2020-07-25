@@ -19,6 +19,12 @@ import lasso
 
 from sklearn.cluster import AgglomerativeClustering
 
+from scipy.interpolate import CubicSpline
+from scipy.interpolate import CubicHermiteSpline
+from scipy.ndimage import convolve1d
+
+import scipy as scipy
+
 # np.random.seed(0)
 
 
@@ -130,7 +136,30 @@ def normalize(path, n=100, nth=1):
   ys = interp1d(np.linspace(0,n,len(path[:,1])), path[:,1], kind='linear')
   zs = interp1d(np.linspace(0,n,len(path[:,2])), path[:,2], kind='linear')
 
-  return np.array([xs(np.arange(0,n)), ys(np.arange(0,n)), zs(np.arange(0,n))]).T
+  return np.array([xs(np.linspace(0,n,n)), ys(np.linspace(0,n,n)), zs(np.linspace(0,n,n))]).T
+
+
+def normalize_avg(path, n=100, nth=1):
+  path = path[::nth]
+  window_size = max(1, path.shape[0] / n)
+  window_size = 2
+  window = [1./window_size] * int(window_size)
+
+  # path[:,0] = convolve1d(path[:,0], window, mode='nearest')
+  # path[:,1] = convolve1d(path[:,1], window, mode='nearest')
+  # path[:,2] = convolve1d(path[:,2], window, mode='nearest')
+
+  print('win', window)
+  # path[:,0] = np.convolve(path[:,0],window, mode='same')
+  # path[:,1] = np.convolve(path[:,1],window, mode='same')
+  # path[:,2] = np.convolve(path[:,2],window, mode='same')
+  xs = interp1d(np.linspace(0,n,len(path[:,0])), path[:,0], kind='linear')
+  ys = interp1d(np.linspace(0,n,len(path[:,1])), path[:,1], kind='linear')
+  zs = interp1d(np.linspace(0,n,len(path[:,2])), path[:,2], kind='linear')
+
+  return np.array([xs(np.linspace(0,n-1,n)), ys(np.linspace(0,n-1,n)), zs(np.linspace(0,n-1,n))]).T
+
+
 
 # a set of transformations that convert a path to a point.
 # think of this as being similar to a kernel. 
@@ -153,6 +182,86 @@ def to_point_lastminusfirst(path):
   return np.array([path[-1,0] - path[0,0],
                    path[-1,1] - path[0,1],
                    path[-1,2] - path[0,2]])
+
+def splinify(path, knots=4):
+  n = len(path)
+  path = smooth(path, sigma=2)
+  path = normalize(path, n=knots)
+  t = np.arange(0, path.shape[0])
+  cs = CubicSpline(t, path, axis=0, bc_type='clamped')
+  return cs(np.linspace(0, path.shape[0]-1, n))
+
+
+
+def to_point_spline3(path):
+  return to_point_naive_minus_start(path)
+  # # print('r', path)
+  # # path = np.array([0,0,0,0,1,0,0,0,0] * 3).reshape(-1,3)
+  # # print('r', path)
+  # # print('n', normalize(path, n=6))
+  # # print('a', normalize_avg(path, n=6))
+  # # path = normalize_avg(path, n=6)
+  path = smooth(path, sigma=2)
+  path = normalize(path, n=10)
+  path = path - path[0]
+  t = np.arange(0, path.shape[0])
+  cs = CubicSpline(t, path, axis=0, bc_type='clamped')
+  # # print('coef',      cs.c)
+  # # print('shap', cs.c.shape)
+  # # print('coef_flat', cs.c.reshape((-1)))
+  # # print('path', path)
+  # # print('coef_resh', cs.c.reshape((4, -1, 3)))
+  # # print('xs', cs.x.reshape((-1)))
+  # # print('xs', np.arange(0, cs.c.reshape((-1)).shape[0]/12 + 1))
+  # # print('xxs', cs.c.reshape((-1)).shape[0], cs.c.reshape((-1)).shape[0]/12)
+
+
+  # print(path)
+  # print(path[:,0])
+  # knots = (np.linspace(0, 1, 15, endpoint=True))
+
+  # tt = np.linspace(0,1,len(path[:,0]))
+  # path = np.linspace(0,1,len(path[:,0]))
+
+  # timeList = [0, 0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1]
+  # signal = [0, 0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1]
+  # myKnots= [.05, .3, .6, .95]
+
+  # spl = scipy.interpolate.splprep([timeList, signal], t=myKnots, k=2)
+# 
+  # print(tt)
+  # print(knots)
+  # # tck,u = scipy.interpolate.splprep([tt, tt, tt], k=2, t=knots)
+  # res = scipy.interpolate.splrep( timeList, signal, t=myKnots, k = 2 )
+  # print(res)
+  # print('```')
+  # print(res[0])
+  # # print(tck[0])
+  # # print('hello!')
+  # exit(0)
+
+  # tt = np.linspace(0,1,len(path[:,0]))
+  # dydx = smooth(path[1:], sigma=2) - smooth(path[:-1], sigma=2)
+  # print(dydx)
+  # dydx = np.vstack((np.array([0,0,0]), dydx))
+  # print(dydx)
+
+  # chs = CubicHermiteSpline(tt, path, dydx)
+
+  # print(chs)
+
+  # exit(0)
+
+  # return [0,0,0,0,0]
+  # print('spline', cs.c.reshape(-1))
+  return cs.c.reshape((-1))
+
+# def point_spline3_to_path(coef):
+#   coef = coef.reshape((4, -1, 4))
+#   xs   = np.arange(0, cs.c.reshape((-1)).shape[0]/12 + 1)
+#   axis = 0
+
+#   cs = CubicSpline()
 
 def to_point_endpoint(path):
   return path[-1,:]
@@ -507,18 +616,23 @@ def color_of_line(line):
 print('show')
 
 # paths_raw = load_paths("../rsc/store/s-home-ashwin-data-miniventral2-000.nrrd.paths.txt")
-paths_raw = load_paths("../rsc/store/s-home-ashwin-data2-16-05-05-000.nrrd.paths.txt")
+# paths_raw = load_paths("../rsc/store/s-home-ashwin-data2-16-05-05-000.nrrd.paths.txt")
+# paths_raw = load_paths("/home/ashwin/repo/tracks/build/tracking--home-ashwin-data-16-05-05-tracking-GMEMfinalResult_frame0-0-219-.xml-paths.txt")
+paths_raw = load_paths("/home/ashwin/repo/tracks/build/tracking--home-ashwin-data2-tracking-17-05-01-000000-0-219-.xml-paths.txt")
 # paths_raw = load_paths("../rsc/store/s-home-ashwin-data-17-05-01-small-100.nrrd.paths.txt")
 paths = []
 for path in paths_raw:
   # print(path.shape)
-  if path.shape[0] > 100:
+  if path.shape[0] > 99:
     paths += [path]
 
 
 paths += [normalize(line([50,50,50], [1,0,0], 100))]
 paths += [normalize(line([50,50,50], [0,1,0], 100))]
 paths += [normalize(line([50,50,50], [0,0,1], 100))]
+
+
+paths = paths[6:]
 
 
 #TEST
@@ -536,7 +650,41 @@ paths += [normalize(line([50,50,50], [0,0,1], 100))]
 # print(line([50,50,50], [1,0,0], 100))
 # print(line([50,50,50], [0,1,0], 100))
 # print(line([50,50,50], [0,0,1], 100))
-print('loaded ', len(paths), ' paths')
+# print('loaded ', len(paths), ' paths')
+
+
+## todo put this in paper
+
+
+## calculate error:
+print(np.max(np.array(paths[:-3]), axis=(0,1)))
+# exit()
+for k in range(2, 15):
+  error = 0.0
+  ppn = 0.0
+  for q in paths[:-3]:
+    p = q*10
+    e = 0.0
+    pn = 0.0
+    z = path*0
+    s = splinify(p, k)
+    # s = smooth(path, 0)
+    # s = path
+    for t in range(len(p)):
+      # print(p[t], z[t], s[t])
+      e += np.linalg.norm(p[t]-s[t])
+      pn = pn+1
+    if pn>0:
+      error += e / pn
+    ppn = ppn+1
+    # print('')
+  error /= ppn
+  print('k,error =', k, (error))
+exit(0)
+
+
+
+
 # print(paths[0])
 # paths2d     = []
 
@@ -566,7 +714,8 @@ for i in range(len(paths)):
   # path = normalize(path, nth=10)
 
   # pathspt += [to_point_length(path)+to_point_fishingline(path)]
-  pathspt += [to_point_naive_minus_start(path)]
+  # pathspt += [to_point_naive_minus_start(path)]
+  pathspt += [to_point_spline3(path)]
 
   # print(color)
   ax1.plot3D(path[:,0], path[:,1], path[:,2], color=color_of_line(path))
@@ -578,6 +727,8 @@ for i in range(len(paths)):
 
   paths[i] = path
   # paths2d[i] = path2d
+
+# exit(0)
 
 xs= []
 ys= []
@@ -612,7 +763,7 @@ for i in range(len(paths)):
 X = np.array(pathspt)
 # print(X.shape)
 # print(X)
-print('MDS')
+print('LLE')
 X1 = manifold.LocallyLinearEmbedding(n_components=2).fit_transform(X)
 print('Isomap')
 X2 = manifold.Isomap(n_components=2).fit_transform(X)
@@ -674,9 +825,9 @@ def render_paths(inds):
     # for line in toplot:
     #   average
     toplot += [average]
-    aspoints = []
-    for i in toplot:
-      aspoints += [to_point_naive_minus_start(i)]
+    # aspoints = []
+    # for i in toplot:
+    #   aspoints += [to_point_naive_minus_start(i)]
     # print(np.array(aspoints))
     # print(np.array(aspoints).shape)
     # X2 = sklearn.decomposition.PCA(n_components=1).fit_transform(np.array(aspoints))
@@ -772,7 +923,7 @@ def draw_phenotypes(clustering):
   fig, axs = plt.subplots(int(np.ceil(nn/4)), int(np.ceil(nn/(nn/4))), subplot_kw={'projection': '3d'})
   axes = axs.flat
 
-  paths_sample = random.sample(paths,500)
+  paths_sample = random.sample(paths,min(len(paths), 500))
 
   for i in range(n):    # enumerate axes = cluster
     ax = axes[i]
@@ -784,7 +935,22 @@ def draw_phenotypes(clustering):
       ax.plot3D(line[:,0], line[:,1], line[:,2], color=[0.8,0.8,0.8,0.8])
     for p in range(len(paths)):   # enumerate paths
       if clustering.labels_[p] == i:
-        ax.plot3D(paths[p][:,0], paths[p][:,1], paths[p][:,2], color=color_of_line(paths[p]))
+        path = paths[p]
+        # path = splinify(path)
+        ax.plot3D(path[:,0], path[:,1], path[:,2], color=color_of_line(paths[p]))
+
+  # for i in range(2):
+  #   ax = axes[i]
+  #   ax.view_init(elev=ax1.elev, azim=ax1.azim)
+  #   ax.set_xticks([])
+  #   ax.set_yticks([])
+  #   ax.set_zticks([])
+  #   for p in range(len(paths)):   # enumerate paths
+  #     # if clustering.labels_[p] == i:
+  #     path = paths[p]
+  #     if i%2 is 0:
+  #       path = splinify(path)
+  #     ax.plot3D(path[:,0], path[:,1], path[:,2], color=color_of_line(paths[p]))
 
   # def on_move(event):
   #   if event.inaxes == axes[n]:
@@ -814,6 +980,7 @@ pts = ax10.scatter(X5[:,0], X5[:,1], color=pathcolors, s=10)
 selector = lasso.SelectFromCollection(ax10, pts, on_pick)
 
 clustering = AgglomerativeClustering(distance_threshold=None, n_clusters=16).fit(X)
+# clustering = sklearn.cluster.KMeans(n_clusters=16).fit(X)
 print(clustering.n_clusters, 'clusters')
 
 get_colors = lambda n: list(map(lambda i: "#" + "%06x" % random.randint(0, 0xFFFFFF),range(n)))

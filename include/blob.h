@@ -4,6 +4,7 @@
 #include <glm/glm.hpp>
 #include <Eigen/Eigen>
 #include <Eigen/Eigenvalues>
+#include <algorithm> 
 #include <vector>
 using namespace glm;
 
@@ -19,9 +20,16 @@ public:
   int    imode;      // the local maximum which seeded this blob.
   vec3    mode;       // the local maximum which seeded this blob.
   float peakvalue;  // value of the image at the peak.
+  int npixels;      // number of pixels in blob.
   dvec3  position;  // mean of this blob in space.
   mat3x3 shape;    // covariance matrix of blob.
   int timestep;     // the timestep in which this blob exists.
+
+  // temporary variables when constructing blob
+  float pass_sum_imagev;
+  float pass_sum_expect;
+  float pass_sumsquaredweights;
+  std::vector<std::pair<float,float>> pass_distances_weights;
   // mat3x3 fshape;    // covariance matrix of blob.
 
   struct{
@@ -50,6 +58,8 @@ public:
   float n;
   int npass;
 
+  float ll_is_blob;  // log-likelihood that this blob is a gaussian.
+
 
   // bool initialized;
 
@@ -70,6 +80,11 @@ public:
   void print();
   void printtree(int depth=0);
   float distance(ScaleBlob*);
+  float wasserstein_distance(ScaleBlob*);
+
+  float covmaxev();
+  float covconditionnumber();
 };
 
+typedef ScaleBlob Blob;
 #endif

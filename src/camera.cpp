@@ -27,7 +27,7 @@ void Camera::set(vec3 pos, vec3 look, vec3 sky){
   this->sky = sky;
 }
 line3 Camera::to_screen(line3 l, ivec2 screen){
-  if(drawflat){
+  if(drawflat && flat.projaxis == 'y'){
     line3 o(l.a, l.b);
     o.a.x = l.a.z * 33.f * screen.x/flat.dims.x;
     o.b.x = l.b.z * 33.f * screen.x/flat.dims.x;
@@ -35,16 +35,26 @@ line3 Camera::to_screen(line3 l, ivec2 screen){
     o.b.y = l.b.x * 33.f * screen.y/flat.dims.y;
     o.a.z = 1.f;
     o.b.z = 1.f;
-    // l.a.z = l.a.z*33.f - flat.slice*flat.dims.z;
-    // l.b.z = l.b.z*33.f - flat.slice * flat.dims.z;
-    // printf("slice %.2f -> %.2f \n", flat.slice, l.a.z);
-    // printf("%.2f %.2f %.2f %.2f %.2f %.2f ", l.a.x, l.b.x, l.a.y, l.b.y, l.a.z, l.b.z);
-    // l.a.x = 0;
-    // l.b.x = 100;
-    // l.a.y = 0;
-    // l.b.y = 100;
-    // l.a.z =10;
-    // l.b.z =10;
+    return o;
+  }
+  if(drawflat && flat.projaxis == 'z'){
+    line3 o(l.a, l.b);
+    o.a.x = l.a.y * 33.f * screen.x/flat.dims.x;
+    o.b.x = l.b.y * 33.f * screen.x/flat.dims.x;
+    o.a.y = l.a.x * 33.f * screen.y/flat.dims.y;
+    o.b.y = l.b.x * 33.f * screen.y/flat.dims.y;
+    o.a.z = 1.f;
+    o.b.z = 1.f;
+    return o;
+  }
+  if(drawflat && flat.projaxis == 'x'){
+    line3 o(l.a, l.b);
+    o.a.x = l.a.y * 33.f * screen.x/flat.dims.x;
+    o.b.x = l.b.y * 33.f * screen.x/flat.dims.x;
+    o.a.y = l.a.z * 33.f * screen.y/flat.dims.z;
+    o.b.y = l.b.z * 33.f * screen.y/flat.dims.z;
+    o.a.z = 1.f;
+    o.b.z = 1.f;
     return o;
   }
   l.a -= pos;

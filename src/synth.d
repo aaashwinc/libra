@@ -154,6 +154,8 @@
  /home/ashwin/repo/libra/build/../include/glm/detail/func_integer_simd.inl \
  /home/ashwin/repo/libra/build/../include/glm/detail/../simd/integer.h \
  /home/ashwin/repo/libra/build/../include/synth.h \
+ /home/ashwin/repo/libra/build/../include/experiment.h \
+ /home/ashwin/repo/libra/build/../include/filter.h \
  /home/ashwin/repo/libra/build/../include/blob.h \
  /usr/local/include/eigen3/Eigen/Eigen \
  /usr/local/include/eigen3/Eigen/Dense \
@@ -311,4 +313,7 @@
  /usr/local/include/eigen3/Eigen/src/Eigenvalues/GeneralizedEigenSolver.h \
  /usr/local/include/eigen3/Eigen/src/Eigenvalues/./RealQZ.h \
  /usr/local/include/eigen3/Eigen/src/Eigenvalues/MatrixBaseEigenvalues.h \
- /usr/local/include/eigen3/Eigen/Eigenvalues
+ /usr/local/include/eigen3/Eigen/Eigenvalues \
+ /home/ashwin/repo/libra/build/../include/bsptree.h \
+ /home/ashwin/repo/libra/build/../include/filter.h \
+ /home/ashwin/repo/libra/build/../include/blob.h

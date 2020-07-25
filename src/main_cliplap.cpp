@@ -132,7 +132,7 @@ int main(int argc, char** argv){
     int last_np  = 0;
     int last_dnp = 0;
     int last_ddnp = 0;
-    for(float f = 0.5f; f< 6.f; f*= 1.33f){
+    for(float f = 0.5f; f< 15.f; f*= 1.33f){
       // printf("capture..");
       filter.capture(nin);
       DiscreteKernel kernel = filter.gaussian(f, int(f*4));
@@ -153,10 +153,11 @@ int main(int argc, char** argv){
       int dddnp = last_ddnp - ddnp;
 
       // printf("%.2f\t%d\t%d\t%d\t%d\n", f, np, dnp, ddnp, dddnp);
+      printf("%.2f\t%d\n", f, np);
       if(dnp > 0){
-        printf("%.4f", f);
+        // printf("%.4f", f);
         // printf(" **** \n");
-        break;
+        // break;
       }
       last_np = np;
       last_dnp = dnp;

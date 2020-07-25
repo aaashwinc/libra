@@ -65,7 +65,7 @@ public:
     fwrite(&(view->camera),sizeof(view->camera),1,file);
     fclose(file);
 
-    pipeline->save();
+    // pipeline->save();
   }
 
   // load the state of the CAMERA
@@ -74,7 +74,7 @@ public:
     int r = fread(&(view->camera),sizeof(view->camera),1,file);
     fclose(file);
 
-    pipeline->load();
+    // pipeline->load();
   }
 
   // save the state of the CAMERA and then close the window.
@@ -87,30 +87,51 @@ public:
   // initialize VIEW (renderer) for a particular EXPERIMENT and computation PIPELINE.
 
   void init(int argc, char** argv){
-    printf("USAGE: ./game [nrrd_path] [tgmm_path] [min] [max]\n");
-
-    synth();
+    char *volumepath;
+    // synth();
     view->camera.set(vec3(-4,3,6), vec3(1,0,-0.33), vec3(0,0,1));
 
     // experiment = new ArExperiment("/media/ashwin/UBUNTU 18_0/data/???.nrrd",0,9,1);
     // experiment = new ArExperiment("/home/ashwin/data/17-05-01/1??.nrrd",0,9,1);
     // experiment = new ArExperiment("/home/ashwin/data/16-05-05/???.nrrd",0,99,1);
 
+    bool should_track = false;
     if(argc == 5){
-      experiment = new ArExperiment(argv[1], argv[2], atoi(argv[3]), atoi(argv[4]), 2);
+      experiment = new ArExperiment(argv[2], atoi(argv[3]), atoi(argv[4]), 2);
+      volumepath = argv[2];
+      should_track = true;
+    }
+    else if(argc == 4){
+      experiment = new ArExperiment(argv[1], atoi(argv[2]), atoi(argv[3]), 2);
+      volumepath = argv[1];
+      should_track = false;
+    }
+    else if(argc == 1){
+      printf("creating synthetic run.\n");
+      volumepath = "/home/ashwin/data2/synth/???.nrrd";
+      experiment = new ArExperiment(volumepath,0,15,2);
+      // synthtracking(experiment);
+      synth_ex(experiment);
+      // synth_highschool(experiment);
+      // synth();
+      // experiment = new ArExperiment(argv[1], atoi(argv[2]), atoi(argv[3]), 2);
+      should_track = false;
     }
     else{
-      experiment = 
-        new ArExperiment(
+      printf("USAGE: ./game [output_path] [nrrd_path] [min] [max]\n");
+      printf("USAGE: ./game [nrrd_path] [min] [max]\n");
+      ::exit(0);
+      // experiment = 
+        // new ArExperiment(
           // "/media/ashwin/UBUNTU 18_0/data/17-05-01/17-05-01/1??.nrrd",
           // "/media/ashwin/UBUNTU 18_0/data/???.nrrd",
           // "/home/ashwin/data/16-05-05/???.nrrd-blobs.nrrd",
           // "/home/ashwin/data2/16-05-05/???.nrrd",
-          "/home/ashwin/data/16-05-05-cliplap/???.nrrd",
+          // "/home/ashwin/data/16-05-05/???.nrrd",
           // "/home/ashwin/data/17-05-01/1??.nrrd",
           // "/home/ashwin/data/17-05-01-raw/???.nrrd",
           // "/media/ashwin/UBUNTU 18_0/data/17-05-01/1??.nrrd",
-          // "/home/ashwin/data/17-05-01/???-cliplap.nrrd",
+          // "/home/ashwin/data/17-05-01-small/1??.nrrd",
           // "/home/ashwin/data/17-05-01-small/???.nrrd",
           // "/home/ashwin/data/tiny/???.nrrd",
           // "/home/ashwin/data/synth/???.nrrd",
@@ -118,13 +139,13 @@ public:
           // "/home/ashwin/data/mini/???-cliplap.nrrd",
           // "/home/ashwin/data/miniventral2/???-cliplap.nrrd",
           // "/home/ashwin/data2/miniventral2/???.nrrd",
-          "/home/ashwin/data/16-05-05/tracking/GMEMfinalResult_frame????.xml",
-          // "/home/ashwin/tgmmruns/GMEMtracking3D_1582847663/XML_finalResult_lht/GMEMfinalResult_frame????.xml",
+          // "/home/ashwin/data/16-05-05/tracking/GMEMfinalResult_frame????.xml",
+           // "/home/ashwin/tgmmruns/GMEMtracking3D_1582847663/XML_finalResult_lht/GMEMfinalResult_frame????.xml",
           // "/home/ashwin/data/miniventral2/tgmm/tracking_mine/XML_finalResult_lht/GMEMfinalResult_frame????.xml",
           // "/media/ashwin/UBUNTU 18_0/repo/neuromap/data/GMEMfinalResult_frame????.xml",
           // "/home/ashwin/data/miniventral2/tgmm/GMEMtracking3D_1580783604/XML_finalResult_lht/GMEMfinalResult_frame????.xml",
           // "/home/ashwin/data/miniventral2/tgmm/tracking_mine/bkgRm/XML_finalResult_lht/GMEMfinalResult_frame????.xml",
-          0,10,2);
+          // 0,1,2);
     }
     // experiment = new ArExperiment("/home/ashwin/data/miniventral2/???.nrrd-blobs.nrrd",0,20,2);
     // experiment = new ArExperiment("/home/ashwin/data/miniventral/s???.nrrd-blobs.nrrd",0,20,2);
@@ -140,14 +161,21 @@ public:
 
     // pipeline->process(reprmode.timestep,reprmode.timestep+3);
 
-    load();
+    load(); 
 
     reprmode.name = "plain";
-    reprmode.geom = "graph";
+    reprmode.geom = "paths";
 
+    if(should_track) pipeline->track(reprmode, volumepath);
+    // ::exit(0);
     view->setvolume(pipeline->repr(reprmode));
     view->setgeometry(pipeline->reprgeometry(reprmode));
     view->touch();
+
+      // pipeline->loadframe(reprmode.timestep);
+      // reprmode.name = "show_blobs";
+      // view->setvolume(pipeline->repr(reprmode));
+      // view->touch();
   }
 
   // low-level function to just handle events (at the window level)
@@ -198,6 +226,69 @@ public:
   void check_keys(){
     using glm::vec3;
     float speed = 0.1f;
+
+    // if(keys[sf::Keyboard::LAlt]){
+    //   static int cropxl = 0;
+    //   static int cropxh = 0;
+    //   static int cropyl = 0;
+    //   static int cropyh = 0;
+    //   static int cropzl = 0;
+    //   static int cropzh = 0;
+    //   int add = 10;
+    //   if(keys[sf::Keyboard::LShift]){
+    //     cropxl = 0;
+    //     cropxh = 0;
+    //     cropyl = 0;
+    //     cropyh = 0;
+    //     cropzl = 0;
+    //     cropzh = 0;
+
+    //     experiment->get(reprmode.timestep, true);
+    //     view->setvolume(pipeline->repr(reprmode));
+    //     view->touch();
+    //   }
+    //   if(keys[sf::Keyboard::Left]){
+    //     cropxl+=add;
+    //   }
+    //   if(keys[sf::Keyboard::Right]){
+    //     cropxh+=add;
+    //   }
+    //   if(keys[sf::Keyboard::Up]){
+    //     cropyl+=add;
+    //   }
+    //   if(keys[sf::Keyboard::Down]){
+    //     cropyh+=add;
+    //   }
+    //   if(keys[sf::Keyboard::N]){
+    //     cropzl+=add;
+    //   }
+    //   if(keys[sf::Keyboard::M]){
+    //     cropzh+=add;
+    //   }
+    //   printf("crop %d %d %d %d %d %d\n", cropxl, cropxh, cropyl, cropyh, cropzl, cropzh);
+    //   {
+    //     Nrrd *nrrd = experiment->get(reprmode.timestep);
+    //     float *data = (float*) nrrd->data;
+    //     NrrdAxisInfo *a = nrrd->axis;
+    //     int a0 = a[0].size;
+    //     int a1 = a[1].size;
+    //     int a2 = a[2].size;
+    //     int i=0;
+    //     for(int x=0;x<a0;x++){
+    //       for(int y=0;y<a1;y++){
+    //         for(int z=0;z<a2;z++){
+    //           if(x<cropxl || y<cropyl || z<cropzl || x>a0-cropxh || y>a1-cropyh || z>a2-cropzh){
+    //             data[i] = 0;
+    //           }
+    //           ++i;
+    //         }
+    //       }
+    //     }
+    //     view->setvolume(pipeline->repr(reprmode));
+    //     view->touch();
+    //   }
+    //   return;
+    // }
 
     // exit
     if(keys[sf::Keyboard::F2]){
@@ -288,13 +379,12 @@ public:
     if(keys[sf::Keyboard::Comma]){
       keys[sf::Keyboard::Comma] = false;
       if(view->camera.flat.projmode == 'M'){
-        view->camera.flat.projmode = '+';
-      }
-      else if(view->camera.flat.projmode == '+'){
         view->camera.flat.projmode = '_';
       }
-      else{
-        view->camera.flat.projmode = 'M';
+      else if(view->camera.flat.projmode == '_'){
+        view->camera.flat.projmode = '2';
+      }else{
+        view->camera.flat.projmode = 'M';        
       }
       view->touch();
     }
@@ -319,7 +409,7 @@ public:
       }
       --reprmode.timestep;
       view->setvolume(pipeline->repr(reprmode));
-      view->setgeometry(pipeline->reprgeometry(reprmode));
+      // view->setgeometry(pipeline->reprgeometry(reprmode));
       view->touch();
     }
     if(keys[sf::Keyboard::P]){
@@ -328,7 +418,7 @@ public:
       }
       ++reprmode.timestep;
       view->setvolume(pipeline->repr(reprmode));
-      view->setgeometry(pipeline->reprgeometry(reprmode));
+      // view->setgeometry(pipeline->reprgeometry(reprmode));
       view->touch();
     }
 
@@ -339,7 +429,7 @@ public:
       view->touch();
     }
     if(keys[sf::Keyboard::Num2]){
-      reprmode.name = "blobs";
+      reprmode.name = "cells";
       view->setvolume(pipeline->repr(reprmode));
       view->touch();
     }
@@ -349,7 +439,7 @@ public:
       view->touch();
     }
     if(keys[sf::Keyboard::Num4]){
-      reprmode.name = "tgmm";
+      reprmode.name = "diff_blobs";
       view->setvolume(pipeline->repr(reprmode));
       view->touch();
     }
@@ -374,12 +464,12 @@ public:
       view->touch();
     }
     if(keys[sf::Keyboard::Num9]){
-      reprmode.name = "maxima";
+      reprmode.name = "levelsets";
       view->setvolume(pipeline->repr(reprmode));
       view->touch();
     }
     if(keys[sf::Keyboard::Num0]){
-      reprmode.name = "sandbox";
+      reprmode.name = "show_blobs";
       view->setvolume(pipeline->repr(reprmode));
       view->touch();
     }
@@ -428,7 +518,7 @@ public:
     if(clicked[0]){
       printf("clicked %d %d\n", mousepos.x, mousepos.y);
       pipeline->repr_highlight(&reprmode, view->get_camera_pos(), view->pixel_to_ray(vec2(mousepos)), keys[sf::Keyboard::LControl], keys[sf::Keyboard::LShift]);
-      view->setvolume(pipeline->repr(reprmode, false)); // true = force re-render
+      view->setvolume(pipeline->repr(reprmode, true)); // true = force re-render
       view->setgeometry(pipeline->reprgeometry(reprmode));
       view->touch();
       clicked[0] = false;
@@ -446,6 +536,7 @@ public:
     // process timesteps {n,n+1}
     if(keys[sf::Keyboard::U]){
       pipeline->process(reprmode.timestep,reprmode.timestep);
+      pipeline->saveframe(reprmode.timestep);
       reprmode.name = "plain";
       reprmode.geom = "graph";
       view->setvolume(pipeline->repr(reprmode));
@@ -453,7 +544,7 @@ public:
       view->touch();
     }
     if(keys[sf::Keyboard::J]){
-      pipeline->link(reprmode.timestep,reprmode.timestep+100);
+      pipeline->link(reprmode.timestep,reprmode.timestep+30);
       reprmode.name = "blobs";
       reprmode.geom = "succs";
       view->setvolume(pipeline->repr(reprmode));
@@ -465,18 +556,26 @@ public:
       pipeline->emit(reprmode, "-blobs.nrrd", reprmode.timestep,reprmode.timestep+100);
     }
     if(keys[sf::Keyboard::T]){
-      pipeline->estimate(reprmode.timestep);
-      view->setvolume(pipeline->repr(reprmode, true));
-      view->touch();
+      // pipeline->track(reprmode, experiment->filepath);
+      // view->setvolume(pipeline->repr(reprmode, true));
+      // view->setgeometry(pipeline->reprgeometry(reprmode));
+      // view->touch();
     }
     if(keys[sf::Keyboard::Y]){
-      pipeline->select_scales(reprmode.timestep);
-      view->setvolume(pipeline->repr(reprmode, true));
+      pipeline->loadframe(reprmode.timestep);
+      // pipeline->estimate(reprmode.timestep);
+      // pipeline->select_scales(reprmode.timestep);
+      // view->setvolume(pipeline->repr(reprmode, true));
+      // view->touch();
+    }
+    if(keys[sf::Keyboard::Tilde]){
+      reprmode.highlight.paths = pipeline->paths;
+      view->setgeometry(pipeline->reprgeometry(reprmode));
       view->touch();
     }
     if(keys[sf::Keyboard::L]){
-      if(keys[sf::Keyboard::LShift])pipeline->findpaths(1, -1, "quick");
-      else pipeline->findpaths(3, -1, "tgmm");
+      pipeline->findpaths(1, -1, "quick");
+      // else pipeline->findpaths(3, -1, "tgmm");
       // pipeline->process(reprmode.timestep,reprmode.timestep+2);
       // // reprmode.name = "blobs";
       // reprmode.geom = "graph";
@@ -519,7 +618,7 @@ public:
     window->display();
   }
   int run(int argc, char** argv){
-    view = new View(400,400);
+    view = new View(1024,1024);
     init(argc, argv);
     initUI();
 

@@ -46,7 +46,7 @@ vec4 Colormap::computecolor(float x){
     color.x = x*x;
     color.y = x;
     color.z = 1.f - sqrt(x);
-    float w = x;
+    float w = sqrt(x);
     color.w = pow(w,gamma);
   }
   else{

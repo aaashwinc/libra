@@ -44,14 +44,31 @@ public:
   bool operator==(ReprMode &r);
 };
 struct ArFrameData{
-  std::string savepath;
+  // std::string savepath;
   BSPTree<ScaleBlob> bspblobs;
   ScaleBlob *blob;
   std::vector<float> scales;
   float scale_eps;            // some epsilon that satisfies: for all i, scales[i+1] - scales[i] > epsilon.
   bool complete;
-  ScaleBlob* tgmm_blob;
+  // ScaleBlob* tgmm_blob;
 };
+
+class Cell{
+public:
+  Cell(){
+    pred = 0;
+    blob = 0;
+    time = 0;
+    f_id = 0;
+    life = 4;     // # frames the cell can exist without being seen.
+  }
+  int life;
+  int f_id;
+  int time;
+  Cell *pred;
+  ScaleBlob *blob;
+};
+
 // A ArPipeline performs the entire analysis pipeline,
 // for all frames. Input: experiment. Output: tracks.
 // Also exposes functions to visualize intermediate
@@ -65,23 +82,29 @@ private:
     bool init;  // initialized?
   }store;
 
-  TGMM* tgmm;
+  // TGMM* tgmm;
   ArFilter filter;
   ArExperiment *exp;
   std::vector<ArFrameData> frames;
   ArGeometry3D geometry;
 
-  std::vector<std::vector<ScaleBlob*>> paths;
+  std::vector<Cell*> *cells;
+
 
   void loadTGMM();
 
 public:
+  std::vector<std::vector<ScaleBlob*>> paths;
+
   int low();
   int high();
   ArFrameData &get(int frame);
+  ArFrameData *getp(int frame);
 
   ArPipeline(ArExperiment *exp);
   
+  void track(ReprMode &repr, std::string output);
+
   void process(int low, int high);
   void link(int low, int high);
   void findpaths(int minlen, int maxframe, const char* mode);
@@ -101,6 +124,8 @@ public:
   void select_scales(int timestep);
 
   void emit(ReprMode &mode, std::string suffix, int low, int high);
+  void saveframe(int timestep);
+  void loadframe(int timestep);
   // void getTGMMOutput(std::string path, int low, int high);
 
 };

@@ -28,6 +28,8 @@ DiscreteKernel::~DiscreteKernel(){
 void DiscreteKernel::destroy(){
   if(data) delete[] data;
   if(temp) delete[] temp;
+  data = 0;
+  temp = 0;
 }
 struct thread_conv2d_info_shared{
   float *in;
@@ -41,39 +43,56 @@ struct thread_conv2d_info_shared{
   int zstep;
   DiscreteKernel kernel;
 };
+struct tconv2d_data{
+  float *in;
+  float *out;
 
-void ArFilter::conv2d(float *in, float *out, int xlen, int ylen, int zlen, int xstep, int ystep, int zstep, DiscreteKernel kernel){
-  // printf("conv2d %d %d\n",xlen, ylen);
+  int xstart;
+
+  int xend;
+  int ylen;
+  int zlen;
+  int xstep;
+  int ystep;
+  int zstep;
+  DiscreteKernel kernel;
+};
+static void* tconv2d(void *tinfo){
+  tconv2d_data *data = (tconv2d_data*) tinfo;
   
+  float *in = data->in;
+  float *out = data->out;
+  
+  int xstart = data->xstart;
+
+  int xend = data->xend;
+  int ylen = data->ylen;
+  int zlen = data->zlen;
+  int xstep = data->xstep;
+  int ystep = data->ystep;
+  int zstep = data->zstep;
+  DiscreteKernel kernel = data->kernel;
+
   int skip  = zstep;
   int n = zlen;
 
-  // n = 20;
-
-  for(int x=0; x<xlen; ++x){
-      // printf("%d\n",x);
+  for(int x=xstart; x<xend; ++x){
     for (int y=0; y<ylen; ++y){
       int start = x*xstep + y*ystep;
-
-      // printf("input:\n ");
-      // for(int i=0;i<n;i++)printf(" %d ",in[start+skip*i]);
-      // printf("\n");
-
       double v = 0;
-
+      
       // handle leading edge of input (within radius of edge).
       int i = 0;
       for(i=0;i<kernel.radius;++i){
         v=0;
         for(int j=0,ji=start+skip*(i-kernel.radius);j<kernel.support;++j,ji+=skip){
-          if(ji<start){   // out of bounds.
+          if(ji<start){   // out of bounds. bleed.
             v += kernel.data[j] * in[start];
           }
           else if(ji<=start+skip*(n-1)){        // in bounds.
             v += kernel.data[j] * in[ji];
           }
         }
-        // v=kernel.data[kernel.radius]*2.f;
         out[start+skip*i] = float(v);
       }
 
@@ -81,14 +100,13 @@ void ArFilter::conv2d(float *in, float *out, int xlen, int ylen, int zlen, int x
       for(i=n-kernel.radius;i<n;++i){
         v=0;
         for(int j=0,ji=start+skip*(i-kernel.radius);j<kernel.support;++j,ji+=skip){
-          if(ji>start+skip*(n-1)){
+          if(ji>start+skip*(n-1)){  // out of bounds. bleed.
             v += kernel.data[j] * in[start+skip*(n-1)];
           }
           else if(ji>=0){        // in bounds.
             v += kernel.data[j] * in[ji];
           }
         }
-        // v=kernel.data[kernel.radius];
         out[start+skip*i] = float(v);
       }
 
@@ -97,18 +115,38 @@ void ArFilter::conv2d(float *in, float *out, int xlen, int ylen, int zlen, int x
         v=0;
         for(int j=0,ji=start+skip*(i-kernel.radius);j<kernel.support;++j,ji+=skip){
           v += kernel.data[j] * in[ji];
-          // printf(" + %.1f*%d", kernel.data[j], in[ji]);
         }
-        // v = in[start+skip*i];
         out[start+skip*i] = float(v);
-        // printf(" = %.1f\n",v);
       }
+    }
+  }
+}
+void ArFilter::conv2d(float *in, float *out, int xlen, int ylen, int zlen, int xstep, int ystep, int zstep, DiscreteKernel kernel){
+  const int nthreads = 24;
+  pthread_t threads[nthreads];
+  tconv2d_data data[nthreads];
 
-      // printf("output:\n ");
-      // for(int i=0;i<n;i++)printf(" %d ",out[start+skip*i]);
-      // printf("\n");
+  for(int i=0;i<nthreads;++i){
+    data[i].in = in;
+    data[i].out = out;
+    data[i].xstart = (xlen*i)/nthreads;
+    data[i].xend = (xlen*(i+1))/nthreads;
+    data[i].ylen = ylen;
+    data[i].zlen = zlen;
+    data[i].xstep = xstep;
+    data[i].ystep = ystep;
+    data[i].zstep = zstep;
+    data[i].kernel = kernel;
 
-      // exit(0);
+    if(pthread_create(threads+i, NULL, tconv2d, data+i)){
+      fprintf(stderr, "error creating conv2d thread.\n");
+      exit(0);
+    }
+  }
+  for(int i=0;i<nthreads;++i){
+    if(int err = pthread_join(threads[i], 0)){
+      fprintf(stderr, "error joining conv2d thread. %d\n", err);
+      exit(0);
     }
   }
 }
@@ -146,6 +184,17 @@ void ArFilter::filter(){
 }
 DiscreteKernel ArFilter::gaussian(double sigma, int radius, int d){
   // printf("create gaussian kernel: %.2f, %d\n",sigma, radius);
+  if(sigma == 0){
+    DiscreteKernel k;
+    k.radius = 1;
+    k.support = 3;
+    k.data = new double[3];
+    k.temp = new double[3];
+    k.data[0] = 0;
+    k.data[1] = 1;
+    k.data[2] = 0;
+    return k;
+  }
   DiscreteKernel k;
   k.radius  = radius;
   k.support = radius*2 + 1;
@@ -270,24 +319,30 @@ void ArFilter::laplacianmasked(float scale){
   self.curr = iraw;
 
 }
-void ArFilter::laplacian3d(int boundary){
-  float *in  = self.buff[self.curr];
-  float *out = self.buff[itempbuf()];
+struct tlaplacian3d_data{
+  int zbegin;
+  int zend;
+  int boundary;
+  ArFilter *filter;
+  float *in;
+  float *out;
+};
+static void* tlaplacian3d(void *vdata){
+  tlaplacian3d_data *data = (tlaplacian3d_data*) vdata;
+  
+  ArFilter *filter = data->filter;
+  float *in = data->in;
+  float *out = data->out;
+  int boundary = data->boundary;
 
-  // printf("lap %p -> %p\n",in,out);
-  // printf("nb %d %p %p\n",self.nbuf, self.buff[0], self.buff[1]);
-
-  // printf("dims %d %d %d %d\n",self.a0,self.a0,self.a1,self.a2);
-  // printf("max %d\n",self.w3);
-
-  // double max_laplacian = comp_max_laplacian(in);
   int xo;
-  for(int z=0;z<self.a2; z++){
-    for(int y=0; y<self.a1; y++){
-      for(int x=0; x<self.a0; x++){
-        xo = x*self.w0 + y*self.w1 + z*self.w2;
 
-        if(x<1+boundary || y<1+boundary || z<1+boundary || x>=self.a0-1-boundary || y>=self.a1-1-boundary || z>=self.a2-1-boundary){
+  for(int z=data->zbegin;z<data->zend; z++){
+    for(int y=0; y<filter->self.a1; y++){
+      for(int x=0; x<filter->self.a0; x++){
+        xo = x*filter->self.w0 + y*filter->self.w1 + z*filter->self.w2;
+
+        if(x<1+boundary || y<1+boundary || z<1+boundary || x>=filter->self.a0-1-boundary || y>=filter->self.a1-1-boundary || z>=filter->self.a2-1-boundary){
           out[xo]=0;
           continue;
         }
@@ -297,12 +352,12 @@ void ArFilter::laplacian3d(int boundary){
         double v;
 
         int xi = xo;
-        p1 = xi-self.w0;
-        p2 = xi+self.w0;
-        p3 = xi-self.w1;
-        p4 = xi+self.w1;
-        p5 = xi-self.w2;
-        p6 = xi+self.w2;
+        p1 = xi-filter->self.w0;
+        p2 = xi+filter->self.w0;
+        p3 = xi-filter->self.w1;
+        p4 = xi+filter->self.w1;
+        p5 = xi-filter->self.w2;
+        p6 = xi+filter->self.w2;
 
         // printf("%d %d -> %d %d\n",xi, in[xi], p1, in[p1]);
 
@@ -322,6 +377,51 @@ void ArFilter::laplacian3d(int boundary){
       }
     }
   }
+}
+void ArFilter::pass(){
+  float *in  = self.buff[self.curr];
+  float *out = self.buff[itempbuf()];
+  memcpy(out, in, self.w3 * sizeof(float));
+  self.curr = itempbuf();
+}
+void ArFilter::laplacian3d(int boundary){
+  float *in  = self.buff[self.curr];
+  float *out = self.buff[itempbuf()];
+
+  
+
+  const int nthreads = 24;
+  pthread_t threads[nthreads];
+  tlaplacian3d_data data[nthreads];
+
+  for(int i=0;i<nthreads;++i){
+    data[i].zbegin = (this->self.a2*i)/nthreads;
+    data[i].zend = (this->self.a2*(i+1))/nthreads;
+    data[i].boundary = boundary;
+    data[i].filter = this;
+    data[i].in = in;
+    data[i].out = out;
+
+    if(pthread_create(threads+i, NULL, tlaplacian3d, data+i)){
+      fprintf(stderr, "error creating conv2d thread.\n");
+      exit(0);
+    }
+  }
+  for(int i=0;i<nthreads;++i){
+    if(int err = pthread_join(threads[i], 0)){
+      fprintf(stderr, "error joining conv2d thread. %d\n", err);
+      exit(0);
+    }
+  }
+
+  // printf("lap %p -> %p\n",in,out);
+  // printf("nb %d %p %p\n",self.nbuf, self.buff[0], self.buff[1]);
+
+  // printf("dims %d %d %d %d\n",self.a0,self.a0,self.a1,self.a2);
+  // printf("max %d\n",self.w3);
+
+  // double max_laplacian = comp_max_laplacian(in);
+
   self.curr = itempbuf();
 }
 
@@ -365,8 +465,8 @@ void ArFilter::hessian3d(int boundary){
               int xii = xi + xx*self.w0 + yy*self.w1 + zz*self.w2;
               if(xii>=0 && xii < self.w3){
                 neighbor[nindex] = xii;
-                ++nindex;
               }
+                ++nindex;
             }
           }
         }
@@ -431,7 +531,19 @@ void ArFilter::hessian3d(int boundary){
         // float ev1 = 0.5*(a + b + sqrt((a-b)*(a-b) + 4*c*c));
         // float ev2 = 0.5*(a + b - sqrt((a-b)*(a-b) + 4*c*c));
         // v = h11*h22 - h12*h12;
-        v = fmax(ev1, fmax(ev2, ev3));
+        v = fmin(ev1, fmin(ev2, ev3));
+        // v = fmax(ev1, fmax(ev2, ev3));
+        // v = fmin(fabs(ev1), fmin(fabs(ev2), fabs(ev3)));
+        // v = fmax(fabs(ev1), fmax(fabs(ev2), fabs(ev3)));
+
+        // v = fabs(ev1*ev2*ev3);
+        // if(ev1<-0.0001 || ev2<-0.0001 || ev3<-0.0001)v=0;
+        // if(ev3<0)v=0;
+        // v= fabs(ev1*ev2*ev3);
+        v = fmax(v,0);
+        // if(in[xi] > 0.8f && v > 0.01)printf("+ %.2f %.2f %.2f\n", ev1, ev2, ev3);
+        // if(in[xi] < 0.2f && v > 0.01)printf("- %.2f %.2f %.2f\n", ev1, ev2, ev3);
+
         // v = ev1 * ev2 * ev3;
         // v = ev1 + ev2 + ev3;
         // v = h11 + h22;
@@ -445,7 +557,10 @@ void ArFilter::hessian3d(int boundary){
         // v = (h12);
         // v *= 30000.0/max_laplacian;
         // v = fabs(in[p5]);
-        if(v<0)v=0;
+        // if(v<=0)v=0;
+        // else v = in[xi];
+        // else v = 1.f/v;
+        // else v = ev1+ev2+ev3;
         out[xo] = float(v);
       }
     }
@@ -731,8 +846,8 @@ void ArFilter::destroy(){
   for(int i=1;i<self.nbuf;++i){
     nrrdNuke(self.nrrd[i]);
   }
-  if(self.kernel.data)delete[] self.kernel.data;
-  if(self.kernel.temp)delete[] self.kernel.temp;
+  // if(self.kernel.data)delete[] self.kernel.data;
+  // if(self.kernel.temp)delete[] self.kernel.temp;
   init(0);
 }
 int ArFilter::itempbuf(int c){
@@ -792,7 +907,7 @@ ivec3 ArFilter::hill_climb(ivec3 p){
   // printf("\n");
   return maxp;
 }
-void ArFilter::lapofgaussian_masked(float sigma, bool multiply){
+void ArFilter::lapofgaussian_masked(float sigma, int multiply){
   DiscreteKernel kernel = gaussian(sigma, int(sigma*4));
   set_kernel(kernel);
   filter();
@@ -802,11 +917,11 @@ void ArFilter::lapofgaussian_masked(float sigma, bool multiply){
   normalize();
 
   float *out = self.buff[self.curr];
-  if(multiply){
+  if(multiply > 0){
     for(int i=0;i<self.w3;i++){
       out[i] *= orig[i];
     }    
-  }else{
+  }else if(multiply < 0){
     for(int i=0;i<self.w3;i++){
       if(out[i] > 0) out[i] = orig[i];
     }    
@@ -894,6 +1009,410 @@ struct Point{
   glm::ivec3 p;
   int   i;
 };
+
+void ArFilter::show_blobs(int mode){
+  float *data = self.buff[self.curr];
+  int *labelled = new int[self.w3];
+  int nlabels = 0;
+
+  if(!mode)label_blobs(data, labelled);
+  else label_connected_levelsets(data, labelled);
+  // for(int i=0;i<self.w3;i++){
+  //   nlabels = max(nlabels, labelled[i]);
+  // }
+  // printf("nlabels = %d\n", nlabels);
+  // float *label_to_value = new float[nlabels];
+  // for(int i=0;i<nlabels;i++){
+  //   label_to_value[i] = 0;
+  //   // for(int j=0;j<self.w3;j++){
+  //   //   if(labelled[j] == i){
+  //   //     label_to_value[i] = data[j];
+  //   //     break;
+  //   //   }
+  //   // }
+  //   label_to_value[i] = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
+
+  // }
+  std::map<int, float> labels;
+  for(int i=0;i<self.w3;i++){
+    int label = labelled[i];
+    if(labels.find(label) == labels.end()){
+      float v = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
+      // printf("v=%.8f\n",v);
+      labels[label] = v;
+      // labels[label] = 0.2f;
+    }
+
+    if(labelled[i] >= 0 && data[i]>0.001f){
+      // labels[labelled[i]] =0.2f;
+      // printf("data[%d] = %d -> %.2f\n", i, labelled[i], labels[labelled[i]]);
+      data[i] = labels[labelled[i]];
+    }else data[i] = 0;
+
+  }
+
+  printf("nlabels = %d\n", labels.size());
+  // delete[] label_to_value;
+  delete[] labelled;
+}
+
+// void ArFilter::label_blobs(float *data, int* labelled){
+//   struct Blob;
+//   struct Region{
+//     Region() : pixels(), neighbors(){
+//       background = false;
+//       blob = 0;
+//       id = 0;
+//       value = 0;
+//     }
+//     bool background;              // is this blob background?
+//     Blob* blob;                   // blob that this region is part of.
+//     std::set<int> pixels;         // list of all pixels in this region.
+//     std::set<Region*> neighbors;  // list of all neighbors to this region.
+//     float value;
+//     int id;
+//   };
+//   struct Blob{
+//     Blob() : regions(){
+//       cangrow = false;
+//       id = 0;
+//     }
+//     bool cangrow;                    // can this blob grow
+//     std::vector<Region*> regions;    // list of regions
+//     int id;                          // unique id label, 0-???
+//   };
+
+//   struct {
+//     bool operator()(Region *a, Region *b) const{   
+//         return a->value > b->value;
+//     }   
+//   } region_lessthan;
+
+//   int *regionmap = new int[self.w3];
+//   std::vector<std::set<int>> neighbors = label_connected_levelsets(data, regionmap);
+//   // for(std::set<int> si : neighbors){
+//   //   printf("%d; ", si.size());
+//   // }
+//   // memcpy(labelled, regionmap, sizeof(int)*self.w3);
+//   // return;
+//   // printf("\n");
+
+//   std::vector<Region*> region_by_value(neighbors.size());
+//   for(int i=0;i<region_by_value.size();i++)region_by_value[i] = new Region;
+  
+//   std::map<int, Region*> region_by_id;
+  
+  
+//   for(int i=0;i<self.w3;i++){
+//     int label = regionmap[i];
+//     float value = data[i];
+//     region_by_value[label]->value = value;
+//     region_by_value[label]->pixels.insert(i);
+//     region_by_value[label]->id = label;
+//     region_by_id[label] = region_by_value[label];
+//   }
+//   for(int i=0;i<neighbors.size();i++){
+//     for(int ni : neighbors[i]){
+//       region_by_id[i]->neighbors.insert(region_by_id[ni]);
+//     }
+//   }
+//   std::sort(region_by_value.begin(), region_by_value.end(), region_lessthan);
+
+//   std::vector<Blob*> blobs;
+
+//   // printf("regions by value:\n");
+//   // for(auto x : region_by_value){
+//   //   printf("%d = %.2f\n", x->id, x->value);
+//   // }
+
+
+//   // printf("regions by id:\n");
+//   // for(auto x : region_by_id){
+//   //   printf("%d = %d, %.2f\n", x.first, x.second->id, x.second->value);
+//   // }
+
+//   for(Region *region : region_by_value){
+//     if(region->pixels.size() < 1)continue;
+//     // printf("v = %.3f\n", region->value);
+//     std::vector<Region*> higher_neighbors;
+//     bool higher_background_neighbor = false;
+//     for(Region *n : region->neighbors){
+//       if(n->value > region->value){
+//         higher_neighbors.push_back(n);
+//         if(n->background)higher_background_neighbor = true;
+//       }
+//     }
+//     if(higher_neighbors.size() == 0){
+//       // case 1: no higher neighbors.
+//       Blob *blob = new Blob;
+//       blob->cangrow = true;
+//       blob->regions.push_back(region);
+//       blob->id = blobs.size();
+//       blobs.push_back(blob);
+
+//       region->blob = blob;
+//     }else if(higher_background_neighbor){
+//       // case 2: higher background neighbor.
+//       region->background = true;
+//     }else{
+//       std::set<Blob*> neighblobs;
+//       for(Region *neigh : higher_neighbors){
+//         if(!neigh->blob){
+//           fprintf(stderr, "ERROR: REGION WITHOUT BLOB IN CASE 3/4\n");
+//           exit(0);
+//         }
+//         neighblobs.insert(neigh->blob);
+//       }
+//       if(neighblobs.size() > 1){
+//         // case 3: multiple higher blobs. set to background.
+//         for(Blob *b : neighblobs)b->cangrow = false;
+//         region->background = true;
+//       }else{
+//         // case 4: single higher blob. include region.
+//         Blob* higher = *neighblobs.begin();
+//         if(higher->cangrow){
+//           region->blob = higher;
+//         }else{
+//           region->background = true;
+//         }
+//       }
+//     }
+//   }
+//   // for(int i=0;i<self.w3;i++){        // initialize to -1.
+//   //   labelled[i] = -1;
+//   // }
+//   for(Region *r : region_by_value){
+//     for(int i : r->pixels){
+//       labelled[i] = r->blob?r->blob->id:-1;
+//     }
+//   }
+//   // for(int i=0;i<self.w3;i++){        // initialize to -1.
+//   //   labelled[i] = -1;
+//   // }
+//   for(Blob *b : blobs){
+//     delete b;
+//   }
+//   for(Region *r : region_by_value){
+//     delete r;
+//   }
+//   delete[] regionmap;
+// }
+
+// void ArFilter::label_blobs(float *data, int* labelled){
+//   struct regioninfo{
+//     regioninfo(){
+//       background = false;
+//       blob = -1;
+//     }
+//     bool background;
+//     int blob;
+//   };
+//   struct blobinfo{
+//     blob(){
+//       cangrow = false;
+//     }
+//     bool cangrow;
+//     std::set<int> regions;
+//   };
+//   int nlabels = 0;
+
+//   int *regionmap = new int[self.w3];
+
+//   // neighbors: information about neighbors of regions.
+//   // labelled: maps pixel -> region.
+//   std::vector<std::set<int>> neighbors = label_connected_levelsets(data, regionmap);
+
+//   // regions: maps region -> list of pixels
+//   std::vector<std::vector<int>> regions(neighbors.size());
+//   int nregions = neighbors.size();
+//   for(int i=0;i<self.w3;i++){
+//     regions[regionmap[i]].push_back(i);
+//   }
+
+//   regioninfo* regioninfos = new regioninfo[nregions];
+//   for(int i=0;i<nregions;i++){
+//     regioninfos[i] = regioninfo();
+//   }
+
+//   // list of blobs.
+//   std::vector<blob> allblobs;
+
+//   // regionvs: maps region -> value of the particular region levelset.
+//   std::vector<std::pair<float, int>> regionvs;
+//   std::map<int, float> valueof;
+//   for(int r=0;r<regions.size();r++){
+//     std::set<int> pixels = regions[i];
+//     if(pixels.size() > 0){
+//       int ii = pixels[0];
+//       regionvs.push_back(std::make_pair(data[i], r));
+//       valueof[r] = data[i];
+//     }
+//   }
+
+//   sort(regionvs.rbegin(), regionvs.rend());
+
+//   for(int i=0;i<self.w3;i++){        // initialize to -1.
+//     labelled[i] = -1;
+//     can_grow[i] = false;
+//     is_background[i] = false;
+//   }
+
+//   int nblobs = 0;
+
+//   for(int i=0;i<nregions;i++){
+//     if(regions[i].size() < 1)continue;
+
+//     int   regioni = regionvs[i].second;
+//     float regionv = regionvs[i].first;
+
+//     std::set<int> higher_neighbors;
+//     bool higher_background_neighbor = false;
+//     for(int n : neighbors[regioni]){
+//       float v = valueof[regioni];
+//       if(v > regionv){
+//         higher_neighbors.insert(i);
+//         if(regioninfos[regioni].background){
+//           higher_background_neighbor = true;
+//         }
+//       }
+//     }
+//     int nhigher_neighbors = higher_neighbors.size();
+
+//     if(nhigher_neighbors == 0){
+//       // case 1: no higher neighbor.
+//       regioninfos[regioni].blob = nblobs;
+//       blobs.push_back(blob());
+//       blobs[nblobs].cangrow = true;
+//       ++nblobs;
+//     }else if(higher_background_neighbor){
+//       // case 2: higher neighbor which is background.
+//       regioninfos[regioni].background = true;
+//     }else{
+//       std::set<int> nblobs;
+//       for(int hn : higher_neighbors){
+//         nblobs.insert(regioninfos[hn].blob);
+//       }
+//       if(nblobs.size() > 1){
+//         // case 3: higher neighbors, part of different blobs.
+//         for(int hn : higher_neighbors){
+//           blobs[regioninfos[hn].blob].cangrow = false;
+//         }
+//         regioninfos[regioni].background = true;
+//       }else{
+//         // case 4: higher neighbors, part of same blobs.
+//         blobs[blobs[0]].cangrow = false;
+//       }
+//     }
+//   }
+
+//   for(int i=)
+
+//   printf("nlabels = %d\n", nlabels);
+
+// }
+// void ArFilter::label_blobs(float *data, int* labelled){
+
+//   int nlabels = 0;
+
+//   bool* can_grow = new bool[self.w3];
+//   for(int i=0;i<self.w3;i++){        // initialize to -1.
+//     labelled[i] = -1;
+//     can_grow[i] = false;
+//   }
+
+
+//   std::vector<std::pair<float, int>> pixels;  // [value, index]
+//   for(int i=0;i<self.w3;i++){
+//     pixels.push_back(std::make_pair(data[i], i));
+//   }
+//   sort(pixels.rbegin(), pixels.rend()); 
+
+//   for(int i=0;i<self.w3;i++){
+//     int index = pixels[i].second;
+//     float value = pixels[i].first;
+
+//     int x = (index/self.w0)%self.a0;      // tell the blob where its center is.
+//     int y = (index/self.w1)%self.a1;
+//     int z = (index/self.w2)%self.a2;
+
+//     // printf("> %.2f\n", x,y,z, value);
+
+//     // float higher_neighborv = 0;
+//     int   higher_neighbori = -1;
+//     int   higher_neighborl = -1;
+
+
+//     int higher_neighbors[27];
+//     int nhigher_neighbors = 0;
+//     bool different_higher_neighbors = false;
+//     bool has_higher_neighbor = false;
+//     for(int zz=max(z-1,0);zz<=min(z+1,self.a2-1); zz++){
+//       for(int yy=max(y-1,0);yy<=min(y+1,self.a1-1); yy++){
+//         for(int xx=max(x-1,0);xx<=min(x+1,self.a0-1); xx++){
+//           // printf("  %d %d %d\n",xx,yy,zz);
+//           int      ii = xx*self.w0 + yy*self.w1 + zz*self.w2;
+//           float testv = data[ii];
+
+//           if(testv > value){
+//             has_higher_neighbor = true;
+//             // higher neighbor...
+//             if(labelled[ii] < 0){
+//               // case 2: higher neighbor is background.
+//               // this pixel must be background.
+//               labelled[index] = -1;
+//               goto end;
+//             }
+//             if(higher_neighborl < 0){
+//               // first higher neighbor. 
+//               higher_neighborl = labelled[ii];  
+//             }
+//             else{
+//               if(higher_neighborl != labelled[ii]){
+//                 // case 3: higher neighbors part of different blobs.
+//                 // this pixel is background.
+//                 different_higher_neighbors = true;
+//                 labelled[ii] = -1;
+//                 higher_neighbors[nhigher_neighbors] = labelled[ii];
+//                 nhigher_neighbors += 1;
+//               }
+//             }
+//           }
+//         }
+//       }
+//     }
+
+//     if(different_higher_neighbors){
+//       // case 3: higher neighbors part of different blobs.
+//       // stop all higher neighbors from growing.
+//       for(int i=0;i<nhigher_neighbors;++i){
+//         can_grow[higher_neighbors[i]] = false; 
+//       }
+//     }
+//     else{
+//       // case 4: one or more higher neighbors, all part of same blob.
+//       if(can_grow[higher_neighborl]){
+//         labelled[index] = higher_neighborl;
+//       }else{
+//         labelled[index] = -1;
+//       }
+//     }
+
+//     if(!has_higher_neighbor){
+//       // case 1: the region has no higher neighbor.
+//       labelled[index] = nlabels;
+//       can_grow[nlabels] = true;
+//       ++nlabels;
+//     }
+
+// end:  ;
+
+//     // labelled[index] = x/40;
+
+//   }
+//   printf("nlabels = %d\n", nlabels);
+//   delete[] can_grow;
+
+// }
 void ArFilter::label_blobs(float *data, int* labelled){
   for(int i=0;i<self.w3;i++){        // initialize to -1.
     labelled[i] = -1;
@@ -914,6 +1433,7 @@ void ArFilter::label_blobs(float *data, int* labelled){
     for(int y=0; y<self.a1; y++){
       for(int x=0; x<self.a0; x++){
         int i = x*self.w0 + y*self.w1 + z*self.w2;
+
         // printf("xy %d %d\n",x,y);
         // starting position is this pixel.
         Point peak;
@@ -1001,6 +1521,7 @@ std::vector<ScaleBlob*> ArFilter::find_blobs(){
 
   float *data     = self.buff[self.curr];
 
+  // printf("label blobs.\n");
   label_blobs(data, labelled);
 
 
@@ -1014,6 +1535,7 @@ std::vector<ScaleBlob*> ArFilter::find_blobs(){
   //   output[labelled[i]] = 30000;
   // }
 
+  // printf("construct map.\n");
   // form a map, label -> how many voxels are in this blob.
   std::unordered_map<int,int> labels_to_counts;
   for(int i=0;i<self.w3;i+=1){            // form a list of unique labels.
@@ -1025,11 +1547,12 @@ std::vector<ScaleBlob*> ArFilter::find_blobs(){
 
   // construct a mapping from index to blob.
   // also discard small blobs.
+  // also discard negative labels.
   std::unordered_map<int, ScaleBlob*> blobs;
   for ( auto it = labels_to_counts.begin(); it != labels_to_counts.end(); ++it ){
     int index = it->first;
     int count = it->second;
-    if(count > 125){                       // impose (arbitrary) minimum blob size, as an optimization.
+    if(count > 1 && index >= 0){             // impose (arbitrary) minimum blob size, as an optimization.
       blobs[index] = new ScaleBlob();
       float x = (index/self.w0)%self.a0;      // tell the blob where its center is.
       float y = (index/self.w1)%self.a1;
@@ -1041,8 +1564,8 @@ std::vector<ScaleBlob*> ArFilter::find_blobs(){
   }
 
   // printf("compute blob statistics.\n");
-  // now construct the scaleblobs with data in 2 passes.
-  for(int pass=0;pass<2;++pass){
+  // now construct the scaleblobs with data in 3 passes.
+  for(int pass=0;pass<3;++pass){
     for(int i=0;i<self.w3;i+=1){
       auto blob = blobs.find(labelled[i]);
       if(blob != blobs.end()){
@@ -1067,7 +1590,7 @@ std::vector<ScaleBlob*> ArFilter::find_blobs(){
 
   for (std::pair<int, ScaleBlob*> blob : blobs){
     // another optimization: only add blobs with volume > 4.
-    if(blob.second->detCov > 4.f){
+    if(blob.second->detCov > 0.f && blob.second->n > 0){
       output.push_back(blob.second);
     }
     // positions.push_back(ivec3(blob.second->position));
@@ -1414,10 +1937,124 @@ int ArFilter::count_blobs(){
   }
   std::vector<int> counts;
   for(auto x : labels_to_counts){
-    if(x.second > 300) counts.push_back(x.second);
+    if(x.second > 7000) counts.push_back(x.second);
   }
   delete[] labelled;
   return counts.size();
+}
+
+std::vector<std::set<int>> ArFilter::label_connected_levelsets(float *data, int* labels){
+  // float *data   = self.buff[self.curr];
+  std::vector<std::set<int>> neighbors;
+  for(int i=0;i<self.w3;i++){
+    labels[i] = 0;
+  }
+  int i;
+  int label = 0;
+  float value = -1;
+  for(int i=0;i<self.w3;i++){
+    if(labels[i] != 0)continue; // already labeled.
+    if(data[i] == 0)continue;   // part of background. ignore.
+    std::queue<int> traverse;   // queue to mark entire connected component.
+    traverse.push(i);
+    // find entire connected component.
+    ++label;           // label for levelset region.
+    value = data[i];   // value of levelset region.
+    int ct = 0;
+    while(!traverse.empty()){
+      // printf(" size = %d\n", traverse.size());
+      int curr = traverse.front();
+      // printf("c[%d] = %d\n", curr, labels[curr]);
+      traverse.pop();
+      // printf("pop!\n");
+
+      // where are we?
+      int x = (curr/self.w0)%self.a0;
+      int y = (curr/self.w1)%self.a1;
+      int z = (curr/self.w2)%self.a2;
+
+      bool valid = x>=0 && y>=0 && z>=0 && 
+            x<self.a0 && y<self.a1 && z<self.a2 && 
+            curr>=0 && curr<self.w3;
+
+      // if(curr >= self.w3){
+      //   fprintf(stderr,"bad! %d %d %d %d\n",curr, x,y,z);
+      //   exit(0);
+      // }
+
+      // printf("%d %d %d %d\n", curr, int(valid), int(labels[curr]), int(data[curr]!=0));
+
+      if( valid && !labels[curr] && data[curr]!=0 && fabs(data[curr] - value) < 0.1f){
+        // unlabeled and a real point and nonzero and correct value
+        // printf("labels[%d] = %d\n", curr, label);
+        labels[curr] = label;
+
+        traverse.push(curr + -1*self.w0 + -1*self.w1 + -1*self.w2);
+        traverse.push(curr + -1*self.w0 + -1*self.w1 +  0*self.w2);
+        traverse.push(curr + -1*self.w0 + -1*self.w1 +  1*self.w2);
+        traverse.push(curr + -1*self.w0 +  0*self.w1 + -1*self.w2);
+        traverse.push(curr + -1*self.w0 +  0*self.w1 +  0*self.w2);
+        traverse.push(curr + -1*self.w0 +  0*self.w1 +  1*self.w2);
+        traverse.push(curr + -1*self.w0 +  1*self.w1 + -1*self.w2);
+        traverse.push(curr + -1*self.w0 +  1*self.w1 +  0*self.w2);
+        traverse.push(curr + -1*self.w0 +  1*self.w1 +  1*self.w2);
+
+        traverse.push(curr +  0*self.w0 + -1*self.w1 + -1*self.w2);
+        traverse.push(curr +  0*self.w0 + -1*self.w1 +  0*self.w2);
+        traverse.push(curr +  0*self.w0 + -1*self.w1 +  1*self.w2);
+        traverse.push(curr +  0*self.w0 +  0*self.w1 + -1*self.w2);
+        traverse.push(curr +  0*self.w0 +  0*self.w1 +  0*self.w2);
+        traverse.push(curr +  0*self.w0 +  0*self.w1 +  1*self.w2);
+        traverse.push(curr +  0*self.w0 +  1*self.w1 + -1*self.w2);
+        traverse.push(curr +  0*self.w0 +  1*self.w1 +  0*self.w2);
+        traverse.push(curr +  0*self.w0 +  1*self.w1 +  1*self.w2);
+
+        traverse.push(curr +  1*self.w0 + -1*self.w1 + -1*self.w2);
+        traverse.push(curr +  1*self.w0 + -1*self.w1 +  0*self.w2);
+        traverse.push(curr +  1*self.w0 + -1*self.w1 +  1*self.w2);
+        traverse.push(curr +  1*self.w0 +  0*self.w1 + -1*self.w2);
+        traverse.push(curr +  1*self.w0 +  0*self.w1 +  0*self.w2);
+        traverse.push(curr +  1*self.w0 +  0*self.w1 +  1*self.w2);
+        traverse.push(curr +  1*self.w0 +  1*self.w1 + -1*self.w2);
+        traverse.push(curr +  1*self.w0 +  1*self.w1 +  0*self.w2);
+        traverse.push(curr +  1*self.w0 +  1*self.w1 +  1*self.w2);
+        
+        // printf("push6\n");
+        // traverse.push(curr+self.w0);
+        // traverse.push(curr-self.w0);
+        // traverse.push(curr+self.w1);
+        // traverse.push(curr-self.w1);
+        // traverse.push(curr+self.w2);
+        // traverse.push(curr-self.w2);
+
+        // data[curr] = r;
+        ++ct;
+
+      }
+    }
+    // break;
+    // printf("found cpt of size %d = %d\n", label, ct);
+  }
+
+  while(neighbors.size() <= label)neighbors.push_back(std::set<int>());
+  for(int i=0;i<self.w3;i++){
+    int x = (i/self.w0)%self.a0;
+    int y = (i/self.w1)%self.a1;
+    int z = (i/self.w2)%self.a2;
+    for(int zz=max(z-1,0);zz<=min(z+1,self.a2-1); zz++){
+      for(int yy=max(y-1,0);yy<=min(y+1,self.a1-1); yy++){
+        for(int xx=max(x-1,0);xx<=min(x+1,self.a0-1); xx++){
+          int ii = xx*self.w0 + yy*self.w1 + zz*self.w2;
+          if(i == ii)continue;
+          neighbors[labels[i]].insert(labels[ii]);
+        }
+      }
+    }
+  }
+
+  return neighbors;
+  // delete[] labels;
+  // return label;
 }
 
 int ArFilter::count_connected_components(){
@@ -1481,11 +2118,12 @@ int ArFilter::count_connected_components(){
 
 
 ScaleBlob* ArFilter::compute_blob_tree(){
+  printf("compute_blob_tree...");
   BSPTree<ScaleBlob> bspblobs(0,10,vec3(-1.f,-1.f,-1.f),vec3(self.a0+1.f,self.a1+1.f,self.a2+1.f)); // safe against any rounding errors.
 
   DiscreteKernel kernel; 
   float sigma = 1.f;
-  float scale = 0.f;
+  float scale = 1.f;
 
   float *const iscalec = new float[self.w3];   // data for scaled image.
   float *iscale = iscalec;                     // so we can manipulate this pointer.
@@ -1495,32 +2133,33 @@ ScaleBlob* ArFilter::compute_blob_tree(){
 
   int index_of_laplacian;
 
-  printf("threshold 0.1f;\n");
-  threshold(0.1f, 1.f);
-  max1();
+  // printf("threshold 0.1f;\n");
+  // threshold(0.1f, 1.f);
+  // max1();
   // we want to compute the gaussian of the image at various scales.
   // use the fact that the composition of gaussians is a gaussian with
   //  c^2 = a^2 + b^2.
-  while(scale < 2.f){
+  while(scale < 8.f){
 
     // printf("filter stack: %p %p. curr=%d.\n", self.buff[0], self.buff[1], self.curr);
     scale = sqrt(scale*scale + sigma*sigma);  // compute scale factor with repeated gaussians.
-    printf("gaussian %.2f -> scale %.2f",sigma, scale);
+    // printf("gaussian %.2f -> scale %.2f",sigma, scale);
     kernel = gaussian(sigma, int(sigma*4));   // create gaussian kernel with new sigma.
     set_kernel(kernel);                       //
     filter();                                 // compute gaussian blur, store in self.buff[curr].
-    // printf("scale = %.2f\n", scale);
+    printf("scale = %.2f; ", scale);
     float **blurred = self.buff + self.curr;  // address of blurred image.
-    printf("  laplacian.. ");
+    // printf("  laplacian.. ");
+    // pass();
     laplacian3d(1);                           // compute laplacian, store in self.buff[curr+1].
     // fppswap(blurred, &iscale);                 // remove the blurred image from the swap chain
                                               // and store in iscale, so that it's not overwritten
                                               // by successive filter operations.
-    // for(int i=0;i<self.w3;i++){
-    //   if(self.buff[self.curr][i] > 0){
-    //     self.buff[self.curr][i] = (*blurred)[i];
-    //   }
-    // }
+    for(int i=0;i<self.w3;i++){
+      if(self.buff[self.curr][i] > 0){
+        self.buff[self.curr][i] = (*blurred)[i];
+      }
+    }
     // index_of_laplacian = self.curr;
 
     temp     = iscale;
@@ -1539,8 +2178,9 @@ ScaleBlob* ArFilter::compute_blob_tree(){
     // }
     // filter();
     normalize();
-    printf(". find blobs.\n");
+    // printf(". find blobs.\n");
     std::vector<ScaleBlob*> bigblobs = find_blobs();
+    printf("found %d blobs. ", bigblobs.size());
     for(ScaleBlob *sb : bigblobs){
       sb->scale = scale;
       sb->peakvalue = temp[sb->imode];

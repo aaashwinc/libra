@@ -17,18 +17,19 @@ struct NrrdFrame{
 // the raw data of the experiment.
 class ArExperiment{
 public:
-  ArExperiment(std::string path, std::string tgmmpath, int low, int high, int mem_cap);
+  ArExperiment(std::string path, int low, int high, int mem_cap);
   NrrdFrame* frames;
-  Nrrd* get(int n);
+  Nrrd* get(int n, bool force = false);
   Nrrd* copy(int n);
   std::string getfilepath(int n);
-  std::string gettgmmpath(int n);
+  // std::string gettgmmpath(int n);
   int low;
   int high;
+  std::string filepath;
 private:
   ArFilter filter;
   std::string *paths;
-  std::string *tgmmpaths;
+  // std::string *tgmmpaths;
   int nframes;
   int npaths;
   long time;

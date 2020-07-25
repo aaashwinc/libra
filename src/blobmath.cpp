@@ -226,7 +226,9 @@ std::vector<std::vector<ScaleBlob*>> longest_paths2(std::vector<ScaleBlob*> inpu
   std::sort(infos.begin(), infos.end(), blobinfo::fun_sort_blob_by_length);
 
   printf("search..");
+  // int itr = 100;
   for(blobinfo sbinfo : infos){
+    // if(!itr--)break;
     ScaleBlob* sb = sbinfo.next;
     if(!info[sb].alive)continue;    // continue if this is not alive.
 

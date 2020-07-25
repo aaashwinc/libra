@@ -28,13 +28,37 @@ static inline float sq(float in){
   return in*in;
 }
 static inline void put_color(float x, Colormap &colormap, sf::Uint8 *color){
-  if(x>=1)x=1;
   if(x<0)x=0;
-  vec4 col = colormap.colorof(x);
-  color[0] = ftoi(x);
-  color[1] = ftoi(sqrt(x));
-  color[2] = ftoi(x*x);
-  color[3] = 255;
+  if(x>=6.f){
+    x -= 6.f;
+  }else if(x>=4.f){
+    x -= 4.f;
+    color[0] = ftoi(x);
+    color[2] = ftoi(sqrt(x));
+    color[1] = ftoi(x*x);
+    color[3] = 255;
+  }else if(x>=2.f){
+    x -= 2.f;
+    color[1] = ftoi(x);
+    color[0] = ftoi(sqrt(x));
+    color[2] = ftoi(x*x);
+    color[3] = 255;
+  }else{
+    color[0] = ftoi(x);
+    color[1] = ftoi(sqrt(x));
+    color[2] = ftoi(x*x);
+    color[3] = 255;
+  }
+  // if(x>=1)x=1;
+  // vec4 col = colormap.colorof(x);
+  // color[0] = ftoi(col.x);
+  // color[1] = ftoi(col.y);
+  // color[2] = ftoi(col.z);
+  // color[3] = ftoi(col.w);
+  // color[0] = ftoi(x);
+  // color[1] = ftoi(sqrt(x));
+  // color[2] = ftoi(x*x);
+  // color[3] = 255;
 
 }
 
@@ -230,6 +254,29 @@ void View::drawflat(){
             if(axis == 'z')sum += qsample(0,xx,yy,i);
           }
           vv = sum / vcache.a3;
+        }else if(camera.flat.projmode == '2'){
+          // printf("2");
+          float sum = 0;
+          int n = 0;
+          if(axis == 'x'){
+            for(int i=max(0,int(xx-30)); i<min(int(xx+30),vcache.a1); i++){
+              sum += qsample(0,i,yy,zz);
+              ++n;
+            }
+          }
+          if(axis == 'y'){
+            for(int i=max(0,int(yy-30)); i<min(int(yy+30),vcache.a2); i++){
+              sum += qsample(0,xx,i,zz);
+              ++n;
+            }
+          }
+          if(axis == 'z'){
+            for(int i=max(0,int(zz-30)); i<min(int(zz+30),vcache.a3); i++){
+              sum += qsample(0,xx,yy,i);
+              ++n;
+            }
+          }
+          vv = sum / n;
         }else{
           if(axis == 'x')vv = qsample(0,xx,yy,zz);
           if(axis == 'y')vv = qsample(0,xx,yy,zz);

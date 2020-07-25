@@ -2,6 +2,7 @@
 #include <teem/nrrd.h>
 #include <glm/glm.hpp>
 #include <vector>
+#include <set>
 #include "blob.h"
 #include "bsptree.h"
 
@@ -60,6 +61,7 @@ public:
   void negative(int channel=0);
   void binary(int channel=0);
   void laplacian3d(int boundary = 0);
+  void pass();
   void hessian3d(int boundary = 1);
   void laplacianmasked(float scale = 0);
   void max1();
@@ -67,17 +69,19 @@ public:
   void maxima();
   void print();
   void clear();
+  void show_blobs(int mode=0);
 
 
   void difference_image(Nrrd* x);
 
   int count_connected_components();
+  std::vector<std::set<int>> label_connected_levelsets(float *data, int *labels);
   int count_blobs();
 
 
   // void gaussian(float scale);
   // void lapofgaussian(float scale);
-  void lapofgaussian_masked(float sigma, bool multiply);
+  void lapofgaussian_masked(float sigma, int multiply);
 
   // raster operations
   void rasterlineadd(vec3 a, vec3 b, float va, float vb);

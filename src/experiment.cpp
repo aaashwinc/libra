@@ -29,6 +29,23 @@ static Nrrd* convert_short4_to_float3_and_destroy(Nrrd *nin){
     out[j] /= maxv;
   }  
 
+  // printf("AWENRKAWEJRKAWEKR");
+  // for(int z=0;z<a2;z++){
+  //   float sum = 0;
+  //   for(int x=0;x<a0;x++){
+  //     for(int y=0;y<a1;y++){
+  //       // sum += out[x + y*a0 + z*a0*a1];
+  //       sum = max(sum, out[x + y*a0 + z*a0*a1]);
+  //     }
+  //   }
+  //   for(int x=0;x<a0;x++){
+  //     for(int y=0;y<a1;y++){
+  //       out[x + y*a0 + z*a0*a1] /= sum;
+  //     }
+  //   }
+  //   printf("%.2f\n", sum);
+  // }
+
   nrrdWrap_va(nout, out, nrrdTypeFloat, 3, a1, a2, a3);
   // printf("convert %d %d %d\n", nout->axis[0].size, nout->axis[1].size, nout->axis[2].size);
   nrrdNuke(nin);
@@ -46,18 +63,20 @@ static Nrrd* convert_short3_to_float3_and_destroy(Nrrd *nin){
 
   short *in  = (short*)nin->data;
   float *out = new float[a0*a1*a2];
-
+  // printf("yellow");
   float maxv=0;
   for(int i=0;i<a0*a1*a2;++i){
     out[i] = (float)(in[i] / 32768.0);
     maxv = max(maxv, out[i]);
   }
+  // printf("hi there");
 
   // normalize max value to 1.0
   for(int j=0;j<a0*a1*a2;++j){
     out[j] /= maxv;
-  }  
+  }
 
+  // printf("again.");
   nrrdWrap_va(nout, out, nrrdTypeFloat, 3, a0, a1, a2);
   nrrdNuke(nin);
   return nout;
@@ -73,14 +92,18 @@ static Nrrd* load_nrrd(const char *filename){
     exit(0);
   }
   int dim = nrrd->dim;
+  // printf("hello");
   if(dim == 4){
+    // printf("5");
     return convert_short4_to_float3_and_destroy(nrrd);
   }else if(dim == 3){
+    // printf("4");
     return convert_short3_to_float3_and_destroy(nrrd);
   }else{
     printf("unable to handle nrrd of dim=%d. exit.\n", dim);
     exit(0);
   }
+  // printf("loaded");
 }
 
 
@@ -104,7 +127,7 @@ static int length_first_repeated_sequence(const char *str, const char c){
 
 std::string resolve_filename(std::string path, int index){
   int digits = length_first_repeated_sequence(path.c_str(),'?');   // number of digits;
-  char counter[digits+1];
+char counter[digits+1];
   memset(counter,'\0',digits);      // \0 \0 .... digits .... \0
   snprintf(counter, sizeof(counter), "%0*d", digits, index);
   std::string filename = path;
@@ -115,13 +138,11 @@ std::string resolve_filename(std::string path, int index){
   return filename;
 }
 
-ArExperiment::ArExperiment(std::string path, std::string tgmmpath, int low, int high, int mem_cap){
+ArExperiment::ArExperiment(std::string path, int low, int high, int mem_cap){
   paths     = new std::string[high-low+1];
-  tgmmpaths = new std::string[high-low+1];
   for(int i=low;i<=high;++i){
-    paths[i] = resolve_filename(path, i);
-    tgmmpaths[i] = resolve_filename(tgmmpath, i);
-    // numbers[i] = std::string(counter);
+    paths[i-low] = resolve_filename(path, i);
+    // printf("path = %s\n", paths[i-low].c_str());
   }
 
   frames = new NrrdFrame[mem_cap];
@@ -136,9 +157,10 @@ ArExperiment::ArExperiment(std::string path, std::string tgmmpath, int low, int 
   this->nframes = mem_cap;
   this->npaths  = (high-low+1);
   this->time    = 0;
+  this->filepath = path;
 }
 
-Nrrd* ArExperiment::get(int n){
+Nrrd* ArExperiment::get(int n, bool force){
   // printf("get frame %d\n",n);
   ++time;
   int min_i   = 0;
@@ -151,6 +173,10 @@ Nrrd* ArExperiment::get(int n){
     }
     if(frames[i].n == n){
       frames[i].accessed = time;
+      if(force){
+        nrrdNuke(frames[i].nrrd);
+        frames[i].nrrd = load_nrrd(paths[n-low].c_str());
+      }
       return frames[i].nrrd;
     }
   }
@@ -166,7 +192,7 @@ Nrrd* ArExperiment::get(int n){
   frames[i].nrrd = load_nrrd(paths[n-low].c_str());
 
   filter.init(frames[i].nrrd);
-  filter.normalize();
+  // filter.threshold(0.05,1.0);
   // filter.threshold(0.1,1.0);
   filter.commit();
 
@@ -175,11 +201,12 @@ Nrrd* ArExperiment::get(int n){
 }
 
 std::string ArExperiment::getfilepath(int n){
+  // printf("path = %s\n", paths[0].c_str());
   return paths[n-low];
 }
-std::string ArExperiment::gettgmmpath(int n){
-  return tgmmpaths[n-low];
-}
+// std::string ArExperiment::gettgmmpath(int n){
+//   return tgmmpaths[n-low];
+// }
 // std::string ArExperiment::getfilenumber(int n){
 //   return numbers[n-low];
 // }

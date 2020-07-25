@@ -20,12 +20,14 @@ ScaleBlob::ScaleBlob(){
   max   = vec3(0);
 
   parent = 0;
-  scale  = 0;
+  scale  = -1;
   // volume = 0;
+
+  npixels = 0;
   n      = 0;
   npass  = 0;
 
-  peakvalue = 0;
+  peakvalue = 1;
 
   pred = std::vector<ScaleBlob*>();
   succ = std::vector<ScaleBlob*>();
@@ -34,10 +36,27 @@ ScaleBlob::ScaleBlob(){
 
   model.type = '_';
 
+
+
+  pass_sum_imagev = 0;
+  pass_sum_expect = 0;
   // initialized = false;
 }
+
+static void printm(glm::mat3 m){
+  printf("matrix"
+    "\n   %.2f %.2f %.2f;"
+    "\n   %.3f %.3f %.3f;"
+    "\n   %.3f %.3f %.3f;"
+    "\n",
+    m[0][0],m[0][1],m[0][2],
+    m[1][0],m[1][1],m[1][2],
+    m[2][0],m[2][1],m[2][2]);
+}
+
 void ScaleBlob::pass(vec3 point, float value){
   if(npass == 0){  // calculate mean, min, max.
+    npixels += 1;
     position += dvec3(point*value);
     n += value;
     if(point.x<min.x)min.x = point.x;
@@ -50,14 +69,99 @@ void ScaleBlob::pass(vec3 point, float value){
   if(npass == 1){  // calculate covariance.
     // printf("yo!");
     vec3 v = point - vec3(position);
-    shape[0][0] += v.x*v.x*value/(n-1);
-    shape[0][1] += v.x*v.y*value/(n-1);
-    shape[0][2] += v.x*v.z*value/(n-1);
-    shape[1][1] += v.y*v.y*value/(n-1);
-    shape[1][2] += v.y*v.z*value/(n-1);
-    shape[2][2] += v.z*v.z*value/(n-1);
+    shape[0][0] += v.x*v.x*value/(n);
+    shape[0][1] += v.x*v.y*value/(n);
+    shape[0][2] += v.x*v.z*value/(n);
+    shape[1][1] += v.y*v.y*value/(n);
+    shape[1][2] += v.y*v.z*value/(n);
+    shape[2][2] += v.z*v.z*value/(n);
 
+  }
+  if(npass == 2){
+    // vec3 p = point - vec3(position);
+    // pass_sum_expect += exp(-0.5 * glm::dot(p, invCov*p));
+    // pass_sum_imagev += value;
+    // // pass_distances.push_back();
+    // pass_distances_weights.push_back(std::make_pair(glm::dot(p, invCov*p), value/n));
+    // printf("%.2f; ", glm::dot(p, invCov*p));
+  }
+}
+void ScaleBlob::commit(){
+  // printf("commit %p\n", this);
+  if(npass == 0){  // compute mean.
+    position /= double(n);
+    npass = 1;
+  }
+  else if(npass == 1){  // compute covariance matrix.
+    // shape /= double(n);
+    shape[1][0] = shape[0][1];
+    shape[2][0] = shape[0][2];
+    shape[2][1] = shape[1][2];
+    // npass = 2;
 
+    invCov    = glm::inverse(mat3(shape));
+    detCov    = fabs(glm::determinant(shape));
+    // // pdfCoef   = pow(glm::determinant(invCov*pi*2.0),-0.5);
+    pdfCoef   = pow(2.0*pi, -1.5)*pow(glm::determinant(invCov), -0.5);
+
+    // fshape = shape;
+
+    covariance << invCov[0][0], invCov[0][1], invCov[0][2],
+                  invCov[1][0], invCov[1][1], invCov[1][2],
+                  invCov[2][0], invCov[2][1], invCov[2][2];
+
+    npass = 2;
+    ll_is_blob = 0;
+    // printm(shape);
+  }
+  else if(npass == 2){
+    // float distsq95 = 1;
+    // if(pass_distances_weights.size() > 0){
+
+    //   std::sort(pass_distances_weights.begin(), pass_distances_weights.end());
+    //   float sum = 0;
+    //   int i=0;
+    //   while(sum < 0.5){
+    //     sum += pass_distances_weights[i].second;
+    //     ++i;
+    //   }
+    //   int ind95 = i-1;
+    //   // std::nth_element(pass_distances.begin(), pass_distances.begin() + ind95, pass_distances.end());
+    //   float avg = 0;
+    //   float qsum = 0;
+    //   for(int i=0;i<pass_distances_weights.size(); i++){
+    //     avg += (pass_distances_weights[i].first) * pass_distances_weights[i].second;
+    //     if(pass_distances_weights[i].first < 1){
+    //       qsum += pass_distances_weights[i].second;
+    //     }
+    //   }
+    //   // avg /=   pass_distances.size();
+    //   printf("sum = %.2f\n", qsum);
+    //   // printf("n = %.3f\n", n);
+    //   printf("ind95 %d/%d\n", ind95, pass_distances_weights.size());
+    //   printf("avg = %.2f\n", avg);
+    //   // printf("median = %.4f", 3.f*pow(1.-(2./(9.*3.  )), 3.f));
+    //   distsq95 = pass_distances_weights[ind95].first;
+    // }
+
+    // printf("d = %.4f\n", sqrt(distsq95));
+
+    // shape *= sqrt(distsq95);
+    // min -= vec3(10,10,10);
+    // max += vec3(10,10,10);
+
+    // invCov    = glm::inverse(mat3(shape));
+    // detCov    = fabs(glm::determinant(shape));
+    // pdfCoef   = pow(2.0*pi, -1.5)*pow(glm::determinant(invCov), -0.5);
+
+    // // // fshape = shape;
+
+    // covariance << invCov[0][0], invCov[0][1], invCov[0][2],
+    //               invCov[1][0], invCov[1][1], invCov[1][2],
+    //               invCov[2][0], invCov[2][1], invCov[2][2];
+
+    peakvalue = pass_sum_imagev / pass_sum_expect;
+  // initialized = true;
   }
 }
 float ScaleBlob::pdf(vec3 p){
@@ -106,9 +210,9 @@ float ScaleBlob::celldot(vec3 p){
   p = p - vec3(position);
   float mag = sqrt(glm::dot(p,p));
   // if(mag < 1.f)printf("mag=%.2f\n", mag);
-  if(mag<1.f)  return 1.f;
+  if(mag<=1.42f)  return 1.f;
   if(mag>3.5f) return 0.f;
-  else         return 0.5f;
+  else         return 0.f;
   // else         return 1 - 0.4 * (-1 + mag);
   // else         return float(erf(2-mag)*0.5+0.5);
   // float mag = glm::dot(p,(invCov*p));
@@ -170,31 +274,6 @@ float ScaleBlob::modelpdf(vec3 p){
   }else{
     return generalized_multivariate_gaussian_pdf(p);
   }
-}
-void ScaleBlob::commit(){
-  if(npass == 0){  // compute mean.
-    position /= double(n);
-    npass = 1;
-  }
-  else if(npass == 1){  // compute covariance matrix.
-    // shape /= double(n-1);
-    shape[1][0] = shape[0][1];
-    shape[2][0] = shape[0][2];
-    shape[2][1] = shape[1][2];
-    npass = 2;
-
-    invCov    = glm::inverse(mat3(shape));
-    detCov    = fabs(glm::determinant(shape));
-    // pdfCoef   = pow(glm::determinant(invCov*pi*2.0),-0.5);
-    pdfCoef   = pow(2.0*pi, -1.5)*pow(glm::determinant(invCov), -0.5);
-
-    // fshape = shape;
-
-    covariance << invCov[0][0], invCov[0][1], invCov[0][2],
-                  invCov[1][0], invCov[1][1], invCov[1][2],
-                  invCov[2][0], invCov[2][1], invCov[2][2];
-  }
-  // initialized = true;
 }
 void ScaleBlob::print(){
   printf("blob %.2f at %.2f %.2f %.2f; xyz %.3f %.3f %.3f; xy/xz/yz %.3f %.3f %.3f\n", n,
@@ -371,4 +450,48 @@ float ScaleBlob::distance(ScaleBlob *blob){
 
   /*** simple distance ***/
   // return length(blob->position - position);
+}
+
+float ScaleBlob::wasserstein_distance(ScaleBlob* blob){
+    /*** Wasserstein metric:  ***/
+
+  using namespace Eigen;
+  SelfAdjointEigenSolver<Eigen::Matrix3f> solver(covariance);
+  
+  Matrix3f sqc2 = solver.operatorSqrt();
+  Matrix3f c2c1c2 = sqc2 * blob->covariance * sqc2;
+  
+  solver = SelfAdjointEigenSolver<Matrix3f>(c2c1c2);
+  Matrix3f sqrtc2c1c2 = solver.operatorSqrt();
+  Matrix3f whole = blob->covariance + covariance - (2.f * sqrtc2c1c2);
+
+  float trace = whole.trace();
+  vec3  delta = blob->position - position;
+  return (dot(delta, delta)) + trace;
+}
+
+float ScaleBlob::covmaxev(){
+  using namespace Eigen;
+  SelfAdjointEigenSolver<Eigen::Matrix3f> solver(covariance);
+  auto evs = solver.eigenvalues();
+  // printf("evs %.2f %.2f %.2f %.2f\n", 1/evs[0], 1/evs[1], 1/evs[2], cbrt(detCov));
+  // if(evs[0] != evs[0])return 0;
+  float ev = 1.f/fabs(evs[0]);
+  if(isnan(ev) || isinf(ev))return 0;
+  return ev;
+  // return 3.f*cbrt(detCov);
+}
+
+float ScaleBlob::covconditionnumber(){
+  using namespace Eigen;
+  SelfAdjointEigenSolver<Eigen::Matrix3f> solver(covariance);
+  auto evs = solver.eigenvalues();
+  // printf("evs %.2f %.2f %.2f %.2f\n", 1/evs[0], 1/evs[1], 1/evs[2], cbrt(detCov));
+  // if(evs[0] != evs[0])return 0;
+  float ev_max = 1.f/fabs(evs[0]);
+  float ev_min = 1.f/fabs(evs[2]);
+  if(isnan(ev_max) || isinf(ev_max))return 0;
+  if(isnan(ev_min) || isinf(ev_min))return 0;
+  return ev_max/ev_min;
+  // return 3.f*cbrt(detCov);
 }
